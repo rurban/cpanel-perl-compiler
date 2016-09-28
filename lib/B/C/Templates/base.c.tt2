@@ -23,6 +23,8 @@
 #undef OP_MAPSTART
 #define OP_MAPSTART OP_GREPSTART
 
+ 
+
 #ifdef BROKEN_STATIC_REDECL
 #define Static extern
 #else
@@ -66,7 +68,24 @@ static void dl_init (pTHX);
 
 [% IF av_init2 AND use_declare_independent_comalloc %]
 void** dlindependent_comalloc(size_t, size_t*, void**);
-[% END %]
+[% END %] 
+
+typedef struct shared_he SHARED_HE;
+
+#define IMMORTAL_PL_strtab 0x7ffffff
+
+#define STATIC_SHARED_HE_ALLOC(index, length_of_key, key_string, flags_byte) \
+    struct shared_he_struct_##index { HE *hent_next; HEK *hent_hek; union { SV *hent_val;  Size_t hent_refcount; } he_valu;  U32 hek_hash;  I32 hek_len;  char hek_key[ length_of_key + 1]; char flags; }; \
+    struct shared_he_struct_##index shared_he_##index = { NULL, NULL, { .hent_refcount = IMMORTAL_PL_strtab }, 0, length_of_key, key_string, flags_byte  };
+    
+/* sharedhe definitions using the STATIC_SHARED_HE_ALLOC macro */
+[% section.sharedhe.output( "%s\n" ) %]
+
+Static SHARED_HE* sharedhe_list[[% section.sharedhe.index + 1 %]] =  {
+[%- FOREACH num IN [ 0 .. section.sharedhe.index ] %]
+    (SHARED_HE*) &shared_he_[% num %],
+[%- END %]
+};
 
 [% IF ! destruct %]
 static int fast_perl_destruct( PerlInterpreter *my_perl );
@@ -135,6 +154,8 @@ struct my_padname_with_str {
 #endif
     char               xpadn_str[60]; /* longer lexical upval names are forbidden for now */
 };
+
+/* Missing type defs in perl so we'll make our own. */
 typedef struct my_padname_with_str MyPADNAME;
 
 /*
@@ -154,11 +175,12 @@ Static GV *gv_list[[% gv_index %]];
 
 /* back in output_all() */
 
-[% FOREACH sect IN section_list %]
-[% lines = section.$sect.index + 1 %]
-[% NEXT IF lines == 0 %]
+/* define all Static sections */
+[% FOREACH sect IN section_list -%]
+[% lines = section.$sect.index + 1 -%]
+[% NEXT IF lines == 0 -%]
 Static [% section.$sect.typename() %] [% section.$sect.name() %]_list[[% lines %]];
-[% END %]
+[% END -%]
 
 /* hack for when Perl accesses PVX of GVs */
 Static const char emptystring[] = "\0";
@@ -251,6 +273,54 @@ Static [% section.$sect.typename() %] [% section.$sect.name() %]_list[[% lines %
 };
 
 [% END %]
+
+static void init_pl_strtab(pTHX) {
+/* only init PL_strtab if we have content for it */
+[% IF section.sharedhe.index + 1 > 0 %]
+
+    if (PL_hash_seed_set == FALSE) {
+        Perl_get_hash_seed(aTHX_ PL_hash_seed);
+        PL_hash_seed_set= TRUE;
+    }
+
+    PL_strtab = newHV();
+
+    /* manual malloc */    
+    //char * array;
+    //Newxz (array, PERL_HV_ARRAY_ALLOC_BYTES ([% PL_strtab_max %]) + sizeof(struct xpvhv_aux), char);
+    //HvARRAY (PL_strtab) = (HE **) array;
+    
+    /* automatic malloc */    
+    hv_ksplit(PL_strtab, [% PL_strtab_max %]);
+    HvSHAREKEYS_off(PL_strtab);                        /* mandatory */
+    //SvOOK_on(PL_strtab);
+
+    {
+        int i;
+        HE   *entry;
+        HE  **oentry;
+        HEK  *hek_struct;
+
+        //HvMAX(PL_strtab) = [% PL_strtab_max - 1 %];
+        HvTOTALKEYS(PL_strtab) = [% section.sharedhe.index + 1 %];
+        SvREFCNT(PL_strtab) = 99999;
+
+        for (i=0; i < [% section.sharedhe.index + 1 %]; i++) {
+            entry = &(sharedhe_list[i]->shared_he_he);
+            hek_struct = &(sharedhe_list[i]->shared_he_hek);
+
+            HeKEY_hek(entry) = hek_struct;
+            PERL_HASH (HEK_HASH(hek_struct), HEK_KEY(hek_struct), HEK_LEN(hek_struct));
+
+            /* Insert the hes */
+            oentry = &(HvARRAY (PL_strtab))[HEK_HASH(hek_struct) & (I32) [% PL_strtab_max - 1 %]  ];
+            HeNEXT(entry) = *oentry;
+            *oentry = entry;
+        }
+    }
+
+[% END %]
+}
 
 static void perl_init0(pTHX) { /* fixup_ppaddr */
 [% section.init0.output( "    %s\n" ) %]
@@ -761,6 +831,7 @@ main(int argc, char **argv, char **env)
 #define PL_do_undump 0
 #endif
     if (!PL_do_undump) {
+    init_pl_strtab();
 	my_perl = perl_alloc();
 	if (!my_perl)
 	    exit(1);

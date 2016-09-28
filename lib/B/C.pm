@@ -30,7 +30,7 @@ use B::C::Config::Debug ();    # used for setting debug levels from cmdline
 use B::C::File qw( init2 init0 init decl free
   heksect binopsect condopsect copsect padopsect listopsect logopsect
   opsect pmopsect pvopsect svopsect unopsect svsect xpvsect xpvavsect xpvhvsect xpvcvsect xpvivsect xpvuvsect
-  xpvnvsect xpvmgsect xpvlvsect xrvsect xpvbmsect xpviosect padlistsect loopsect
+  xpvnvsect xpvmgsect xpvlvsect xrvsect xpvbmsect xpviosect padlistsect loopsect sharedhe
 );
 use B::C::Helpers qw/set_curcv is_using_mro/;
 use B::C::Helpers::Symtable qw(objsym savesym);
@@ -1540,6 +1540,9 @@ sub build_template_stash {
 
         $[ and die 'Since the variable is deprecated, B::C does not support setting $[ to anything other than 0';
     }
+
+    # PL_strtab's hash size
+    $c_file_stash->{'PL_strtab_max'} = B::HV::get_max_hash_from_keys( sharedhe()->index() + 1, 511 ) + 1;
 
     return $c_file_stash;
 }

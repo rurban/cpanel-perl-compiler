@@ -4,13 +4,14 @@ use strict;
 
 use B qw(cstring);
 use B::C::Config;
-use B::C::File qw( decl init );
+use B::C::File qw( decl init sharedhe);
 use B::C::Helpers qw/strlen_flags/;
+use B::C::SaveCOW qw/savepv/;
 
 use Exporter ();
 our @ISA = qw(Exporter);
 
-our @EXPORT_OK = qw/save_hek/;
+our @EXPORT_OK = qw/save_hek save_shared_he/;
 
 my %hektable;
 my $hek_index = 0;
@@ -47,6 +48,7 @@ sub save_hek {
     #   user-input (object fields) does not affect strtab, it is pretty safe.
     # But we need to randomize them to avoid run-time conflicts
     #   e.g. "Prototype mismatch: sub bytes::length (_) vs (_)"
+
     init()->add(
         sprintf(
             "%s = share_hek(%s, %d, %s);",
@@ -55,6 +57,24 @@ sub save_hek {
     );
 
     return $sym;
+}
+
+my %saved_shared_hash;
+
+sub save_shared_he {
+    my $key = shift;
+
+    return $saved_shared_hash{$key} if $saved_shared_hash{$key};
+
+    my ( $cstr, $cur, $utf8 ) = strlen_flags($key);
+
+    #$cur *= -1 if $utf8;
+
+    my $index = sharedhe()->index() + 1;
+
+    sharedhe()->add( sprintf( "STATIC_SHARED_HE_ALLOC(%d, %d, %s, %d);", $index, $cur, $cstr, $utf8 ? 1 : 0 ) );
+
+    return $saved_shared_hash{$key} = sprintf( q{sharedhe_list[%d]}, $index );
 }
 
 1;

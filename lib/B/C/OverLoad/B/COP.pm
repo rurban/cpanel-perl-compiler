@@ -122,7 +122,7 @@ sub save {
                 my $cophh = sprintf( "cophh%d", scalar keys %cophhtable );
                 $cophhtable{$$hints} = $cophh;
                 decl()->add( sprintf( "Static COPHH *%s;", $cophh ) );
-                for my $k ( keys %$hint_hv ) {
+                foreach my $k ( sort keys %$hint_hv ) {
                     my ( $ck, $kl, $utf8 ) = strlen_flags($k);
                     my $v = $hint_hv->{$k};
                     next if $k eq ':';    #skip label, see below

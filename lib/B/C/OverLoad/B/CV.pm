@@ -703,6 +703,7 @@ sub save {
 
         # $sym fixed test 27
         init()->add( sprintf( "CvSTASH_set((CV*)%s, s\\_%x);", $sym, $$stash ) );
+        #init()->add( sprintf( "SvREFCNT_inc(%s);", $sym) ); # fixes mro/basic.t and more
 
         # 5.18 bless does not inc sv_objcount anymore. broken by ddf23d4a1ae (#208)
         # We workaround this 5.18 de-optimization by adding it if at least a DESTROY

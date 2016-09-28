@@ -108,13 +108,20 @@ sub WARN { return verbose() && display_message( "[WARNING]", @_ ) }
 sub INFO { return verbose() && display_message( "[INFO]", @_ ) }
 sub FATAL { die display_message( "[FATAL]", @_ ) }
 
+my $logfh;
+
 sub display_message {
     return unless scalar @_;
     my $txt = join( " ", map { defined $_ ? $_ : 'undef' } @_ );
 
+
     # just safety to avoid double \n
     chomp $txt;
     print STDERR "$txt\n";
+    if ( $ENV{BC_DEVELOPING} ) {
+        $logfh or open( $logfh, '>', 'fullog.txt' );
+        print ${logfh} "$txt\n";
+    }
 
     return;
 }
