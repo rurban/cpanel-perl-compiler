@@ -4,7 +4,7 @@ use strict;
 
 use Config ();    # TODO: Removing this causes unit tests to fail in B::C ???
 use B::C::Config;
-use B qw/SVf_ROK SVf_READONLY HEf_SVKEY SVf_READONLY SVf_AMAGIC cstring cchar SVp_POK svref_2object class/;
+use B qw/SVf_ROK SVf_READONLY HEf_SVKEY SVf_READONLY SVf_AMAGIC SVf_IsCOW cstring cchar SVp_POK svref_2object class/;
 use B::C::Save qw/savepvn savepv savestashpv/;
 use B::C::Decimal qw/get_integer_value get_double_value/;
 use B::C::File qw/init init1 init2 svsect xpvmgsect xpvsect pmopsect/;
@@ -21,7 +21,7 @@ sub save {
         }
         return $sym;
     }
-    my ( $savesym, $cur, $len, $pv, $static ) = B::C::save_pv_or_rv( $sv, $fullname );
+    my ( $savesym, $cur, $len, $pv, $static, $flags ) = B::PV::save_pv_or_rv( $sv, $fullname );
     if ($static) {    # 242: e.g. $1
         $static = 0;
         $len = $cur + 1 unless $len;
@@ -53,7 +53,7 @@ sub save {
         }
     }
 
-    if ( $sv->FLAGS & SVf_ROK ) {          # sv => sv->RV cannot be initialized static.
+    if ( $flags & SVf_ROK ) {              # sv => sv->RV cannot be initialized static.
         init()->add( sprintf( "SvRV_set(&sv_list[%d], (SV*)%s);", svsect()->index + 1, $savesym ) )
           if $savesym ne '';
         $savesym = 'NULL';
@@ -71,7 +71,7 @@ sub save {
     svsect()->add(
         sprintf(
             "&xpvmg_list[%d], %Lu, 0x%x, {%s}",
-            xpvmgsect()->index, $sv->REFCNT, $sv->FLAGS,
+            xpvmgsect()->index, $sv->REFCNT, $flags,
             $savesym eq 'NULL'
             ? '0'
             : ".svu_pv=(char*)" . $savesym
@@ -80,10 +80,7 @@ sub save {
 
     svsect()->debug( $fullname, $sv );
     my $s = "sv_list[" . svsect()->index . "]";
-    if ( !$static ) {    # do not overwrite RV slot (#273)
-                         # XXX comppadnames need &PL_sv_undef instead of 0 (?? which testcase?)
-        init()->add( savepvn( "$s.sv_u.svu_pv", $pv, $sv, $cur ) );
-    }
+
     $sym = savesym( $sv, "&" . $s );
     $sv->save_magic($fullname);
     return $sym;
@@ -332,6 +329,8 @@ sub _patch_dlsym {
     my $name = $sv->FLAGS & SVp_POK() ? $sv->PVX : "";
     my $ivxhex = sprintf( "0x%x", $ivx );
 
+    # lazy load encode after walking the optree
+
     if ( $pkg eq 'Encode::XS' ) {
         $pkg = 'Encode';
         if ( $fullname eq 'Encode::Encoding{iso-8859-1}' ) {
@@ -389,7 +388,7 @@ sub _patch_dlsym {
     }
 
     # Encode-2.59 uses a different name without _encoding
-    elsif ( Encode::find_encoding($name) ) {
+    elsif ( 'Encode'->can('find_encoding') && Encode::find_encoding($name) ) {
         my $enc = Encode::find_encoding($name);
         $pkg = ref($enc) if ref($enc) ne 'Encode::XS';
 
@@ -450,12 +449,7 @@ sub _savere {
     #   at least not triggered by the core unit tests
 
     xpvsect()->add( sprintf( "Nullhv, {0}, %u, {.xpvlenu_len=%u}", $cur, $len ) );    # 0 or $len ?
-    svsect()->add(
-        sprintf(
-            "&xpv_list[%d], 1, %x, {%s}", xpvsect()->index,
-            0x4405, '.svu_pv=(char*)' . savepv($pv)
-        )
-    );
+    svsect()->add( sprintf( "&xpv_list[%d], 1, %x, {.svu_pv=(char*)%s}", xpvsect()->index, 0x4405, savepv($pv) ) );
     $sym = sprintf( "&sv_list[%d]", svsect()->index );
 
     return ( $sym, $cur );
