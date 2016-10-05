@@ -57,6 +57,7 @@ op/override.t                COMPAT    crazy test which override CORE::GLOBAL::r
 op/postfixderef.t            TESTS     BC issue #302 - quoted eval scope doesn't honor use feature.
 op/readline.t                TESTS     BC issue #269 - Modification of a read-only value attempted
 op/ref.t                     TESTS     BC issue #300 - PVFM not compiled
+op/sprintf2.t                SKIP      flapping test: Tests are in sequence
 op/stash.t                   TESTS     BC issue #221 - delete is not anonymizing the returned sub
 op/sub_lval.t                TESTS     BC issue #277 - sub declaration with :lvalue should apply it to XSUBs
 op/svleak.t                  COMPAT    This test uses XS::APItest, which we don't install during perl install?
@@ -110,6 +111,7 @@ xtestc/0230.t                TESTS     Output is: "\n"
 xtestc/0237.t                TESTS     Output is: " "
 xtestc/0239.t                TESTS     Output is: "ok 1\n\n"
 xtestc/0241.t                TESTS     Output is: ""
+xtestc/0245.t                TESTS     Output is: "0245.bin: sv.c:6100: Perl sv ..." expect "ok"
 xtestc/0247.t                TESTS     Output is: ""
 xtestc/0248.t                TESTS     Output is: " toto \n"
 xtestc/0253.t                TESTS     Output is: "Subroutine loose name ..." expect "ok"
