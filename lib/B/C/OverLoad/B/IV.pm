@@ -4,7 +4,7 @@ use strict;
 
 use B qw/SVf_ROK SVf_IOK SVp_IOK SVf_IVisUV/;
 use B::C::Config;
-use B::C::File qw/init svsect xpvivsect/;
+use B::C::File qw/init svsect/;
 use B::C::Decimal qw/get_integer_value/;
 use B::C::Helpers::Symtable qw/objsym savesym/;
 
@@ -23,37 +23,65 @@ sub save {
         return $sv->B::UV::save($fullname);
     }
     my $ivx = get_integer_value( $sv->IVX );
-    my $i   = svsect()->index + 1;
-    if ( $svflags & 0xff and !( $svflags & ( SVf_IOK | SVp_IOK ) ) ) {    # Not nullified
-        unless (
-            ( $svflags & 0x00010000 )                                     # PADSTALE - out of scope lexical is !IOK
-            or ( $svflags & 0x60002 )
-          ) {
-            warn sprintf( "Internal warning: IV !IOK $fullname sv_list[$i] 0x%x\n", $svflags );
-        }
-    }
-
-    svsect()->add( sprintf( "NULL, %lu, 0x%x, {.svu_iv=%s}", $sv->REFCNT, $svflags, $ivx ) );
-
-    #32bit  - sizeof(void*), 64bit: - 2*ptrsize
-    if ( $B::C::Flags::Config{ptrsize} == 4 ) {
-        init()->add( sprintf( "sv_list[%d].sv_any = (void*)&sv_list[%d] - sizeof(void*);", $i, $i ) );
-    }
-    else {
-        init()->add(
-            sprintf(
-                "sv_list[%d].sv_any = (char*)&sv_list[%d] - %d;", $i, $i,
-                2 * $B::C::Flags::Config{ptrsize}
-            )
-        );
-    }
 
     svsect()->debug( $fullname, $sv );
-    debug(
-        sv => "Saving IV 0x%x to xpviv_list[%d], sv_list[%d], called from %s:%s\n",
-        $sv->IVX, xpvivsect()->index, $i, @{ [ ( caller(1) )[3] ] }, @{ [ ( caller(0) )[2] ] }
-    );
-    savesym( $sv, sprintf( "&sv_list[%d]", $i ) );
+
+    my $i = svsect()->add( sprintf( "NULL, %lu, 0x%x, {.svu_iv=%s}", $sv->REFCNT, $svflags, $ivx ) );
+    my $sym = savesym( $sv, sprintf( "&sv_list[%d]", $i ) );
+
+=pod
+    Since 5.24 we can access the IV/NV/UV value from either the union from the main SV body
+    or also from the SvANY of it...
+
+    As IV family do not need/have one SvANY we are going to cheat....
+    by setting a 'virtual' pointer to the SvANY to an unsignificant memory address
+    but once we try to access to the IV value of it... this will point to the
+    single location where it's store in the body of the main SV....
+
+    So two differents way to access to the same memory location.
+
+=cut
+
+    # the bc_SET_SVANY_FOR_BODYLESS_IV version just uses extra parens to be able to use a pointer [need to add patch to perl]
+    init()->add( sprintf( "bc_SET_SVANY_FOR_BODYLESS_IV(%s);", $sym ) );
+
+    return $sym;
 }
 
 1;
+__END__
+ from sv.h
+
+ /*
+ * Bodyless IVs and NVs!
+ *
+ * Since 5.9.2, we can avoid allocating a body for SVt_IV-type SVs.
+ * Since the larger IV-holding variants of SVs store their integer
+ * values in their respective bodies, the family of SvIV() accessor
+ * macros would  naively have to branch on the SV type to find the
+ * integer value either in the HEAD or BODY. In order to avoid this
+ * expensive branch, a clever soul has deployed a great hack:
+ * We set up the SvANY pointer such that instead of pointing to a
+ * real body, it points into the memory before the location of the
+ * head. We compute this pointer such that the location of
+ * the integer member of the hypothetical body struct happens to
+ * be the same as the location of the integer member of the bodyless
+ * SV head. This now means that the SvIV() family of accessors can
+ * always read from the (hypothetical or real) body via SvANY.
+ *
+ * Since the 5.21 dev series, we employ the same trick for NVs
+ * if the architecture can support it (NVSIZE <= IVSIZE).
+ */
+
+/* The following two macros compute the necessary offsets for the above
+ * trick and store them in SvANY for SvIV() (and friends) to use. */
+
+#ifdef PERL_CORE
+#  define SET_SVANY_FOR_BODYLESS_IV(sv) \
+       SvANY(sv) =   (XPVIV*)((char*)&(sv->sv_u.svu_iv) \
+                    - STRUCT_OFFSET(XPVIV, xiv_iv))
+
+#  define SET_SVANY_FOR_BODYLESS_NV(sv) \
+       SvANY(sv) =   (XPVNV*)((char*)&(sv->sv_u.svu_nv) \
+                    - STRUCT_OFFSET(XPVNV, xnv_u.xnv_nv))
+#endif

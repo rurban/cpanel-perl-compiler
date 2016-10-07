@@ -72,6 +72,14 @@ void** dlindependent_comalloc(size_t, size_t*, void**);
 
 typedef struct shared_he SHARED_HE;
 
+/* these bc_*bodyless* macros are just using an extra parens around sv, should patch perl */
+#define bc_SET_SVANY_FOR_BODYLESS_IV(sv) \
+       SvANY(sv) =   (XPVIV*)((char*)&((sv)->sv_u.svu_iv) - STRUCT_OFFSET(XPVIV, xiv_iv))
+
+#define bc_SET_SVANY_FOR_BODYLESS_UV(sv) \
+       SvANY(sv) =   (XPVUV*)((char*)&((sv)->sv_u.svu_uv) - STRUCT_OFFSET(XPVUV, xuv_uv))
+
+
 #define IMMORTAL_PL_strtab 0x7ffffff
 
 #define STATIC_SHARED_HE_ALLOC(index, length_of_key, key_string, flags_byte) \

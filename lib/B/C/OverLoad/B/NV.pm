@@ -9,6 +9,7 @@ use B::C::File qw/xpvnvsect svsect/;
 use B::C::Decimal qw/get_double_value/;
 use B::C::Helpers::Symtable qw/objsym savesym/;
 
+# TODO NVs should/could be bodyless ? view IVs, UVs
 sub save {
     my ( $sv, $fullname ) = @_;
 
@@ -30,7 +31,7 @@ sub save {
         sv => "Saving NV %s to xpvnv_list[%d], sv_list[%d]\n",
         $nv, xpvnvsect()->index, svsect()->index
     );
-    savesym( $sv, sprintf( "&sv_list[%d]", svsect()->index ) );
+    return savesym( $sv, sprintf( "&sv_list[%d]", svsect()->index ) );
 }
 
 1;
