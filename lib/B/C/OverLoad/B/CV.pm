@@ -9,7 +9,7 @@ use B::C::Config;
 use B::C::Decimal qw/get_integer_value/;
 use B::C::Packages qw/is_package_used/;
 use B::C::Save qw/savepvn constpv/;
-use B::C::Save::Hek qw/save_hek/;
+use B::C::Save::Hek qw/save_shared_he/;
 use B::C::File qw/init init2 decl svsect xpvcvsect symsect/;
 use B::C::Helpers qw/get_cv_string strlen_flags set_curcv/;
 use B::C::Helpers::Symtable qw/objsym savesym delsym/;
@@ -538,9 +538,7 @@ sub save {
     elsif ( ref( $cv->OUTSIDE ) eq 'B::CV' ) {
         $xcv_outside = 0;    # just a placeholder for a run-time GV
     }
-
-    $pvsym = save_hek($pv);
-
+    
     # XXX issue 84: we need to check the cv->PV ptr not the value.
     # "" is different to NULL for prototypes
     $len = $cur ? $cur + 1 : 0;
@@ -730,8 +728,10 @@ sub save {
 
     # issue 84: empty prototypes sub xx(){} vs sub xx{}
     if ( defined $pv ) {
+        $pvsym = save_shared_he($pv);
         if ($cur) {
-            init()->add( sprintf( "SvPVX(&sv_list[%d]) = HEK_KEY(%s);", $sv_ix, $pvsym ) );
+            init()->add( sprintf( "SvPVX(&sv_list[%d]) = %s->shared_he_hek.hek_key;", $sv_ix, $pvsym ) );
+            #define HEK_BASESIZE               STRUCT_OFFSET(HEK, hek_key[0])
         }
         elsif ( !$B::C::const_strings ) {    # not static, they are freed when redefined
             init()->add(
