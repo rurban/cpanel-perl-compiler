@@ -134,12 +134,6 @@ sub save_pv_or_rv {
     # do not use cowpvs for shared_hek for now (not ready)
     if ($shared_hek) {
         $len = 0;    # hek should have len 0
-
-        if ( $cur && $fullname ne 'svop const' ) {    # need investigation
-            $savesym = 'NULL';                        # set 0 and use regular init for hek
-            $static  = 0;
-            $flags   = $sv->FLAGS;                    # restore flags to their previous value
-        }
     }
 
     debug(
@@ -150,4 +144,5 @@ sub save_pv_or_rv {
 
     return ( $savesym, $cur, $len, $pv, $static, $flags );
 }
+
 1;
