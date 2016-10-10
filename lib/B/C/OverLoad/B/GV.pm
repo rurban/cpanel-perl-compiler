@@ -5,7 +5,7 @@ use strict;
 use B qw/cstring svref_2object SVt_PVGV SVf_ROK SVf_UTF8/;
 
 use B::C::Config;
-use B::C::Save::Hek qw/save_hek/;
+use B::C::Save::Hek qw/save_shared_he/;
 use B::C::Packages qw/is_package_used/;
 use B::C::File qw/init init2/;
 use B::C::Helpers qw/mark_package get_cv_string strlen_flags/;
@@ -655,18 +655,11 @@ sub save {
             #init()->add(sprintf("GvFILE_HEK($sym) = hek_list[%d];", heksect()->index));
 
             # XXX Maybe better leave it NULL or asis, than fighting broken
-            if ( $B::C::stash and $fullname =~ /::$/ ) {
-
-                # ignore stash hek asserts when adding the stash
-                # he->shared_he_he.hent_hek == hek assertions (#46 with IO::Poll::)
-            }
-            else {
-                my $file = save_hek( $gv->FILE );
-                init()->add( sprintf( "GvFILE_HEK(%s) = %s;", $sym, $file ) )
+            if ( ! $B::C::stash or $fullname !~ /::$/ ) {
+                my $file = save_shared_he( $gv->FILE );
+                init()->add( sprintf( "GvFILE_HEK(%s) = &(%s->shared_he_hek);", $sym, $file ) )
                   if $file ne 'NULL' and !$B::C::optimize_cop;
             }
-
-            # init()->add(sprintf("GvNAME_HEK($sym) = %s;", save_hek($gv->NAME))) if $gv->NAME;
 
             my $gvform = $gv->FORM;
             if ( $$gvform && $savefields & Save_FORM ) {

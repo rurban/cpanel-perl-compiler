@@ -6,7 +6,7 @@ use B qw(cstring svref_2object);
 use B::C::Config;
 use B::C::File qw( xpvmgsect decl init );
 use B::C::Helpers qw/strlen_flags is_shared_hek cstring_cow/;
-use B::C::Save::Hek qw/save_hek/;
+use B::C::Save::Hek qw/save_shared_he/;
 
 use Exporter ();
 our @ISA = qw(Exporter);
@@ -85,8 +85,8 @@ sub savepvn {
         # If READONLY and FAKE use newSVpvn_share instead. (test 75)
         if ( $sv and is_shared_hek($sv) ) {
             debug( sv => "Saving shared HEK %s to %s\n", cstring($pv), $dest );
-            my $hek = save_hek($pv);
-            push @init, sprintf( "%s = HEK_KEY(%s);", $dest, $hek ) unless $hek eq 'NULL';
+            my $shared_he = save_shared_he($pv);
+            push @init, sprintf( "%s = %s->shared_he_hek.hek_key;", $dest, $shared_he ) unless $shared_he eq 'NULL';
             if ( DEBUGGING() ) {    # we have to bypass a wrong HE->HEK assert in hv.c
                 push @B::C::static_free, $dest;
             }
