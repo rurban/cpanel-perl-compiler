@@ -198,7 +198,6 @@ t/modules.t
 t/moose-test.pl
 t/mymodules
 t/o.t
-t/pcc5ZYpZ.c
 t/perlall-modules.sh
 t/perldoc.t
 t/qr_loaded_module.pm
@@ -1744,6 +1743,7 @@ t/v5.24.1/C-COMPILED/comp/term.t
 t/v5.24.1/C-COMPILED/comp/uproto.t
 t/v5.24.1/C-COMPILED/comp/use.t
 t/v5.24.1/C-COMPILED/comp/utf.t
+t/v5.24.1/C-COMPILED/extra/class-accessor_antlers.t
 t/v5.24.1/C-COMPILED/extra/file-close.t
 t/v5.24.1/C-COMPILED/extra/pvlv.t
 t/v5.24.1/C-COMPILED/extra/reset.t
@@ -2610,6 +2610,7 @@ t/v5.24.1/t/comp/term.t
 t/v5.24.1/t/comp/uproto.t
 t/v5.24.1/t/comp/use.t
 t/v5.24.1/t/comp/utf.t
+t/v5.24.1/t/extra/class-accessor_antlers.t
 t/v5.24.1/t/extra/file-close.t
 t/v5.24.1/t/extra/pvlv.t
 t/v5.24.1/t/extra/reset.t
