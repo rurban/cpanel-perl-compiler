@@ -112,7 +112,9 @@ sub check_todo {
         }
         else {
             $self->test->todo_start($todo);
-            return ok( $v, $msg );
+            my $got = ok( $v, $msg );
+            $self->test->todo_end;
+            return $got;
         }
     }
 }

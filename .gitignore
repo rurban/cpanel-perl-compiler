@@ -80,3 +80,4 @@ nytprof/
 .prove
 .gdb_history
 fullog.txt
+/test*
