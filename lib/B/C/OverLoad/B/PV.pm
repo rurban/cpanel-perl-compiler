@@ -6,7 +6,7 @@ use B qw/cstring SVf_IsCOW SVf_ROK SVf_POK SVs_GMG SVs_SMG SVf_READONLY SVs_OBJE
 use B::C::Config;
 use B::C::Save qw/savepvn/;
 use B::C::SaveCOW qw/savepv/;
-use B::C::Save::Hek qw/save_hek/;
+use B::C::Save::Hek qw/save_shared_he/;
 use B::C::File qw/xpvsect svsect init free/;
 use B::C::Helpers::Symtable qw/savesym objsym/;
 use B::C::Helpers qw/is_shared_hek/;
@@ -53,8 +53,8 @@ sub save {
 
     if ( defined($pv) and !$static ) {
         if ($shared_hek) {
-            my $hek = save_hek( $pv, $fullname );
-            init()->add( sprintf( "sv_list[%d].sv_u.svu_pv = HEK_KEY(%s);", $svix, $hek ) )
+            my $hek = save_shared_he( $pv, $fullname );
+            init()->add( sprintf( "sv_list[%d].sv_u.svu_pv = %s->shared_he_hek.hek_key;", $svix, $hek ) )
               unless $hek eq 'NULL';
         }
     }
