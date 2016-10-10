@@ -64,6 +64,7 @@ my %saved_shared_hash;
 sub save_shared_he {
     my $key = shift;
 
+    return 'NULL' unless defined $key;
     return $saved_shared_hash{$key} if $saved_shared_hash{$key};
 
     my ( $cstr, $cur, $utf8 ) = strlen_flags($key);
