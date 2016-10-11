@@ -81,3 +81,4 @@ nytprof/
 .gdb_history
 fullog.txt
 /test*
+/results.xml
