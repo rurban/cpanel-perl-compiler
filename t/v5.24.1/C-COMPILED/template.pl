@@ -107,7 +107,12 @@ foreach my $optimization (@optimizations) {
 
         my $tests_ok = $errors->check_todo( $parser->{exit} == 0, "Exit code is $parser->{exit}", "EXIT" );
         $tests_ok = $errors->check_todo( !scalar @{ $parser->{failed} }, "Test results:", 'TESTS' ) && $tests_ok;
-        print "    $_\n" foreach ( split( "\n", $parser->{out} ) );
+        if ( length $parser->{out} < 1_000_000 ) {
+            print "    $_\n" foreach ( split( "\n", $parser->{out} ) );
+        }
+        else {
+            diag("Output is too long to display. Skipping.");
+        }
 
         unless ($tests_ok) {
             note( "Failed tests: " . join( ", ", @{ $parser->{failed} } ) );
