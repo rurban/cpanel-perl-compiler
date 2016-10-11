@@ -465,7 +465,9 @@ my_curse( pTHX_ SV* const sv ) {
 
 static int fast_perl_destruct( PerlInterpreter *my_perl ) {
     dVAR;
+#ifdef DEBUGGING
     VOL signed char destruct_level;  /* see possible values in intrpvar.h */
+#endif
 #ifdef DEBUG_LEAKING_SCALARS_FORK_DUMP
     pid_t child;
 #endif
@@ -482,8 +484,8 @@ static int fast_perl_destruct( PerlInterpreter *my_perl ) {
     /* wait for all pseudo-forked children to finish */
     PERL_WAIT_FOR_CHILDREN;
 
-    destruct_level = PL_perl_destruct_level;
 #ifdef DEBUGGING
+    destruct_level = PL_perl_destruct_level;
     {
 	const char * const s = PerlEnv_getenv("PERL_DESTRUCT_LEVEL");
 	if (s) {
