@@ -14,9 +14,6 @@ BEGIN {
 
 die "Please use perl 5.24" unless $^V =~ qr{^v5.24};
 
-# Used by runperl to find perlcc
-$ENV{'PROVE_BASEDIR'} = getcwd;
-
 # Some tests need . in @INC.
 $ENV{'PERL_USE_UNSAFE_INC'} = 1;
 
