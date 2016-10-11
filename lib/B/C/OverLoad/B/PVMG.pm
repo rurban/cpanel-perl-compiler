@@ -61,27 +61,24 @@ sub save {
     }
 
     xpvmgsect()->comment("STASH, MAGIC, cur, len, xiv_u, xnv_u");
-    xpvmgsect()->add(
+    my $xpvmg_ix = xpvmgsect()->add(
         sprintf(
             "Nullhv, {0}, %u, {%u}, {%s}, {%s}",
             $cur, $len, $ivx, $nvx
         )
     );
 
-    svsect()->add(
+    my $sv_u = $savesym eq 'NULL' ? 0 : ".svu_pv=(char*) $savesym";
+    my $sv_ix = svsect()->add(
         sprintf(
             "&xpvmg_list[%d], %Lu, 0x%x, {%s}",
-            xpvmgsect()->index, $sv->REFCNT, $flags,
-            $savesym eq 'NULL'
-            ? '0'
-            : ".svu_pv=(char*)" . $savesym
+            $xpvmg_ix, $sv->REFCNT + 1, $flags, $sv_u
         )
     );
 
     svsect()->debug( $fullname, $sv );
-    my $s = "sv_list[" . svsect()->index . "]";
 
-    $sym = savesym( $sv, "&" . $s );
+    $sym = savesym( $sv, sprintf( q{&sv_list[%d]}, $sv_ix ) );
     $sv->save_magic($fullname);
     return $sym;
 }
@@ -445,12 +442,15 @@ sub _savere {
     my ( $is_utf8, $cur ) = read_utf8_string($pv);
     my $len = 0;    # static buffer
 
+    # TODO: add a die and see if it s triggered
     # QUESTION: this code looks dead
     #   at least not triggered by the core unit tests
 
-    xpvsect()->add( sprintf( "Nullhv, {0}, %u, {.xpvlenu_len=%u}", $cur, $len ) );    # 0 or $len ?
-    svsect()->add( sprintf( "&xpv_list[%d], 1, %x, {.svu_pv=(char*)%s}", xpvsect()->index, 0x4405, savepv($pv) ) );
-    $sym = sprintf( "&sv_list[%d]", svsect()->index );
+    my $refcnt = 1;    # ???? WTF
+
+    my $xpv_ix = xpvsect()->add( sprintf( "Nullhv, {0}, %u, {.xpvlenu_len=%u}", $cur, $len ) );    # 0 or $len ?
+    my $sv_ix = svsect()->add( sprintf( "&xpv_list[%d], %d, %x, {.svu_pv=(char*)%s}", $xpv_ix, $refcnt, 0x4405, savepv($pv) ) );
+    $sym = sprintf( "&sv_list[%d]", $sv_ix );
 
     return ( $sym, $cur );
 }
