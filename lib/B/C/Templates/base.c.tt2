@@ -826,17 +826,17 @@ main(int argc, char **argv, char **env)
 
     PERL_SYS_INIT3(&argc,&argv,&env);
 
-#ifdef WIN32
-#define PL_do_undump 0
-#endif
-    if (!PL_do_undump) {
-    init_pl_strtab();
+    assert(PL_do_undump == 0);
+
+    init_pl_strtab(); /* Initialize PL_Strtab on our own before perl gets to it in perl_alloc. This allows us to use immportal constant shared HEKs */
+
 	my_perl = perl_alloc();
-	if (!my_perl)
-	    exit(1);
+
+	if (!my_perl) exit(1);
+
 	perl_construct( my_perl );
 	PL_perl_destruct_level = 0;
-    }
+
 
     PL_exit_flags |= PERL_EXIT_DESTRUCT_END;
 
