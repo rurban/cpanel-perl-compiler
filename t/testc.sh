@@ -287,7 +287,7 @@ result[26]="26"
 # xsub constants (constant folded). newlib: 0x200, glibc: 0x100
 tests[27]='use Fcntl ();my $a=Fcntl::O_CREAT(); print "ok" if ( $a >= 64 && &Fcntl::O_CREAT >= 64 );'
 # require $fname
-tests[28]='my($fname,$tmp_fh);while(!open($tmp_fh,">",($fname=q{ccode28_} . rand(999999999999)))){$bail++;die "Failed to create a tmp file after 500 tries" if $bail>500;}print {$tmp_fh} q{$x="ok";1;};close($tmp_fh);sleep 1;require $fname;END{unlink($fname);};print $x;'
+tests[28]='my($fname,$tmp_fh);while(!open($tmp_fh,">",($fname=q{ccode28_} . rand(999999999999)))){$bail++;die "Failed to create a tmp file after 500 tries" if $bail>500;}print {$tmp_fh} q{$x="ok";1;};close($tmp_fh);sleep 1;push @INC, "."; require $fname;END{unlink($fname);};print $x;'
 # multideref with static index and sv and dynamic gv ptrs
 tests[29]='my (%b,%h); BEGIN { %b=(1..8);@a=(1,2,3,4); %h=(1=>2,3=>4) } $i=0; my $l=-1; print $h->{$b->{3}},$h->{$a[-1]},$a[$i],$a[$l],$h{3}'
 result[29]='144'
@@ -1015,7 +1015,7 @@ tests[2513]='sub f ($);print "ok" if exists &f'
 tests[2514]='sub f;print "ok" if exists &f'
 tests[252]='package bar; sub search { shift =~ m?bar? ? 1 : 0 } sub reset_zlopp { reset } package foo; sub ZZIP { shift =~ m?ZZIP? ? 1 : 0 } package main; foo::ZZIP("ZZIP"); bar::reset_zlopp(); !foo::ZZIP("ZZIP") and print "ok"'
 tests[253]='use Unicode::UCD q/prop_invmap/; my @list = prop_invmap("Uppercase_Mapping"); print "ok"'
-tests[2530]='INIT{require "t/test.pl"}plan(tests=>2);is("\x{2665}", v9829);is(v9829,"\x{2665}");'
+tests[2530]='INIT{require "./t/test.pl"}plan(tests=>2);is("\x{2665}", v9829);is(v9829,"\x{2665}");'
 result[2530]='1..2
 ok 1
 ok 2'
