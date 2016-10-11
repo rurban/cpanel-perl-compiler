@@ -13,6 +13,10 @@ use Carp;
 
 my $devnull = $^O eq 'MSWin32' ? 'NUL' : '/dev/null';
 
+# We can't have a symlink in t/v5.24.1/t or we get a circular find from File::Find
+# https://github.com/Perl-Toolchain-Gang/ExtUtils-Manifest/issues/5
+system("cp .gdbinit t/v5.24.1/t/.gdbinit") and die;
+
 my $core = grep { $_ eq 'PERL_CORE=1' } @ARGV;
 mkdir "lib/B/C" unless -d "lib/B/C";
 unless ( -e 'lib/B/C/Flags.pm' ) {
