@@ -13,8 +13,12 @@ BEGIN {
     use FindBin;
     unshift @INC, $FindBin::Bin . "/../../../lib";
 }
+my $working_dir = $FindBin::Bin;
 
 die "Please use perl 5.24" unless $^V =~ qr{^v5.24};
+
+# Some tests need . in @INC.
+$ENV{'PERL_USE_UNSAFE_INC'} = 1;
 
 use KnownErrors qw/check_todo/;
 use TestCompile qw/compile_script/;
@@ -46,7 +50,7 @@ my $base_dir = dirname($path);
 my $cwd = qx{pwd};
 chomp $cwd;
 
-chdir "$FindBin::Bin/.." or die $!;
+chdir "$working_dir/.." or die $!;
 
 my $current_t_file   = $file_to_test;
 my $todo_description = '';
@@ -58,8 +62,6 @@ $todo_description = $errors->{todo_description} if $type;
 if ( $type eq 'COMPAT' || $type eq 'SKIP' ) {
     plan skip_all => $todo_description;
 }
-
-my $working_dir = $FindBin::Bin;
 
 plan tests => 1 + 5 * scalar @optimizations;
 
@@ -89,7 +91,7 @@ my $blib = ( grep { $_ =~ m{/blib/} } @INC ) ? '-Mblib' : '';
 
 SKIP: {
 
-    my $check = qx{$PERL -I$FindBin::Bin/../../.. -c '$perl_file' 2>&1};
+    my $check = qx{$PERL -I$working_dir/../../.. -c '$perl_file' 2>&1};
     unless ( $errors->check_todo( $check =~ qr/syntax OK/, "$PERL -c $perl_file", "CHECK" ) ) {
         skip( "Cannot compile with perl -c", 5 );
         exit;
@@ -111,7 +113,7 @@ SKIP: {
             my ( $parser, $errormsg ) = compile_script(
                 $perl_file, $errors,
                 {
-                    extra        => qq{-I$FindBin::Bin/../../..},
+                    extra        => qq{-I$working_dir/../../..},
                     optimization => $optimization,
                     c_file       => $c_file,
                     bin_file     => $bin_file,
@@ -164,7 +166,7 @@ SKIP: {
 
 {
     # add the list of files generated
-    my $root = $FindBin::Bin;
+    my $root = $working_dir;
     $root =~ s{^$cwd}{};
     my @path = split( '/', $root );
     pop @path;
