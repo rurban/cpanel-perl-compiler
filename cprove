@@ -10,11 +10,11 @@ use Cwd;
 use constant TEST_SUITE_VERSION => 'v5.24.1';
 use constant KNOWN_ERRORS       => 't/' . TEST_SUITE_VERSION . '/C-COMPILED/known_errors.txt';
 
-my @BLACKLIST = ( 
+my @BLACKLIST = (
     qw{benchmark perf porting bigmem lib win32 japh porting run test_pl op/threads.t},
-    qr{_thr\.t$}, # do not care about threads
-    qr{\Q.subtest.\E}, # blacklist any cruft remaining from a previous or current run
-    ); 
+    qr{_thr\.t$},         # do not care about threads
+    qr{\Q.subtest.\E},    # blacklist any cruft remaining from a previous or current run
+);
 
 run(@ARGV) unless caller;
 
@@ -27,12 +27,9 @@ sub run {
 
     return usage() if !scalar @args || grep { $_ =~ qr{^-+h(elp)?$} } @args;
 
-    # need to run with . in INC
-    $ENV{PERL_USE_UNSAFE_INC} = 1;
-
     #$run_compile_version = grep { qr{^-+c(ompiled)?$} } @args;
     my $run_compile_version = !grep { $_ =~ qr{^-+u(ncompiled)?$} } @args;
-    @args                = grep  { $_ !~ qr{^-+u(ncompiled)?$} } @args;
+    @args = grep { $_ !~ qr{^-+u(ncompiled)?$} } @args;
 
     my $saving_state;
     if ( !grep { $_ =~ qr{^--state} } @args ) {
@@ -51,8 +48,8 @@ sub run {
     }
 
     if ( grep { $_ eq '--all' } @args ) {
-        my $tv = TEST_SUITE_VERSION;
-        my @alltests =  glob qq{t/$tv/C-COMPILED/*/*.t};
+        my $tv       = TEST_SUITE_VERSION;
+        my @alltests = glob qq{t/$tv/C-COMPILED/*/*.t};
         @args = grep { $_ ne '--all' } @args;
         push @args, '-j10' unless grep { $_ =~ qr{^-j} } @args;
         push @args, @alltests;
@@ -87,6 +84,7 @@ sub run {
     my @tests;
     while ( $args[-1] && $args[-1] =~ m/\.t$/ ) {
         my $t = pop @args;
+
         # can simply run 'prove op/kvaslice.t'
         if ( $t !~ qr{\Q/$v/\E} ) {
             $t = 't/' . $v . '/t/' . $t;
@@ -103,23 +101,21 @@ sub run {
         }
 
         # remove blacklisted tests
-        do { say "Test '$t' is blacklisted."; next } if grep {
-            ref $_  ? ( $t =~ $_ )
-            : ( $t =~ qr{^$_/} or $t =~ qr{$_$} )
-            } @BLACKLIST;
+        do { say "Test '$t' is blacklisted."; next } if grep { ref $_ ? ( $t =~ $_ ) : ( $t =~ qr{^$_/} or $t =~ qr{$_$} ) } @BLACKLIST;
+
         #die "Cannot find a test file" unless -e $t;
         unshift @tests, $t;
     }
 
     my @cmd = ( 'prove', @args, @tests );
-    if ( int( grep { $_ !~ qr{^-} } @cmd ) < 2 ) { # should have at least one test to run
+    if ( int( grep { $_ !~ qr{^-} } @cmd ) < 2 ) {    # should have at least one test to run
         say "# Nothing to run";
         return 0;
     }
 
     say "# Running: ", join( ' ', @cmd );
     if ( !$run_compile_version ) {
-        chdir("t/$v/t");    # core tests need to be run from t directory
+        chdir("t/$v/t");                              # core tests need to be run from t directory
     }
 
     # allow glob...
