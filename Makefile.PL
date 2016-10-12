@@ -78,10 +78,14 @@ sub write_b_c_flags {
     $Data::Dumper::Sortkeys = 1;
     my %cfg;
 
+
+    # protection to check that C99 is always enabled
+    $Config::Config{d_c99_variadic_macros} or die "This version of B::C does not support compilers without C99";
+
     # Ensure to add all used Config keys in B::C here, otherwise they will be silently empty!
     # easier hash key/value slices only came with 5.22
     for my $s (
-        qw(archname cc ccflags d_c99_variadic_macros d_dlopen d_isinf d_isnan d_longdbl dlext i_dlfcn
+        qw(archname cc ccflags d_dlopen d_isinf d_isnan d_longdbl dlext i_dlfcn
         ivdformat ivsize longsize mad nvgformat ptrsize static_ext usecperl
         usedl useithreads uselongdouble usemultiplicity usemymalloc uvuformat)
       ) {

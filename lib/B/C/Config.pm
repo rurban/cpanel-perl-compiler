@@ -28,7 +28,7 @@ sub _autoload_map {
     my $map = {
         USE_ITHREADS     => $B::C::Flags::Config{useithreads},
         USE_MULTIPLICITY => $B::C::Flags::Config{usemultiplicity},
-        MAD => $B::C::Flags::Config{mad},
+        MAD              => $B::C::Flags::Config{mad},
     };
     $map->{HAVE_DLFCN_DLOPEN} = $B::C::Flags::Config{i_dlfcn} && $B::C::Flags::Config{d_dlopen};
 
@@ -51,15 +51,11 @@ BEGIN {
 our $AUTOLOAD;
 
 {
-    # protection to check that C99 is always enabled
-    $B::C::Flags::Config{d_c99_variadic_macros} or die "C99 should be enabled";
-
     # croak when C99 is used in our code
     sub C99 {
         die "Do not use C99: this should always be true";
     }
 }
-
 
 sub AUTOLOAD {
     my $ask_for = $AUTOLOAD;
