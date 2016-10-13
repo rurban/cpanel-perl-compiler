@@ -376,24 +376,6 @@ static void HvAddEntry(HV* hv, SV* value, SHARED_HE* hek, I32 max) {
     return;
 }
 
-static void GvSETUP( GV *gv, U32 svflags, U32 gvflags, U32 gvline, U32 svrefcnt, U32 gvrefcnt ) {
-    SvFLAGS(gv) = svflags;
-    GvFLAGS(gv) = gvflags;
-    if (gvline > -1)
-        GvLINE(gv) = gvline;
-    if (svrefcnt > -1)
-        SvREFCNT(gv) = svrefcnt;
-    if (gvrefcnt)
-        GvREFCNT(gv) += gvrefcnt;
-    return;
-}
-
-static void GvMAGIC_BACKREF( SV *sv, SV *cv ) {
-    sv_magic((SV*)sv, (SV*)cv, '<', 0, 0);
-    CvCVGV_RC_off(cv);
-    return;
-}
-
 PADNAME ** INITPADNAME(PADNAMELIST *padname, int count) {
     PADNAME **svp;
     PADNAMELIST *padnl = padname;
