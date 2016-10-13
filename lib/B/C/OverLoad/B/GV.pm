@@ -458,44 +458,11 @@ sub save {
 
         # Don't save subfields of special GVs (*_, *1, *# and so on)
         debug( gv => "GV::save saving subfields $savefields" );
-        $gvsv = $gv->SV;
-        if ( $$gvsv && $savefields & Save_SV ) {
-            debug( gv => "GV::save \$" . $sym . " $gvsv" );
 
-            if ( my $pl_core_sv = $CORE_SVS->{$fullname} ) {
-                savesym( $gvsv, $pl_core_sv );
-            }
+        my $got;
+        $got = save_gv_sv( $gv, $fullname, $sym, $package, $gvname ) if $savefields & Save_SV;
+        return $got if $got;
 
-            if ( $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
-                debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
-                my $rv     = $gvsv->object_2svref();
-                my $origsv = $$rv;
-                no strict 'refs';
-                ${$fullname} = "$origsv";
-                svref_2object( \${$fullname} )->save($fullname);
-                init()->add( sprintf( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv ) );
-            }
-            else {
-                $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
-                                           # we need sv magic for the core_svs (PL_rs -> gv) (#314)
-
-                if ( exists $CORE_SVS->{"main::$gvname"} ) {
-
-                    # ORS special case #318 (initially NULL)
-                    return $sym if $gvname eq "\\";
-
-                    $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
-                    init()->add( sprintf( "SvREFCNT(s\\_%x) += 1;", $$gvsv ) );
-                }
-
-                init()->add( sprintf( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv ) );
-            }
-            if ( $fullname eq 'main::$' ) {    # $$ = PerlProc_getpid() issue #108
-                debug( gv => "  GV $sym \$\$ perlpid" );
-                init()->add("sv_setiv(GvSV($sym), (IV)PerlProc_getpid());");
-            }
-            debug( gv => "GV::save \$$fullname" );
-        }
         my $gvav = $gv->AV;
         if ( $$gvav && $savefields & Save_AV ) {
             debug( gv => "GV::save \@$fullname" );
@@ -749,6 +716,52 @@ sub save {
     # $gv->save_magic($fullname) if $PERL510;
     debug( gv => "GV::save *$fullname done" );
     return $sym;
+}
+
+sub save_gv_sv {
+
+    my ( $gv, $fullname, $sym, $package, $gvname ) = @_;
+
+    my $gvsv = $gv->SV;
+    return unless $$gvsv;
+
+    debug( gv => "GV::save \$" . $sym . " $gvsv" );
+
+    if ( my $pl_core_sv = $CORE_SVS->{$fullname} ) {
+        savesym( $gvsv, $pl_core_sv );
+    }
+
+    if ( $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
+        debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
+        my $rv     = $gvsv->object_2svref();
+        my $origsv = $$rv;
+        no strict 'refs';
+        ${$fullname} = "$origsv";
+        svref_2object( \${$fullname} )->save($fullname);
+        init()->add( sprintf( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv ) );
+    }
+    else {
+        $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
+                                   # we need sv magic for the core_svs (PL_rs -> gv) (#314)
+
+        if ( exists $CORE_SVS->{"main::$gvname"} ) {
+
+            # ORS special case #318 (initially NULL)
+            return $sym if $gvname eq "\\";
+
+            $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
+            init()->add( sprintf( "SvREFCNT(s\\_%x) += 1;", $$gvsv ) );
+        }
+
+        init()->add( sprintf( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv ) );
+    }
+    if ( $fullname eq 'main::$' ) {    # $$ = PerlProc_getpid() issue #108
+        debug( gv => "  GV $sym \$\$ perlpid" );
+        init()->add("sv_setiv(GvSV($sym), (IV)PerlProc_getpid());");
+    }
+    debug( gv => "GV::save \$$fullname" );
+
+    return;
 }
 
 sub save_gv_io {
