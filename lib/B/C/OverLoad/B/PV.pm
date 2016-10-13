@@ -15,7 +15,7 @@ sub SVpbm_VALID { 0x40000000 }
 sub SVp_SCREAM  { 0x00008000 }    # method name is DOES
 
 sub save {
-    my ( $sv, $fullname ) = @_;
+    my ( $sv, $fullname, $custom ) = @_;
     my $sym = objsym($sv);
 
     if ( defined $sym ) {
@@ -35,6 +35,11 @@ sub save {
     my $refcnt = $sv->REFCNT;
     if ( $fullname && $fullname eq 'svop const' ) {
         $refcnt = DEBUGGING() ? 1000 : 0x7fffffff;
+    }
+
+    if ( ref $custom ) { # used when downgrading a PVIV / PVNV to IV
+        $flags = $custom->{flags} if defined $custom->{flags};
+        $refcnt = $custom->{refcnt} if defined $custom->{refcnt};
     }
 
     # static pv, do not destruct. test 13 with pv0 "3".
@@ -64,7 +69,7 @@ sub save {
             sprintf(
                 qq(sv_list[%d].sv_debug_file = %s" sv_list[%d] 0x%x";),
                 $svix, cstring($pv) eq '0' ? q{"NULL"} : cstring($pv),
-                $svix, $sv->FLAGS
+                $svix, $flags
             )
         );
     }

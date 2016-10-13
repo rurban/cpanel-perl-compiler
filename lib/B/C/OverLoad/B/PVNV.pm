@@ -2,12 +2,14 @@ package B::PVNV;
 
 use strict;
 
-use B qw/SVf_NOK SVp_NOK SVs_OBJECT/;
+use B qw{SVf_NOK SVp_NOK SVs_OBJECT};
 use B::C::Config;
 use B::C::Save qw/savepvn/;
 use B::C::Decimal qw/get_integer_value get_double_value/;
 use B::C::File qw/xpvnvsect svsect init/;
 use B::C::Helpers::Symtable qw/savesym objsym/;
+
+use B::C::Optimizer::DowngradePVXV qw/downgrade_pvnv/;
 
 sub save {
     my ( $sv, $fullname ) = @_;
@@ -20,6 +22,13 @@ sub save {
         }
         return $sym;
     }
+
+    my $downgraded = downgrade_pvnv( $sv, $fullname );
+    if ( defined $downgraded ) {
+        savesym( $sv, $downgraded );
+        return $downgraded;
+    }
+
     my ( $savesym, $cur, $len, $pv, $static, $flags ) = B::PV::save_pv_or_rv( $sv, $fullname );
     my $nvx = '0.0';
     my $ivx = get_integer_value( $sv->IVX );    # here must be IVX!

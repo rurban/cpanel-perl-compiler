@@ -7,7 +7,7 @@ use B::C::Config;
 
 use Exporter ();
 our @ISA       = qw(Exporter);
-our @EXPORT_OK = qw/get_integer_value get_double_value u32fmt/;
+our @EXPORT_OK = qw/get_integer_value get_double_value u32fmt intmax/;
 
 my $POW    = ( $B::C::Flags::Config{ivsize} * 4 - 1 );    # poor editor
 my $INTMAX = ( 1 << $POW ) - 1;
@@ -15,6 +15,10 @@ my $INTMAX = ( 1 << $POW ) - 1;
 # LL for 32bit -2147483648L or 64bit -9223372036854775808L
 my $UL        = _ull();
 my $IVDFORMAT = _ivdformat();
+
+sub intmax {
+    return $INTMAX;
+}
 
 # previously known as 'sub ivx'
 sub get_integer_value ($) {

@@ -9,13 +9,20 @@ use B::C::Decimal qw/get_integer_value/;
 use B::C::Helpers::Symtable qw/objsym savesym/;
 
 sub save {
-    my ( $sv, $fullname ) = @_;
+    my ( $sv, $fullname, $custom ) = @_;
 
     my $sym = objsym($sv);
     return $sym if defined $sym;
 
     # Since 5.11 the RV is no special SV object anymore, just a IV (test 16)
     my $svflags = $sv->FLAGS;
+    my $refcnt  = $sv->REFCNT;
+
+    if ( ref $custom ) { # used when downgrading a PVIV / PVNV to IV
+        $svflags = $custom->{flags} if defined $custom->{flags};
+        $refcnt = $custom->{refcnt} if defined $custom->{refcnt};
+    }
+
     if ( $svflags & SVf_ROK ) {
         return $sv->B::RV::save($fullname);
     }
@@ -26,7 +33,7 @@ sub save {
 
     svsect()->debug( $fullname, $sv );
 
-    my $i = svsect()->add( sprintf( "NULL, %lu, 0x%x, {.svu_iv=%s}", $sv->REFCNT, $svflags, $ivx ) );
+    my $i = svsect()->add( sprintf( "NULL, %lu, 0x%x, {.svu_iv=%s}", $refcnt, $svflags, $ivx ) );
     my $sym = savesym( $sv, sprintf( "&sv_list[%d]", $i ) );
 
 =pod
