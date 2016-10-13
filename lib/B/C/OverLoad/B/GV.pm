@@ -475,16 +475,16 @@ sub save_gv_cv {
         return;
     }
 
+    return if B::C::skip_pkg($package);
+    return unless ref($gvcv) eq 'B::CV';
+    return if ref( $gvcv->GV ) eq 'B::SPECIAL' or ref( $gvcv->GV->EGV ) eq 'B::SPECIAL';
+
     my $gvname = $gv->NAME();
-    my $name   = $gv->NAME;
     my $gp     = $gv->GP;
 
     # Can't locate object method "EGV" via package "B::SPECIAL" at /usr/local/cpanel/3rdparty/perl/520/lib/perl5/cpanel_lib/i386-linux-64int/B/C/OverLoad/B/GV.pm line 450.
-    if (    ref($gvcv) eq 'B::CV'
-        and ref( $gvcv->GV ) ne 'B::SPECIAL'
-        and ref( $gvcv->GV->EGV ) ne 'B::SPECIAL'
-        and !B::C::skip_pkg($package) ) {
-        my $package  = $gvcv->GV->EGV->STASH->NAME;
+    {
+        my $package  = $gvcv->GV->EGV->STASH->NAME;    # is it the same than package earlier ??
         my $oname    = $gvcv->GV->EGV->NAME;
         my $origname = $package . "::" . $oname;
         my $cvsym;
@@ -533,8 +533,8 @@ sub save_gv_cv {
                             s/^.*\Q$sym\E.*=.*;//;
                             s/GvGP_set\(\Q$sym\E.*;//;
                         }
-                        if (/^\Q$sym = gv_fetchpv($name, GV_ADD, SVt_PV);\E/) {
-                            s/^\Q$sym = gv_fetchpv($name, GV_ADD, SVt_PV);\E/$sym = gv_fetchpv($name, GV_ADD, SVt_PVCV);/;
+                        if (/^\Q$sym = gv_fetchpv($gvname, GV_ADD, SVt_PV);\E/) {
+                            s/^\Q$sym = gv_fetchpv($gvname, GV_ADD, SVt_PV);\E/$sym = gv_fetchpv($gvname, GV_ADD, SVt_PVCV);/;
                             $in_gv++;
                             debug( gv => "removed $sym GP assignments $origname (core CV)" );
                         }
