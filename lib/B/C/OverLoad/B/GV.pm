@@ -30,6 +30,47 @@ sub Save_CV()   { 8 }
 sub Save_FORM() { 16 }
 sub Save_IO()   { 32 }
 
+my $CORE_SYMS = {
+    'main::ENV'    => 'PL_envgv',
+    'main::ARGV'   => 'PL_argvgv',
+    'main::INC'    => 'PL_incgv',
+    'main::STDIN'  => 'PL_stdingv',
+    'main::STDERR' => 'PL_stderrgv',
+    "main::\010"   => 'PL_hintgv',     # ^H
+    "main::_"      => 'PL_defgv',
+    "main::@"      => 'PL_errgv',
+    "main::\022"   => 'PL_replgv',     # ^R
+};
+
+my $CORE_SVS = {                       # special SV syms to assign to the right GvSV
+
+    "main::\\" => 'PL_ors_sv',
+    "main::/"  => 'PL_rs',
+    "main::@"  => 'PL_errors',
+};
+
+sub get_package {
+    my $gv = shift;
+
+    if ( ref( $gv->STASH ) eq 'B::SPECIAL' ) {
+        return '__ANON__';
+    }
+
+    return $gv->STASH->NAME;
+}
+
+sub is_coresym {
+    my $gv = shift;
+
+    return $CORE_SYMS->{ $gv->get_fullname() } ? 1 : 0;
+}
+
+sub get_fullname {
+    my $gv = shift;
+
+    return $gv->get_package() . "::" . $gv->NAME();
+}
+
 sub savecv {
     my $gv      = shift;
     my $package = $gv->STASH->NAME;
@@ -197,30 +238,15 @@ sub save {
         }
     }
 
-    my $core_syms = {
-        ENV    => 'PL_envgv',
-        ARGV   => 'PL_argvgv',
-        INC    => 'PL_incgv',
-        STDIN  => 'PL_stdingv',
-        STDERR => 'PL_stderrgv',
-        "\010" => 'PL_hintgv',     # ^H
-        "_"    => 'PL_defgv',
-        "@"    => 'PL_errgv',
-        "\022" => 'PL_replgv',     # ^R
-    };
     my $is_coresym;
 
     # those are already initialized in init_predump_symbols()
     # and init_main_stash()
-    for my $s ( sort keys %$core_syms ) {
-        if ( $fullname eq 'main::' . $s ) {
-            $sym = savesym( $gv, $core_syms->{$s} );
-
-            # init()->add( sprintf( "SvREFCNT($sym) = %u;", $gv->REFCNT ) );
-            # return $sym;
-            $is_coresym++;
-        }
+    if ( $CORE_SYMS->{$fullname} ) {
+        $sym = savesym( $gv, $CORE_SYMS->{$fullname} );
+        $is_coresym++;
     }
+
     if ( $fullname =~ /^main::std(in|out|err)$/ ) {    # same as uppercase above
         init()->add(qq[$sym = gv_fetchpv($cname, $notqual, SVt_PVGV);]);
         init()->add( sprintf( "SvREFCNT(%s) = %u;", $sym, $gv->REFCNT ) );
@@ -390,16 +416,11 @@ sub save {
         $gvsv = $gv->SV;
         if ( $$gvsv && $savefields & Save_SV ) {
             debug( gv => "GV::save \$" . $sym . " $gvsv" );
-            my $core_svs = {    # special SV syms to assign to the right GvSV
-                "\\" => 'PL_ors_sv',
-                "/"  => 'PL_rs',
-                "@"  => 'PL_errors',
-            };
-            for my $s ( sort keys %$core_svs ) {
-                if ( $fullname eq 'main::' . $s ) {
-                    savesym( $gvsv, $core_svs->{$s} );    # TODO: This could bypass BEGIN settings (->save is ignored)
-                }
+
+            if ( my $pl_core_sv = $CORE_SVS->{$fullname} ) {
+                savesym( $gvsv, $pl_core_sv );
             }
+
             if ( $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
                 debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
                 my $rv     = $gvsv->object_2svref();
@@ -412,18 +433,19 @@ sub save {
             else {
                 $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
                                            # we need sv magic for the core_svs (PL_rs -> gv) (#314)
-                if ( exists $core_svs->{$gvname} ) {
-                    if ( $gvname eq "\\" ) {    # ORS special case #318 (initially NULL)
-                        return $sym;
-                    }
-                    else {
-                        $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
-                        init()->add( sprintf( "SvREFCNT(s\\_%x) += 1;", $$gvsv ) );
-                    }
+
+                if ( exists $CORE_SVS->{"main::$gvname"} ) {
+
+                    # ORS special case #318 (initially NULL)
+                    return $sym if $gvname eq "\\";
+
+                    $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
+                    init()->add( sprintf( "SvREFCNT(s\\_%x) += 1;", $$gvsv ) );
                 }
+
                 init()->add( sprintf( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv ) );
             }
-            if ( $fullname eq 'main::$' ) {     # $$ = PerlProc_getpid() issue #108
+            if ( $fullname eq 'main::$' ) {    # $$ = PerlProc_getpid() issue #108
                 debug( gv => "  GV $sym \$\$ perlpid" );
                 init()->add("sv_setiv(GvSV($sym), (IV)PerlProc_getpid());");
             }
@@ -655,7 +677,7 @@ sub save {
             #init()->add(sprintf("GvFILE_HEK($sym) = hek_list[%d];", heksect()->index));
 
             # XXX Maybe better leave it NULL or asis, than fighting broken
-            if ( ! $B::C::stash or $fullname !~ /::$/ ) {
+            if ( !$B::C::stash or $fullname !~ /::$/ ) {
                 my $file = save_shared_he( $gv->FILE );
                 init()->add( sprintf( "GvFILE_HEK(%s) = &(%s->shared_he_hek);", $sym, $file ) )
                   if $file ne 'NULL' and !$B::C::optimize_cop;
