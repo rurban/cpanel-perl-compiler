@@ -757,26 +757,21 @@ sub save_gv_io {
     my $gvio = $gv->IO;
     return unless $$gvio;
 
-    if ( $fullname =~ m/::DATA$/
-        && ( $fullname eq 'main::DATA' or $B::C::save_data_fh ) )    # -O2 or 5.8
-    {
+    my $is_data;
+    if ( $fullname eq 'main::DATA' or ( $fullname =~ m/::DATA$/ and $B::C::save_data_fh ) ) {
         no strict 'refs';
         my $fh = *{$fullname}{IO};
         use strict 'refs';
-        debug( gv => "GV::save_data $sym, $fullname ..." );
-        $gvio->save( $fullname, 'is_DATA' );
-        init()->add( sprintf( "GvIOp(%s) = s\\_%x;", $sym, $$gvio ) );
+        $is_data = 'is_DATA';
         $gvio->save_data( $sym, $fullname, <$fh> ) if $fh->opened;
     }
     elsif ( $fullname =~ m/::DATA$/ && !$B::C::save_data_fh ) {
-        $gvio->save( $fullname, 'is_DATA' );
-        init()->add( sprintf( "GvIOp(%s) = s\\_%x;", $sym, $$gvio ) );
+        $is_data = 'is_DATA';
         WARN("Warning: __DATA__ handle $fullname not stored. Need -O2 or -fsave-data.");
     }
-    else {
-        $gvio->save($fullname);
-        init()->add( sprintf( "GvIOp(%s) = s\\_%x;", $sym, $$gvio ) );
-    }
+
+    $gvio->save( $fullname, $is_data );
+    init()->add( sprintf( "GvIOp(%s) = s\\_%x;", $sym, $$gvio ) );
 
     return;
 }
