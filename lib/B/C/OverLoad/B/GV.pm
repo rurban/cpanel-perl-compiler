@@ -463,18 +463,8 @@ sub save {
         $got = save_gv_sv( $gv, $fullname, $sym, $package, $gvname ) if $savefields & Save_SV;
         return $got if $got;
 
-        my $gvav = $gv->AV;
-        if ( $$gvav && $savefields & Save_AV ) {
-            debug( gv => "GV::save \@$fullname" );
-            $gvav->save($fullname);
-            init()->add( sprintf( "GvAV(%s) = s\\_%x;", $sym, $$gvav ) );
-            if ( $fullname eq 'main::-' ) {
-                init()->add(
-                    sprintf( "AvFILLp(s\\_%x) = -1;", $$gvav ),
-                    sprintf( "AvMAX(s\\_%x) = -1;",   $$gvav )
-                );
-            }
-        }
+        save_gv_av( $gv, $fullname, $sym ) if $savefields & Save_AV;
+
         my $gvhv = $gv->HV;
         if ( $$gvhv && $savefields & Save_HV ) {
             if ( $fullname ne 'main::ENV' ) {
@@ -760,6 +750,24 @@ sub save_gv_sv {
         init()->add("sv_setiv(GvSV($sym), (IV)PerlProc_getpid());");
     }
     debug( gv => "GV::save \$$fullname" );
+
+    return;
+}
+
+sub save_gv_av {
+    my ( $gv, $fullname, $sym ) = @_;
+
+    my $gvav = $gv->AV;
+    return 'NULL' unless $gvav && $$gvav;
+
+    $gvav->save($fullname);
+    init()->add( sprintf( "GvAV(%s) = s\\_%x;", $sym, $$gvav ) );
+    if ( $fullname eq 'main::-' ) {
+        init()->add(
+            sprintf( "AvFILLp(s\\_%x) = -1;", $$gvav ),
+            sprintf( "AvMAX(s\\_%x) = -1;",   $$gvav )
+        );
+    }
 
     return;
 }
