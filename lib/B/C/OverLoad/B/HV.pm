@@ -179,7 +179,7 @@ sub save {
     my $flags = $hv->FLAGS & ~SVf_READONLY & ~SVf_PROTECT;
 
     # replace the previously saved svsect with some accurate content
-    svsect()->replace(
+    svsect()->update(
         $sv_list_index,
         sprintf(
             "&xpvhv_list[%d], %Lu, 0x%x, {0}",

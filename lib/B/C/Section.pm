@@ -46,7 +46,7 @@ sub add {
     return $self->index();
 }
 
-sub replace { # rename to update TODO
+sub update {
     my ( $self, $row, $value, $void ) = @_;
     die "Can only update one single entry" if defined $void;
     die "Element does not exists" if $row > $self->index;
