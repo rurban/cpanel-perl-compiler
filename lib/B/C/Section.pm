@@ -46,14 +46,20 @@ sub add {
     return $self->index();
 }
 
-sub replace {
-    my ( $self, $position, $updated_line, $void ) = @_;
-    die "Can only replace one single entry" if defined $void;
-    die "Element does not exists" if $position > $self->index;
+sub replace { # rename to update TODO
+    my ( $self, $row, $value, $void ) = @_;
+    die "Can only update one single entry" if defined $void;
+    die "Element does not exists" if $row > $self->index;
 
-    $self->{'values'}->[$position] = $updated_line;
+    $self->{'values'}->[$row] = $value;
 
     return;
+}
+
+sub get {
+    my($self, $row) = @_;
+
+    return $self->{'values'}->[$row];
 }
 
 sub remove {    # should be rename pop or remove last

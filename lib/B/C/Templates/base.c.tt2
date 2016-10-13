@@ -330,6 +330,63 @@ static void init_pl_strtab(pTHX) {
 [% END %]
 }
 
+/* handy helpers for B::C */
+
+int svsize = sizeof(SV*);
+SV ** INITAv(AV * av, int count) {
+/* Bypassing Perl_safesysmalloc on darwin fails with "free from wrong pool", test 25.
+   So with DEBUGGING perls we have to track memory and use calloc. */
+    SV **svp;
+#if defined(MYMALLOC)
+    Newx(svp, count, SV*);
+#else
+  #ifdef PERL_TRACK_MEMPOOL
+    svp = (SV**)Perl_safesysmalloc(count * svsize);
+  #else
+    svp = (SV**)malloc(count * svsize);
+  #endif
+#endif
+    AvALLOC(av) = svp;
+    AvARRAY(av) = svp;
+    return svp;
+}
+
+static void GvSETUP( GV *gv, U32 svflags, U32 gvflags, U32 gvline, U32 svrefcnt, U32 gvrefcnt ) {
+    SvFLAGS(gv) = svflags;
+    GvFLAGS(gv) = gvflags;
+    if (gvline > -1)
+        GvLINE(gv) = gvline;
+    if (svrefcnt > -1)
+        SvREFCNT(gv) = svrefcnt;
+    if (gvrefcnt)
+        GvREFCNT(gv) += gvrefcnt;
+    return;
+}
+
+static void GvMAGIC_BACKREF( SV *sv, SV *cv ) {
+    sv_magic((SV*)sv, (SV*)cv, '<', 0, 0);
+    CvCVGV_RC_off(cv);
+    return;
+}
+
+PADNAME ** INITPADNAME(PADNAMELIST *padname, int count) {
+    PADNAME **svp;
+    PADNAMELIST *padnl = padname;
+    Newxz(svp, count, PADNAME *);
+    PadnamelistARRAY(padnl) = svp;
+    return svp;
+}
+
+PAD ** INITPADLIST(PADLIST *pad, int count) {
+    PAD **svp;
+    PADLIST *padl = pad;
+    Newxz(svp, count, PAD *);
+    PadlistARRAY(padl) = svp;
+    return svp;
+}
+
+/* end of handy helpers */
+
 static void perl_init0(pTHX) { /* fixup_ppaddr */
 [% section.init0.output( "    %s\n" ) %]
 };
