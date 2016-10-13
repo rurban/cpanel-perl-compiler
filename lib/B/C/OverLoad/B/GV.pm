@@ -136,6 +136,76 @@ sub savecv {
     $gv->save($fullname);
 }
 
+sub get_savefields {
+    my ( $gv, $gvname, $fullname, $filter, $obscure_corner_case ) = @_;
+
+    # default savefields
+    my $savefields = 0;
+
+    if ($obscure_corner_case) {
+        $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
+    }
+
+    # some non-alphabetic globs require some parts to be saved
+    # ( ex. %!, but not $! )
+    if ( $gvname !~ /^([^A-Za-z]|STDIN|STDOUT|STDERR|ARGV|SIG|ENV)$/ ) {
+        $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
+    }
+    elsif ( $fullname eq 'main::!' ) {    #Errno
+        $savefields = Save_HV | Save_SV | Save_CV;
+    }
+    elsif ( $fullname eq 'main::ENV' or $fullname eq 'main::SIG' ) {
+        $savefields = Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
+    }
+    elsif ( $fullname eq 'main::ARGV' ) {
+        $savefields = Save_HV | Save_SV | Save_CV | Save_FORM | Save_IO;
+    }
+    elsif ( $fullname =~ /^main::STD(IN|OUT|ERR)$/ ) {
+        $savefields = Save_FORM | Save_IO;
+    }
+    elsif ( $fullname eq 'main::_' or $fullname eq 'main::@' ) {
+        $savefields = 0;
+    }
+
+    # avoid overly dynamic POSIX redefinition warnings: GH #335, #345
+    if ( $fullname =~ m/^POSIX::M/ or $fullname eq 'attributes::bootstrap' ) {
+        $savefields &= ~Save_CV;
+    }
+
+    # compute filter
+    $filter = normalize_filter( $filter, $fullname );
+
+    # apply filter
+    if ( $filter and $filter =~ qr{^[0-9]$} ) {
+        $savefields &= ~$filter;
+    }
+
+    return $savefields;
+}
+
+sub normalize_filter {
+    my ( $filter, $fullname ) = @_;
+
+    if ( $filter and $filter =~ m/ :pad/ ) {
+        $filter = 0;
+    }
+
+    # checked for defined'ness in Carp. So the GV must exist, the CV not
+    if ( $fullname =~ /^threads::(tid|AUTOLOAD)$/ and USE_ITHREADS() ) {
+        $filter = Save_CV;
+    }
+
+    # no need to assign any SV/AV/HV to them (172)
+    if ( $fullname =~ /^DynaLoader::dl_(require_symbols|resolve_using|librefs)/ ) {
+        $filter = Save_SV | Save_AV | Save_HV;
+    }
+    if ( $B::C::ro_inc and $fullname =~ /^main::([0-9])$/ ) {    # ignore PV regexp captures with -O2
+        $filter = Save_SV;
+    }
+
+    return $filter;
+}
+
 sub save {
     my ( $gv, $filter ) = @_;
     my $sym = objsym($gv);
@@ -267,9 +337,9 @@ sub save {
     #  init1()->add( sprintf( "SvREFCNT($sym) = %u;", $gv->REFCNT ) );
     #  return $sym;
     #}
-    my $svflags    = $gv->FLAGS;
-    my $savefields = 0;
+    my $svflags = $gv->FLAGS;
 
+    my $obscure_corner_case;
     my $gp;
     my $gvadd = $notqual ? "$notqual|GV_ADD" : "GV_ADD";
     if ( $gv->isGV_with_GP and !$is_coresym ) {
@@ -313,8 +383,8 @@ sub save {
 
             # XXX !PERL510 and OPf_COP_TEMP we need to fake PL_curcop for gp_file hackery
             init()->add( "$sym = " . gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) . ";" );
-            $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
             $gptable{ 0 + $gp } = "GvGP($sym)";
+            $obscure_corner_case = 1;
         }
         else {
             init()->add( "$sym = " . gv_fetchpv_string( $name, $gvadd, 'SVt_PVGV' ) . ";" );
@@ -359,29 +429,7 @@ sub save {
     }
 
     debug( gv => "check which savefields for \"$gvname\"" );
-
-    # some non-alphabetic globs require some parts to be saved
-    # ( ex. %!, but not $! )
-    if ( $gvname !~ /^([^A-Za-z]|STDIN|STDOUT|STDERR|ARGV|SIG|ENV)$/ ) {
-        $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
-    }
-    elsif ( $fullname eq 'main::!' ) {    #Errno
-        $savefields = Save_HV | Save_SV | Save_CV;
-    }
-    elsif ( $fullname eq 'main::ENV' or $fullname eq 'main::SIG' ) {
-        $savefields = Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
-    }
-    elsif ( $fullname eq 'main::ARGV' ) {
-        $savefields = Save_HV | Save_SV | Save_CV | Save_FORM | Save_IO;
-    }
-    elsif ( $fullname =~ /^main::STD(IN|OUT|ERR)$/ ) {
-        $savefields = Save_FORM | Save_IO;
-    }
-    $savefields &= ~$filter if ( $filter
-        and $filter !~ m/ :pad/
-        and $filter =~ /^\d+$/
-        and $filter > 0
-        and $filter < 64 );
+    my $savefields = get_savefields( $gv, $gvname, $fullname, $filter, $obscure_corner_case );
 
     # issue 79: Only save stashes for stashes.
     # But not other values to avoid recursion into unneeded territory.
@@ -399,15 +447,12 @@ sub save {
             eval { $package->bootstrap };
         }
         mark_package( 'attributes', 1 );
-        $savefields &= ~Save_CV;
+
+        #$savefields &= ~Save_CV;
         $B::C::xsub{attributes} = 'Dynamic-' . $INC{'attributes.pm'};    # XSLoader
         $B::C::use_xsloader = 1;
     }
 
-    # avoid overly dynamic POSIX redefinition warnings: GH #335, #345
-    if ( $fullname =~ m/^POSIX::M/ ) {
-        $savefields &= ~Save_CV;
-    }
     my $gvsv;
     if ($savefields) {
 
