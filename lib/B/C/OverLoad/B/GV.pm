@@ -15,10 +15,6 @@ use B::C::Packages qw/mark_package_used/;
 
 my %gptable;
 
-sub get_index {
-    return $B::C::gv_index;
-}
-
 sub inc_index {
     return $B::C::gv_index++;
 }
@@ -219,16 +215,13 @@ sub save {
         debug( gv => "Saving GV 0x%x as $sym", ref $gv ? $$gv : 0 );
     }
 
-    my $gvname = $gv->NAME();
-
-    if ( $gv->FLAGS & 0x40000000 ) {    # SVpbm_VALID
-        debug( gv => "  GV $sym isa FBM" );
-        return B::BM::save($gv);
-    }
+    # GV $sym isa FBM
+    return B::BM::save($gv) if $gv->FLAGS & 0x40000000;    # SVpbm_VALID
 
     my $package = $gv->get_package();
-
     return q/(SV*)&PL_sv_undef/ if B::C::skip_pkg($package);
+
+    my $gvname = $gv->NAME();
 
     # If we come across a stash hash, we therefore have code using it so we need to mark it was used so it won't be deleted.
     if ( $gvname =~ m/::$/ ) {
