@@ -221,61 +221,23 @@ sub save {
 
     my $gvname = $gv->NAME();
 
-    debug(
-        gv => "  GV %s $sym type=%d, flags=0x%x",
-        $gvname,
-
-        # B::SV::SvTYPE not with 5.6
-        B::SV::SvTYPE($gv), $gv->FLAGS
-    );
-
     if ( $gv->FLAGS & 0x40000000 ) {    # SVpbm_VALID
         debug( gv => "  GV $sym isa FBM" );
         return B::BM::save($gv);
     }
 
-    my $package;
-    if ( ref( $gv->STASH ) eq 'B::SPECIAL' ) {
-        $package = '__ANON__';
-        debug( gv => "GV STASH = SPECIAL $gvname" );
-    }
-    else {
-        $package = $gv->STASH->NAME;
-    }
+    my $package = $gv->get_package();
+
     return q/(SV*)&PL_sv_undef/ if B::C::skip_pkg($package);
 
     # If we come across a stash hash, we therefore have code using it so we need to mark it was used so it won't be deleted.
     if ( $gvname =~ m/::$/ ) {
-        my $package = $gvname;
-        $package =~ s/::$//;
-        mark_package_used($package);
+        my $pkg = $gvname;
+        $pkg =~ s/::$//;
+        mark_package_used($pkg);
     }
 
-    my $fullname = $package . "::" . $gvname;
-    my $fancyname;
-    if ( $filter and $filter =~ m/ :pad/ ) {
-        $fancyname = cstring($filter);
-        $filter    = 0;
-    }
-    else {
-        $fancyname = cstring($fullname);
-    }
-
-    # checked for defined'ness in Carp. So the GV must exist, the CV not
-    if ( $fullname =~ /^threads::(tid|AUTOLOAD)$/ and USE_ITHREADS() ) {
-        $filter = Save_CV;
-    }
-
-    # no need to assign any SV/AV/HV to them (172)
-    if ( $fullname =~ /^DynaLoader::dl_(require_symbols|resolve_using|librefs)/ ) {
-        $filter = Save_SV + Save_AV + Save_HV;
-    }
-
-    # skip static %Encode::Encoding since 5.20. GH #200.
-    # Let it be initialized by boot_Encode/Encode_XSEncoding
-    # if ( $fullname eq 'Encode::Encoding' ) {
-    #     $filter = Save_HV;
-    # }
+    my $fullname = $gv->get_fullname();
 
     my $is_empty = $gv->is_empty;
     if ( !defined $gvname and $is_empty ) {    # 5.8 curpad name
@@ -284,7 +246,7 @@ sub save {
     my $name    = $package eq 'main' ? $gvname          : $fullname;
     my $cname   = $package eq 'main' ? cstring($gvname) : cstring($fullname);
     my $notqual = $package eq 'main' ? 'GV_NOTQUAL'     : '0';
-    debug( gv => "  GV name is $fancyname" );
+
     my $egvsym;
     my $is_special = ref($gv) eq 'B::SPECIAL';
 
