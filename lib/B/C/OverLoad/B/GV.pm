@@ -739,44 +739,41 @@ sub save_gv_hv {
     my $gvhv = $gv->HV;
     return unless $gvhv && $$gvhv;
 
-    if ( $fullname ne 'main::ENV' ) {
-        debug( gv => "GV::save \%$fullname" );
-        if ( $fullname eq 'main::!' ) {    # force loading Errno
-            init()->add("/* \%! force saving of Errno */");
-            mark_package( 'Errno', 1 );    # B::C needs Errno but does not import $!
-        }
-        elsif ( $fullname eq 'main::+' or $fullname eq 'main::-' ) {
-            init()->add("/* \%$gvname force saving of Tie::Hash::NamedCapture */");
+    # Handle HV exceptions first...
+    return if $fullname eq 'main::ENV' or $fullname eq 'main::INC';    # do not save %ENV
 
-            svref_2object( \&{'Tie::Hash::NamedCapture::bootstrap'} )->save;
-
-            mark_package( 'Tie::Hash::NamedCapture', 1 );
-        }
-
-        # skip static %Encode::Encoding since 5.20. GH #200. sv_upgrade cannot upgrade itself.
-        # Let it be initialized by boot_Encode/Encode_XSEncodingm with exceptions.
-        # GH #200 and t/testc.sh 75
-        if ( $fullname eq 'Encode::Encoding' ) {
-            debug( gv => "skip some %Encode::Encoding - XS initialized" );
-            my %tmp_Encode_Encoding = %Encode::Encoding;
-            %Encode::Encoding = ();    # but we need some non-XS encoding keys
-            for my $k (qw(utf8 utf-8-strict Unicode Internal Guess)) {
-                $Encode::Encoding{$k} = $tmp_Encode_Encoding{$k} if exists $tmp_Encode_Encoding{$k};
-            }
-            $gvhv->save($fullname);
-            init()->add(
-                "/* deferred some XS enc pointers for \%Encode::Encoding */",
-                sprintf( "GvHV(%s) = s\\_%x;", $sym, $$gvhv )
-            );
-            %Encode::Encoding = %tmp_Encode_Encoding;
-        }
-
-        # XXX TODO 49: crash at BEGIN { %warnings::Bits = ... }
-        elsif ( $fullname ne 'main::INC' ) {
-            $gvhv->save($fullname);
-            init()->add( sprintf( "GvHV(%s) = s\\_%x;", $sym, $$gvhv ) );
-        }
+    debug( gv => "GV::save \%$fullname" );
+    if ( $fullname eq 'main::!' ) {                                    # force loading Errno
+        init()->add("/* \%! force saving of Errno */");
+        mark_package( 'Errno', 1 );                                    # B::C needs Errno but does not import $!
     }
+    elsif ( $fullname eq 'main::+' or $fullname eq 'main::-' ) {
+        init()->add("/* \%$gvname force saving of Tie::Hash::NamedCapture */");
+        svref_2object( \&{'Tie::Hash::NamedCapture::bootstrap'} )->save;
+        mark_package( 'Tie::Hash::NamedCapture', 1 );
+    }
+
+    # skip static %Encode::Encoding since 5.20. GH #200. sv_upgrade cannot upgrade itself.
+    # Let it be initialized by boot_Encode/Encode_XSEncodingm with exceptions.
+    # GH #200 and t/testc.sh 75
+    if ( $fullname eq 'Encode::Encoding' ) {
+        debug( gv => "skip some %Encode::Encoding - XS initialized" );
+        my %tmp_Encode_Encoding = %Encode::Encoding;
+        %Encode::Encoding = ();    # but we need some non-XS encoding keys
+        foreach my $k (qw(utf8 utf-8-strict Unicode Internal Guess)) {
+            $Encode::Encoding{$k} = $tmp_Encode_Encoding{$k} if exists $tmp_Encode_Encoding{$k};
+        }
+        $gvhv->save($fullname);
+        init()->add(
+            "/* deferred some XS enc pointers for \%Encode::Encoding */",
+            sprintf( "GvHV(%s) = s\\_%x;", $sym, $$gvhv )
+        );
+        %Encode::Encoding = %tmp_Encode_Encoding;
+        return;
+    }
+
+    $gvhv->save($fullname);
+    init()->add( sprintf( "GvHV(%s) = s\\_%x;", $sym, $$gvhv ) );
 
     return;
 }
