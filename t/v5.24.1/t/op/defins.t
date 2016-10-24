@@ -13,6 +13,8 @@ INIT { $warns = 0 }
 require './test.pl';
 plan( tests => 27 );
 
+INIT { $warns = 0 } # B::C can raise some warnings at BEGIN time
+
 my $unix_mode = 1;
 
 if ($^O eq 'VMS') {
