@@ -179,7 +179,7 @@ sub save {
     my $flags = $hv->FLAGS & ~SVf_READONLY & ~SVf_PROTECT;
 
     # replace the previously saved svsect with some accurate content
-    svsect()->replace(
+    svsect()->update(
         $sv_list_index,
         sprintf(
             "&xpvhv_list[%d], %Lu, 0x%x, {0}",
@@ -193,12 +193,7 @@ sub save {
         init()->no_split;
         init()->add(
             "{",
-            "char *array;",
-            # malloc the hash array + the xpvhv_aux which is part of it
-            sprintf( "Newxz (array, PERL_HV_ARRAY_ALLOC_BYTES (%d) + sizeof(struct xpvhv_aux), char);", $max + 1 ),
-
-            # setting the hash array to the HV (in sv_list) in sv_any
-            sprintf( "HvARRAY (%s) = (HE **) array;", $sym ),
+            sprintf( q{HvSETUP(%s, %d);}, $sym, $max + 1 ),
         );
 
         my @hash_elements;
@@ -211,39 +206,14 @@ sub save {
         # uncomment for saving hashes in a consistent order while debugging
         #@hash_elements = @hash_content_to_save;
 
-        init()->add( 
-            "HE *entry;",
-            "HE **oentry;"
-        ) if @hash_elements;
-
         foreach my $elt (@hash_elements) {
             my ( $key, $value ) = @$elt;
 
             # Insert each key into the hash.
-            my $hek_sym = save_shared_he($key);
+            my $shared_he = save_shared_he($key);
+            init()->add( sprintf( q{HvAddEntry(%s, %s, %s, %d);}, $sym, $value, $shared_he, $max ) );
 
-            my $C_CODE = <<'EOS';
-
-                    entry            = (HE*) safemalloc(sizeof(HE));
-                    HeKEY_hek(entry) = &(~HEK_SYM~->shared_he_hek);
-                    HeVAL (entry)    = ~VALUE~;
-                    oentry           = &(HvARRAY (~SYM~))[HEK_HASH(&(~HEK_SYM~->shared_he_hek)) & (I32) ~MAX~];
-                    HeNEXT(entry)    = *oentry;
-                    *oentry          = entry;
-EOS
-
-            # lazy template
-            my %macro = (
-                HEK_SYM => $hek_sym,
-                VALUE   => $value,
-                SYM     => $sym,
-                MAX     => $max,
-            );
-            $C_CODE =~ s{(~([^~]+)~)}{$macro{$2}}g;
-
-            init()->add($C_CODE);
-
-            debug( hv => q{ HV key "%s" = %s}, $key, $value );
+            #debug( hv => q{ HV key "%s" = %s}, $key, $value );
         }
 
         # save the iterator in hv_aux (and malloc it)

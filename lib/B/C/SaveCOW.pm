@@ -25,11 +25,11 @@ sub savepv {
     my $max_len = B::C::Save::get_max_string_len();
     if ( $max_len && $cur > $max_len ) {
         my $chars = join ', ', map { cchar $_ } split //, pack( "a*", $pv );
-        const()->replace( $ix, sprintf( "Static const char %s[] = { %s };", $pvsym, $chars ) );
+        const()->update( $ix, sprintf( "Static const char %s[] = { %s };", $pvsym, $chars ) );
         $strtable{$cstring} = [ $pvsym, $cur, $len ];
     }
     else {
-        const()->replace( $ix, sprintf( "Static const char %s[] = %s;", $pvsym, $cstring ) );
+        const()->update( $ix, sprintf( "Static const char %s[] = %s;", $pvsym, $cstring ) );
         $strtable{$cstring} = [ $pvsym, $cur, $len ];
     }
     return ( $pvsym, $cur, $len );    # NOTE: $cur is total size of the perl string. len would be the length of the C string.
