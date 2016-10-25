@@ -22,25 +22,36 @@ sub new {
     $self->{'max_lines'}   = 10000;
     $self->{'last_caller'} = '';
 
-    push @{ $self->{'current'} }, benchmark_time( 'START', 'START init' );
+    push @{ $self->{'current'} }, $self->benchmark_time( 'START', 'START init' );
 
     return $self;
 }
 
 {
     my $status;
+    my %blacklist;    # disable benchmark inside some specific sections
+    my $init_benchmark;
 
     sub benchmark_enabled {
+        my $self = shift;
+
+        unless ($init_benchmark) {
+            my $assign_sections = B::C::File->can('assign_sections') or die;
+            $blacklist{$_} = 1 for $assign_sections->();
+            $init_benchmark = 1;
+        }
+
+        return 0 if $blacklist{ $self->{name} };
         $status = B::C::Config::Debug::debug('benchmark') || 0 unless defined $status;
         return $status;
     }
 }
 
 sub benchmark_time {
-    my ( $label, $next_label ) = @_;
+    my ( $self, $label, $next_label ) = @_;
 
     my $str = '';
-    if ( benchmark_enabled() ) {
+    if ( $self->benchmark_enabled() ) {
         $str .= sprintf( qq{\nbenchmark_time("%s");\n}, $label );
     }
     $str .= sprintf( qq{\n/*%s %s %s*/\n}, '*' x 15, $next_label, '*' x 15 );
@@ -84,7 +95,7 @@ sub add {
         $caller =~ s/^B:://;
 
         if ( $self->{'last_caller'} ne $caller ) {
-            push @$current, benchmark_time( $self->{'last_caller'}, $caller ) if $self->{'last_caller'};
+            push @$current, $self->benchmark_time( $self->{'last_caller'}, $caller ) if $self->{'last_caller'};
             $self->{'last_caller'} = $caller;
         }
     }
@@ -94,7 +105,6 @@ sub add {
     my $add_stack = 'B::C::Save'->can('_caller_comment');
 
     push @$current, $add_stack->() if ( ref $add_stack );
-
     if ( !$nosplit && $self->{'count'} >= $self->{'max_lines'} ) {
         push @{ $self->{'chunks'} }, $current;
         $self->{'current'} = [];
