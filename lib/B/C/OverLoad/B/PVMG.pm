@@ -9,7 +9,8 @@ use B::C::Save qw/savepvn savepv savestashpv/;
 use B::C::Decimal qw/get_integer_value get_double_value/;
 use B::C::File qw/init init1 init2 svsect xpvmgsect xpvsect pmopsect/;
 use B::C::Helpers::Symtable qw/objsym savesym/;
-use B::C::Helpers qw/mark_package read_utf8_string/;
+use B::C::Helpers qw/mark_package read_utf8_string is_shared_hek/;
+use B::C::Save::Hek qw/save_shared_he/;
 
 sub save {
     my ( $sv, $fullname ) = @_;
@@ -75,8 +76,16 @@ sub save {
             $xpvmg_ix, $sv->REFCNT + 1, $flags, $sv_u
         )
     );
-
     svsect()->debug( $fullname, $sv );
+
+    if ( defined($pv) and !$static ) {
+        my $shared_hek = is_shared_hek($sv);
+        if ($shared_hek) {
+            my $hek = save_shared_he( $pv, $fullname );
+            init()->add( sprintf( "sv_list[%d].sv_u.svu_pv = %s->shared_he_hek.hek_key;", $sv_ix, $hek ) )
+              unless $hek eq 'NULL';
+        }
+    }
 
     $sym = savesym( $sv, sprintf( q{&sv_list[%d]}, $sv_ix ) );
     $sv->save_magic($fullname);

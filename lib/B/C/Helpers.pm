@@ -2,6 +2,7 @@ package B::C::Helpers;
 
 use Exporter ();
 use B::C::Config;
+use B qw/SVf_POK SVp_POK/;
 our @ISA       = qw(Exporter);
 our @EXPORT_OK = qw/svop_name padop_name mark_package do_labels read_utf8_string get_cv_string
   is_constant strlen_flags curcv set_curcv is_using_mro cow_strlen_flags is_shared_hek
@@ -29,6 +30,7 @@ sub is_shared_hek {
     return 0 unless $sv && $$sv;
 
     my $flags = $sv->FLAGS;
+    return 0 unless $flags & ( SVf_POK | SVp_POK );      # cannot be a shared hek if we have no PV public or private
     return ( ( $flags & 0x09000000 ) == 0x09000000 ) || B::C::IsCOW_hek($sv);
 }
 

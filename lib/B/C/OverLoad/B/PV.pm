@@ -2,14 +2,14 @@ package B::PV;
 
 use strict;
 
-use B qw/cstring SVf_IsCOW SVf_ROK SVf_POK SVs_GMG SVs_SMG SVf_READONLY SVs_OBJECT/;
+use B qw/cstring SVf_IsCOW SVf_ROK SVf_POK SVp_POK SVs_GMG SVs_SMG SVf_READONLY SVs_OBJECT/;
 use B::C::Config;
 use B::C::Save qw/savepvn/;
 use B::C::SaveCOW qw/savepv/;
 use B::C::Save::Hek qw/save_shared_he/;
 use B::C::File qw/xpvsect svsect init free/;
 use B::C::Helpers::Symtable qw/savesym objsym/;
-use B::C::Helpers qw/is_shared_hek/;
+use B::C::Helpers qw/is_shared_hek read_utf8_string/;
 
 sub SVpbm_VALID { 0x40000000 }
 sub SVp_SCREAM  { 0x00008000 }    # method name is DOES
@@ -29,7 +29,6 @@ sub save {
     my $shared_hek = is_shared_hek($sv);
 
     my ( $savesym, $cur, $len, $pv, $static, $flags ) = save_pv_or_rv( $sv, $fullname );
-    $static = 0 if !( $flags & SVf_ROK ) and $sv->PV and $sv->PV =~ /::bootstrap$/;
 
     # sv_free2 problem with !SvIMMORTAL and del_SV
     my $refcnt = $sv->REFCNT;
@@ -37,8 +36,8 @@ sub save {
         $refcnt = DEBUGGING() ? 1000 : 0x7fffffff;
     }
 
-    if ( ref $custom ) { # used when downgrading a PVIV / PVNV to IV
-        $flags = $custom->{flags} if defined $custom->{flags};
+    if ( ref $custom ) {    # used when downgrading a PVIV / PVNV to IV
+        $flags  = $custom->{flags}  if defined $custom->{flags};
         $refcnt = $custom->{refcnt} if defined $custom->{refcnt};
     }
 
@@ -56,22 +55,10 @@ sub save {
     svsect()->add( sprintf( '&xpv_list[%d], %Lu, 0x%x, {%s}', xpvsect()->index, $refcnt, $flags, $savesym ) );
     my $svix = svsect()->index;
 
-    if ( defined($pv) and !$static ) {
-        if ($shared_hek) {
-            my $hek = save_shared_he( $pv, $fullname );
-            init()->add( sprintf( "sv_list[%d].sv_u.svu_pv = %s->shared_he_hek.hek_key;", $svix, $hek ) )
-              unless $hek eq 'NULL';
-        }
-    }
-
-    if ( debug('flags') and DEBUG_LEAKING_SCALARS() ) {    # add sv_debug_file
-        init()->add(
-            sprintf(
-                qq(sv_list[%d].sv_debug_file = %s" sv_list[%d] 0x%x";),
-                $svix, cstring($pv) eq '0' ? q{"NULL"} : cstring($pv),
-                $svix, $flags
-            )
-        );
+    if ( $shared_hek and !$static ) {
+        my $hek = save_shared_he( $pv, $fullname );
+        init()->add( sprintf( "sv_list[%d].sv_u.svu_pv = %s->shared_he_hek.hek_key;", $svix, $hek ) )
+          unless $hek eq 'NULL';
     }
 
     my $s = "sv_list[$svix]";
@@ -85,15 +72,28 @@ sub save_pv_or_rv {
     my ( $sv, $fullname ) = @_;
 
     my $rok = $sv->FLAGS & SVf_ROK;
-    my $pok = $sv->FLAGS & SVf_POK;
+    my $pok = $sv->FLAGS & ( SVf_POK | SVp_POK );
     my $gmg = $sv->FLAGS & SVs_GMG;
 
     my $flags = $sv->FLAGS;
 
     my ( $static, $shared_hek ) = ( 1, is_shared_hek($sv) );
 
+    $static = 0 if ( $sv->FLAGS & ( SVp_SCREAM | SVpbm_VALID ) == ( SVp_SCREAM | SVpbm_VALID ) );    # ??
+    $static = 0 if !( $flags & SVf_ROK ) and $sv->PV and $sv->PV =~ /::bootstrap$/;
+
+    if ( $shared_hek && !$static ) {
+        my $savesym = 'NULL';
+        my ( $is_utf8, $cur ) = read_utf8_string( $sv->PV );
+        my $len = 0;                                                                                 # hek should have len 0
+
+        my $pv = $sv->PV;                                                                            # we know that a shared_hek as POK
+
+        return ( $savesym, $cur, $len, $pv, $static, $flags );
+    }
+
     my $pv = "";
-    my ( $savesym, $cur, $len ) = savepv($pv);    # initialize with empty string
+    my ( $savesym, $cur, $len ) = savepv($pv);
 
     # overloaded VERSION symbols fail to xs boot: ExtUtils::CBuilder with Fcntl::VERSION (i91)
     # 5.6: Can't locate object method "RV" via package "B::PV" Carp::Clan
@@ -112,6 +112,7 @@ sub save_pv_or_rv {
         else {
             $savesym = $newsym;
         }
+        $static = 1;                                          # ??
     }
     else {
         $flags |= SVf_IsCOW;                                  # only flags as COW if it's not a reference
@@ -129,17 +130,10 @@ sub save_pv_or_rv {
             }
         }
 
-        $static = 0 if ( $sv->FLAGS & ( SVp_SCREAM | SVpbm_VALID ) == ( SVp_SCREAM | SVpbm_VALID ) );
-
         ( $savesym, $cur, $len ) = savepv($pv) if $pok;
     }
 
     $fullname = '' if !defined $fullname;
-
-    # do not use cowpvs for shared_hek for now (not ready)
-    if ($shared_hek) {
-        $len = 0;    # hek should have len 0
-    }
 
     debug(
         pv => "Saving pv %s %s cur=%d, len=%d, static=%d cow=%d %s",
