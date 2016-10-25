@@ -5,6 +5,8 @@ use warnings;
 # avoid use vars
 use parent 'B::C::Section';
 
+use B::C::Config::Debug ();
+
 # All objects inject into this shared variable.
 our @all_eval_pvs;
 
@@ -12,14 +14,38 @@ sub new {
     my $class = shift;
     my $self  = $class->SUPER::new(@_);
 
-    $self->{'initav'}    = [];
-    $self->{'chunks'}    = [];
-    $self->{'nosplit'}   = 0;
-    $self->{'current'}   = [];
-    $self->{'count'}     = 0;
-    $self->{'max_lines'} = 10000;
+    $self->{'initav'}      = [];
+    $self->{'chunks'}      = [];
+    $self->{'nosplit'}     = 0;
+    $self->{'current'}     = [];
+    $self->{'count'}       = 0;
+    $self->{'max_lines'}   = 10000;
+    $self->{'last_caller'} = '';
+
+    push @{ $self->{'current'} }, benchmark_time( 'START', 'START init' );
 
     return $self;
+}
+
+{
+    my $status;
+
+    sub benchmark_enabled {
+        $status = B::C::Config::Debug::debug('benchmark') || 0 unless defined $status;
+        return $status;
+    }
+}
+
+sub benchmark_time {
+    my ( $label, $next_label ) = @_;
+
+    my $str = '';
+    if ( benchmark_enabled() ) {
+        $str .= sprintf( qq{\nbenchmark_time("%s");\n}, $label );
+    }
+    $str .= sprintf( qq{\n/*%s %s %s*/\n}, '*' x 15, $next_label, '*' x 15 );
+
+    return $str;
 }
 
 sub split {
@@ -46,12 +72,28 @@ sub add {
     my $current = $self->{'current'};
     my $nosplit = $self->{'nosplit'};
 
+    my $ok = grep { $_ =~ m/\S/ } @_;
+    if ($ok) {
+
+        my $caller = "@{[(caller(1))[3]]}";
+        if ( $caller =~ m/InitSection/ ) {
+            $caller = "@{[(caller(2))[3]]}";
+        }
+
+        $caller =~ s/::[^:]+?$//;
+        $caller =~ s/^B:://;
+
+        if ( $self->{'last_caller'} ne $caller ) {
+            push @$current, benchmark_time( $self->{'last_caller'}, $caller ) if $self->{'last_caller'};
+            $self->{'last_caller'} = $caller;
+        }
+    }
+
     push @$current, @_;
     $self->{'count'} += scalar(@_);
     my $add_stack = 'B::C::Save'->can('_caller_comment');
-    my @stack;
-    @stack = $add_stack->() if ref $add_stack;
-    push @$current, @stack if scalar @stack;
+
+    push @$current, $add_stack->() if ( ref $add_stack );
 
     if ( !$nosplit && $self->{'count'} >= $self->{'max_lines'} ) {
         push @{ $self->{'chunks'} }, $current;
@@ -106,7 +148,9 @@ sub output {
         foreach my $j (@$i) {
             $j =~ s{(s\\_[0-9a-f]+)}
                    { exists($sym->{$1}) ? $sym->{$1} : $default; }ge;
+
             $return_string .= "    $j\n";
+
         }
         $return_string .= "\n}\n";
 

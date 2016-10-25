@@ -1708,6 +1708,7 @@ sub compile {
         }
         elsif ( $opt eq "D" ) {
             $arg ||= shift @options;
+            $arg =~ s{^=+}{};
             if ( $arg eq 'full' ) {
                 $arg = 'OcAHCMGSPpsWF';
                 $all_bc_deps{'B::Flags'}++;
@@ -1717,6 +1718,7 @@ sub compile {
                 $all_bc_deps{'B::Flags'}++;
             }
             elsif ( B::C::Config::Debug::enable_debug_level($arg) ) {
+                WARN("Enable debug mode: $arg");
                 next;
             }
             foreach my $arg ( split( //, $arg ) ) {

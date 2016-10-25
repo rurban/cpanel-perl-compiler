@@ -246,12 +246,14 @@ sub parse_argv {
         'spawn!',           # --no-spawn (new since 2.12)
         'time',             # print benchmark timings (new since 2.08)
         'version',          # (new since 2.13)
-        'debug|D',          # alias for --Wb=-Dfull and -S to enable all debug and preserve source code
+        'debug|D|d=s',      # alias for --Wb=-Dfull and -S to enable all debug and preserve source code
     );
 
-    if ( $Options->{debug} ) {
+    if ( defined $Options->{debug} ) {
+        $Options->{debug} =~ s{^=+}{};
+        $Options->{debug} = 'full' if !length $Options->{debug};
         $Options->{Wb} = $Options->{Wb} ? $Options->{Wb} . ',' : '';
-        $Options->{Wb} .= '-Dfull';
+        $Options->{Wb} .= '-D' . $Options->{debug};
         $Options->{S} = 1;
     }
 
@@ -730,9 +732,10 @@ sub cc_harness {
 }
 
 {
-    my $GCC; # state variable
+    my $GCC;    # state variable
+
     sub get_gcc {
-        if ( ! defined $GCC ) {
+        if ( !defined $GCC ) {
             $GCC = qx{which gcc};
             chomp $GCC;
             $GCC = '' unless -x $GCC;
@@ -742,7 +745,6 @@ sub cc_harness {
         return $Config{cc};
     }
 }
-
 
 # Where Perl is, and which include path to give it.
 sub yclept {
@@ -887,7 +889,7 @@ sub check_write {
 
 sub check_perl {
     my $file = shift;
-    if ( ! -T $file && !$ENV{SKIP_CHECK_PERL} ) {
+    if ( !-T $file && !$ENV{SKIP_CHECK_PERL} ) {
         warn "$0: Binary `$file' sure doesn't smell like perl source!\n";
         print "Checking file type... ";
         vsystem( "file", $file );

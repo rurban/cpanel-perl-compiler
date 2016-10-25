@@ -1,8 +1,12 @@
 /* [% creator %] */
 
-[% IF debug.flags AND DEBUG_LEAKING_SCALARS %]
+[% IF debug.flags AND DEBUG_LEAKING_SCALARS -%]
 #define DEBUG_LEAKING_SCALARS 1
-[% END %]
+[% END -%]
+
+[% IF debug.benchmark -%]
+#define DEBUG_BENCHMARK 1
+[% END -%]
 
 [% IF have_independent_comalloc %]
 #ifdef NEED_MALLOC_283
@@ -16,6 +20,18 @@
 #include "EXTERN.h" /* Embedded interface */
 #include "perl.h"   /* API interface */
 #include "XSUB.h"   /* XS interface */
+
+#ifdef DEBUG_BENCHMARK
+#include <sys/time.h>
+
+struct timespec start, end;
+uint64_t delta_us;
+PerlIO * PIO_stdout;
+
+#define benchmark_time(msg) clock_gettime(CLOCK_MONOTONIC_RAW, &end); delta_us = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec); PerlIO_printf(PIO_stdout, "--USECONDS %lu == %s\n", delta_us, msg )
+#else
+#define benchmark_time(msg) 
+#endif /* end of DEBUG_BENCHMARK */
 
 /* Workaround for mapstart: the only op which needs a different ppaddr */
 #undef Perl_pp_mapstart
@@ -898,6 +914,9 @@ main(int argc, char **argv, char **env)
     int options_count;
     PerlInterpreter *my_perl;
 
+#ifdef DEBUG_BENCHMARK
+    clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+#endif
     PERL_SYS_INIT3(&argc,&argv,&env);
 
     assert(PL_do_undump == 0);
@@ -911,7 +930,10 @@ main(int argc, char **argv, char **env)
 	perl_construct( my_perl );
 	PL_perl_destruct_level = 0;
 
-
+#ifdef DEBUG_BENCHMARK
+    PIO_stdout =  PerlIO_stdout();
+    benchmark_time("got stdio");
+#endif
     PL_exit_flags |= PERL_EXIT_DESTRUCT_END;
 
 /* perlmain.c sets PL_use_safe_putenv so we must do this
@@ -930,6 +952,7 @@ main(int argc, char **argv, char **env)
 #else
 #define EXTRA_OPTIONS 4
 #endif /* ALLOW_PERL_OPTIONS */
+    benchmark_time("prenewx");
     Newx(fakeargv, argc + EXTRA_OPTIONS + 1, char *);
     fakeargv[0] = argv[0];
     fakeargv[1] = "-e";
@@ -946,16 +969,21 @@ main(int argc, char **argv, char **env)
     fakeargv[options_count] = "--";
     ++options_count;
 #endif /* ALLOW_PERL_OPTIONS */
+    benchmark_time("for argc");
     for (i = 1; i < argc; i++)
 	fakeargv[i + options_count - 1] = argv[i];
     fakeargv[argc + options_count - 1] = 0;
 
+    benchmark_time("pre perl_parse");
     exitstatus = perl_parse(my_perl, xs_init, argc + options_count - 1,
 			    fakeargv, env);
+    benchmark_time("post perl_parse");
     if (exitstatus)
 	exit( exitstatus );
 
     TAINT;
+
+benchmark_time("pre global setup");
 
 /* setup $0 on execution */
   [% IF use_perl_script_name %]
@@ -1037,6 +1065,8 @@ main(int argc, char **argv, char **env)
 
     sv_setpv_mg(get_sv("\030", GV_ADD|GV_NOTQUAL), [% global_vars.dollar_caret_X %]); /* $^X - EXECUTABLE_NAME */
 
+    benchmark_time("global vars setup done.");
+
     TAINT_NOT;
 
     #if PERL_VERSION < 10 || ((PERL_VERSION == 10) && (PERL_SUBVERSION < 1))
@@ -1049,24 +1079,31 @@ main(int argc, char **argv, char **env)
     #endif
 
     /* our special compiled init */
+    benchmark_time("preinit");
     perl_init(aTHX);
+    benchmark_time("preinit1");
     perl_init1(aTHX);
+    benchmark_time("init1 done");
     dl_init(aTHX);
 
     /* We need to output evals after dl_init, in init2  */
     [% FOREACH eval_pv IN all_eval_pvs %]
     [% eval_pv %]
     [% END %]
+    benchmark_time("evals completed.");
 
     perl_init2(aTHX);
+    benchmark_time("init2 done.");
 
 
     exitstatus = perl_run( my_perl );
+    benchmark_time("program complete");
 
     /* init pre_destruct */
     [% FOREACH str IN section.init.pre_destruct() %]
     [% str %]
     [% END %]
+    benchmark_time("pre_destruct() done");
 
     /* destruct */
 
