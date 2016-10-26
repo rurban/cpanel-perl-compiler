@@ -186,6 +186,8 @@ sub get_savefields {
 
     $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym && ( !$B::C::stash or $fullname !~ /::$/ ) );
 
+    $savefields &= Save_SV if $gvname eq '\\';
+
     return $savefields;
 }
 
@@ -373,9 +375,7 @@ sub save {
     # Don't save subfields of special GVs (*_, *1, *# and so on)
     debug( gv => "GV::save saving subfields $savefields" );
 
-    my $got;
-    $got = save_gv_sv( $gv, $fullname, $sym, $package, $gvname ) if $savefields & Save_SV;
-    return $got if $got;
+    save_gv_sv( $gv, $fullname, $sym, $package, $gvname ) if $savefields & Save_SV;
 
     save_gv_av( $gv, $fullname, $sym ) if $savefields & Save_AV;
 
@@ -679,11 +679,10 @@ sub save_gv_sv {
         $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
                                    # we need sv magic for the core_svs (PL_rs -> gv) (#314)
 
+        # Output record separator https://code.google.com/archive/p/perl-compiler/issues/318
+        return if $gvname eq "\\";
+
         if ( exists $CORE_SVS->{"main::$gvname"} ) {
-
-            # ORS special case #318 (initially NULL)
-            return $sym if $gvname eq "\\";
-
             $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
             init()->add( sprintf( "SvREFCNT(s\\_%x) += 1;", $$gvsv ) );
         }
