@@ -19,32 +19,20 @@ sub save {
     my $sym = objsym($op);
     return $sym if defined $sym;
 
-    # we need to keep CvSTART cops, so check $level == 0
-    if ( $B::C::optimize_cop and $level and !$op->label ) {    # XXX very unsafe!
-        my $sym = savesym( $op, $op->next->save );
-        debug(
-            cops => "Skip COP (0x%x) => %s (0x%x), line %d file %s\n",
-            $$op, $sym, $op->next, $op->line, $op->file
-        );
-        return $sym;
-    }
-
     # TODO: if it is a nullified COP we must save it with all cop fields!
     debug( cops => "COP: line %d file %s\n", $op->line, $op->file );
+
+    my $ix = copsect()->add('FAKE_COP');    # replaced later
 
     # shameless cut'n'paste from B::Deparse
     my ( $warn_sv, $isint );
     my $warnings   = $op->warnings;
     my $is_special = ref($warnings) eq 'B::SPECIAL';
     my $warnsvcast = "(STRLEN*)";
-    if ( $is_special && $$warnings == 4 ) {    # use warnings 'all';
-        $warn_sv = 'pWARN_ALL';
-    }
-    elsif ( $is_special && $$warnings == 5 ) {    # no warnings 'all';
-        $warn_sv = 'pWARN_NONE';
-    }
-    elsif ($is_special) {                         # use warnings;
+    if ($is_special) {
         $warn_sv = 'pWARN_STD';
+        $warn_sv = 'pWARN_ALL' if $$warnings == 4;     # use warnings 'all';
+        $warn_sv = 'pWARN_NONE' if $$warnings == 5;    # use warnings 'all';
     }
     else {
         # LEXWARN_on: Original $warnings->save from 5.8.9 was wrong,
@@ -53,7 +41,6 @@ sub save {
 
         # TODO: isint here misses already seen lexwarn symbols
         ( $warn_sv, $isint ) = $warn->save;
-        my $ix = copsect()->index + 1;
 
         # XXX No idea how a &sv_list[] came up here, a re-used object. Anyway.
         $warn_sv = substr( $warn_sv, 1 ) if substr( $warn_sv, 0, 3 ) eq '&sv';
@@ -69,42 +56,10 @@ sub save {
     # Trim the .pl extension, to print the executable name only.
     my $file = $op->file;
 
-    # $file =~ s/\.pl$/.c/;
-    my $add_label = 0;
-
-    if ( USE_ITHREADS() ) {
-        copsect()->comment_common("line, stashoff, file, hints, seq, warnings, hints_hash");
-        copsect()->add(
-            sprintf(
-                "%s, %u, " . "%d, %s, %u, " . "%s, %s, NULL",
-                $op->_save_common, $op->line,
-                $op->stashoff,     "NULL",      #hints=0
-                $op->hints,
-                ivx( $op->cop_seq ), !$dynamic_copwarn ? $warn_sv : 'NULL'
-            )
-        );
-    }
-    else {
-        # cop_label now in hints_hash (Change #33656)
-        copsect()->comment_common("line, stash, file, hints, seq, warn_sv, hints_hash");
-        copsect()->add(
-            sprintf(
-                "%s, %u, " . "%s, %s, %u, " . "%s, %s, NULL",
-                $op->_save_common, $op->line,
-
-                # we cannot store this static (attribute exit)
-                "Nullhv", "Nullgv",
-                $op->hints, get_integer_value( $op->cop_seq ), !$dynamic_copwarn ? $warn_sv : 'NULL'
-            )
-        );
-    }
-
-    if ( $op->label ) {
-        $add_label = 1;
-    }
+    # cop_label now in hints_hash (Change #33656)
+    my $add_label = $op->label ? 1 : 0;
 
     copsect()->debug( $op->name, $op );
-    my $ix = copsect()->index;
     init()->add( sprintf( "cop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
       unless $B::C::optimize_ppaddr;
 
@@ -159,7 +114,7 @@ sub save {
         init()->add(
             sprintf(
                 "Perl_cop_store_label(aTHX_ &cop_list[%d], %s, %u, %s);",
-                copsect()->index, $cstring, $cur, $utf8
+                $ix, $cstring, $cur, $utf8
             )
         );
     }
@@ -185,33 +140,27 @@ sub save {
           unless $B::C::optimize_warn_sv;
     }
 
-    if ( !$B::C::optimize_cop ) {
-        my $stash = savestashpv( $op->stashpv );
-        init()->add( sprintf( "CopSTASH_set(&cop_list[%d], %s);", $ix, $stash ) );
-        if ( !USE_ITHREADS() ) {
-            if ($B::C::const_strings) {
-                my $constpv = constpv($file);
+    my $stash = savestashpv( $op->stashpv );
+    init()->add( sprintf( "CopSTASH_set(&cop_list[%d], %s);", $ix, $stash ) );
 
-                # define CopFILE_set(c,pv)     CopFILEGV_set((c), gv_fetchfile(pv))
-                # cache gv_fetchfile
-                if ( !$copgvtable{$constpv} ) {
-                    $copgvtable{$constpv} = B::GV::inc_index();
-                    init()->add( sprintf( "gv_list[%d] = gv_fetchfile(%s);", $copgvtable{$constpv}, $constpv ) );
-                }
-                init()->add(
-                    sprintf(
-                        "CopFILEGV_set(&cop_list[%d], gv_list[%d]); /* %s */",
-                        $ix, $copgvtable{$constpv}, cstring($file)
-                    )
-                );
-            }
-            else {
-                init()->add( sprintf( "CopFILE_set(&cop_list[%d], %s);", $ix, cstring($file) ) );
-            }
+    if ($B::C::const_strings) {
+        my $constpv = constpv($file);
+
+        # define CopFILE_set(c,pv)     CopFILEGV_set((c), gv_fetchfile(pv))
+        # cache gv_fetchfile
+        if ( !$copgvtable{$constpv} ) {
+            $copgvtable{$constpv} = B::GV::inc_index();
+            init()->add( sprintf( "gv_list[%d] = gv_fetchfile(%s);", $copgvtable{$constpv}, $constpv ) );
         }
-        else {    # cv_undef e.g. in bproto.t and many more core tests with threads
-            init()->add( sprintf( "CopFILE_set(&cop_list[%d], %s);", $ix, cstring($file) ) );
-        }
+        init()->add(
+            sprintf(
+                "CopFILEGV_set(&cop_list[%d], gv_list[%d]); /* %s */",
+                $ix, $copgvtable{$constpv}, cstring($file)
+            )
+        );
+    }
+    else {
+        init()->add( sprintf( "CopFILE_set(&cop_list[%d], %s);", $ix, cstring($file) ) );
     }
 
     # our root: store all packages from this file
@@ -221,7 +170,63 @@ sub save {
     else {
         B::C::mark_package( $op->stashpv ) if $B::C::mainfile eq $op->file and $op->stashpv ne 'main';
     }
-    savesym( $op, "(OP*)&cop_list[$ix]" );
+
+    # add the cop at the end
+    copsect()->comment_common("?, line_t line, HV* stash, GV* filegv, U32 hints, U32 seq, STRLEN* warn_sv, COPHH* hints_hash");
+    copsect()->update(
+        $ix,
+        sprintf(
+            "%s, %u, %s, %s, %u, %s, %s, NULL",
+            $op->_save_common, $op->line,
+
+            # we cannot store this static (attribute exit)
+            "Nullhv",    # stash
+            "Nullgv",    # filegv
+            $op->hints, get_integer_value( $op->cop_seq ), !$dynamic_copwarn ? $warn_sv : 'NULL'
+        )
+    );
+
+    return savesym( $op, "(OP*)&cop_list[$ix]" );
 }
 
 1;
+
+__END__
+
+#  define CopSTASH(c)       ((c)->cop_stash)
+#  define CopFILE_set(c,pv)  CopFILEGV_set((c), gv_fetchfile(pv))
+
+ #define BASEOP              \
+     OP*     op_next;        \
+     OP*     _OP_SIBPARENT_FIELDNAME;\
+     OP*     (*op_ppaddr)(pTHX); \
+     PADOFFSET   op_targ;        \
+     PERL_BITFIELD16 op_type:9;      \
+     PERL_BITFIELD16 op_opt:1;       \
+     PERL_BITFIELD16 op_slabbed:1;   \
+     PERL_BITFIELD16 op_savefree:1;  \
+     PERL_BITFIELD16 op_static:1;    \
+     PERL_BITFIELD16 op_folded:1;    \
+     PERL_BITFIELD16 op_moresib:1;       \
+     PERL_BITFIELD16 op_spare:1;     \
+     U8      op_flags;       \
+     U8      op_private;
+ #endif
+
+ struct cop {
+     BASEOP
+     /* On LP64 putting this here takes advantage of the fact that BASEOP isn't
+        an exact multiple of 8 bytes to save structure padding.  */
+     line_t      cop_line;       /* line # of this command */
+     /* label for this construct is now stored in cop_hints_hash */
+     HV *    cop_stash;  /* package line was compiled in */
+     GV *    cop_filegv; /* file the following line # is from */
+ 
+     U32     cop_hints;  /* hints bits from pragmata */
+     U32     cop_seq;    /* parse sequence number */
+     /* Beware. mg.c and warnings.pl assume the type of this is STRLEN *:  */
+     STRLEN *    cop_warnings;   /* lexical warnings bitmask */
+     /* compile time state of %^H.  See the comment in op.c for how this is
+        used to recreate a hash to return from caller.  */
+     COPHH * cop_hints_hash;
+ };
