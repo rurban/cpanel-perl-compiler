@@ -7,9 +7,9 @@ use B::C::Config;
 use B::C::Save qw/savepvn/;
 use B::C::SaveCOW qw/savepv/;
 use B::C::Save::Hek qw/save_shared_he/;
-use B::C::File qw/xpvsect svsect init free/;
+use B::C::File qw/xpvsect svsect free assign_hekkey2pv/;
 use B::C::Helpers::Symtable qw/savesym objsym/;
-use B::C::Helpers qw/is_shared_hek read_utf8_string/;
+use B::C::Helpers qw/is_shared_hek read_utf8_string get_index/;
 
 sub SVpbm_VALID { 0x40000000 }
 sub SVp_SCREAM  { 0x00008000 }    # method name is DOES
@@ -53,15 +53,16 @@ sub save {
     svsect()->comment("any, refcnt, flags, sv_u");
     $savesym = $savesym eq 'NULL' ? '0' : ".svu_pv=(char*) $savesym";
     svsect()->add( sprintf( '&xpv_list[%d], %Lu, 0x%x, {%s}', xpvsect()->index, $refcnt, $flags, $savesym ) );
-    my $svix = svsect()->index;
+    my $sv_ix = svsect()->index;
 
     if ( $shared_hek and !$static ) {
         my $hek = save_shared_he( $pv, $fullname );
-        init()->add( sprintf( "sv_list[%d].sv_u.svu_pv = %s->shared_he_hek.hek_key;", $svix, $hek ) )
-          unless $hek eq 'NULL';
+        if ( $hek ne 'NULL' ) {
+            assign_hekkey2pv()->add( $sv_ix, get_index($hek) );
+        }
     }
 
-    my $s = "sv_list[$svix]";
+    my $s = "sv_list[$sv_ix]";
     svsect()->debug( $fullname, $sv );
 
     push @B::C::static_free, "&" . $s if $flags & SVs_OBJECT;

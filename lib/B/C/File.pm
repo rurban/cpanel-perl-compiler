@@ -26,8 +26,9 @@ use Exporter ();
 
 use B::C::Config;
 use B::C::Helpers::Symtable qw(get_symtable_ref);
-use B::C::Section     ();
-use B::C::InitSection ();
+use B::C::Section         ();
+use B::C::InitSection     ();
+use B::C::Section::Assign ();
 
 use B qw(cstring comppadlist);
 
@@ -49,7 +50,11 @@ sub code_section_names {
 # These objects will end up in an array of structs in the template and be auto-declared.
 sub struct_names {
     return qw( xpv xpvav xpvhv xpvcv padlist padname padnamelist
-      xpviv xpvuv xpvnv xpvmg xpvlv xrv xpvbm xpvio sv);
+      xpviv xpvuv xpvnv xpvmg xpvlv xrv xpvbm xpvio sv), assign_sections();
+}
+
+sub assign_sections {
+    return qw{assign_hekkey2pv};
 }
 
 # These populate the init sections and have a special header.
@@ -74,6 +79,10 @@ sub new {
 
     foreach my $section_name ( code_section_names() ) {
         $self->{$section_name} = B::C::Section->new( $section_name, get_symtable_ref(), 0 );
+    }
+
+    foreach my $section_name ( assign_sections() ) {    # overwrite the previous section
+        $self->{$section_name} = B::C::Section::Assign->new( $section_name, get_symtable_ref(), 0 );
     }
 
     foreach my $section_name ( init_section_names() ) {
@@ -115,7 +124,7 @@ sub write {
     # Controls the rendering order of the sections.
     $c_file_stash->{section_list} = [
         struct_names(),
-        op_sections()
+        op_sections(),
     ];
 
     foreach my $section ( code_section_names(), init_section_names() ) {

@@ -182,6 +182,8 @@ struct my_padname_with_str {
 /* Missing type defs in perl so we'll make our own. */
 typedef struct my_padname_with_str MyPADNAME;
 
+typedef struct { U32 a; U32 b; }  ASSIGN_HEKKEY2PV;
+
 /*
     Tricky hack for -fcog since 5.10 on !c99 compilers required. We need a char* as
     *first* sv_u element to be able to statically initialize it. A int does not allow it.
@@ -343,6 +345,15 @@ static void init_pl_strtab(pTHX) {
         }
     }
 
+[% END %]
+}
+
+static void init_assign(pTHX) {
+    U32 i;
+[% IF section.assign_hekkey2pv.index + 1 > 0 %]
+    for (i=0; i < [% section.assign_hekkey2pv.index + 1 %]; i++) {
+        sv_list[assign_hekkey2pv_list[i].a].sv_u.svu_pv = sharedhe_list[assign_hekkey2pv_list[i].b]->shared_he_hek.hek_key;
+    }
 [% END %]
 }
 
@@ -1079,10 +1090,15 @@ benchmark_time("pre global setup");
     #endif
 
     /* our special compiled init */
+    benchmark_time("init_assign");
+    init_assign(aTHX);
+
     benchmark_time("preinit");
     perl_init(aTHX);
+
     benchmark_time("preinit1");
     perl_init1(aTHX);
+
     benchmark_time("init1 done");
     dl_init(aTHX);
 

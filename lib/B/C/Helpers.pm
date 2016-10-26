@@ -6,7 +6,7 @@ use B qw/SVf_POK SVp_POK/;
 our @ISA       = qw(Exporter);
 our @EXPORT_OK = qw/svop_name padop_name mark_package do_labels read_utf8_string get_cv_string
   is_constant strlen_flags curcv set_curcv is_using_mro cow_strlen_flags is_shared_hek
-  cstring_cow
+  cstring_cow get_index
   /;
 
 # wip to be moved
@@ -126,6 +126,12 @@ sub _load_mro {
 
 sub is_using_mro {
     return keys %{mro::} > 10 ? 1 : 0;
+}
+
+sub get_index {
+    my $str = shift;
+    return $1 if $str && $str =~ qr{\[([0-9]+)\]};
+    die "Cannot get index from '$str'";
 }
 
 1;
