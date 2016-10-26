@@ -408,36 +408,34 @@ sub save {
 
     my $savefields = get_savefields( $gv, $gvname, $fullname, $filter, $obscure_corner_case );
 
-    if ($savefields) {
+    return $sym if ( !$savefields );
 
-        # Don't save subfields of special GVs (*_, *1, *# and so on)
-        debug( gv => "GV::save saving subfields $savefields" );
+    # Don't save subfields of special GVs (*_, *1, *# and so on)
+    debug( gv => "GV::save saving subfields $savefields" );
 
-        my $got;
-        $got = save_gv_sv( $gv, $fullname, $sym, $package, $gvname ) if $savefields & Save_SV;
-        return $got if $got;
+    my $got;
+    $got = save_gv_sv( $gv, $fullname, $sym, $package, $gvname ) if $savefields & Save_SV;
+    return $got if $got;
 
-        save_gv_av( $gv, $fullname, $sym ) if $savefields & Save_AV;
+    save_gv_av( $gv, $fullname, $sym ) if $savefields & Save_AV;
 
-        save_gv_hv( $gv, $fullname, $sym, $gvname ) if $savefields & Save_HV;
+    save_gv_hv( $gv, $fullname, $sym, $gvname ) if $savefields & Save_HV;
 
-        save_gv_cv( $gv, $fullname, $sym ) if $savefields & Save_CV;
+    save_gv_cv( $gv, $fullname, $sym ) if $savefields & Save_CV;
 
-        # TODO implement heksect to place all heks at the beginning
-        #heksect()->add($gv->FILE);
-        #init()->add(sprintf("GvFILE_HEK($sym) = hek_list[%d];", heksect()->index));
+    # TODO implement heksect to place all heks at the beginning
+    #heksect()->add($gv->FILE);
+    #init()->add(sprintf("GvFILE_HEK($sym) = hek_list[%d];", heksect()->index));
 
-        # XXX Maybe better leave it NULL or asis, than fighting broken
-        if ( $gp && ( !$B::C::stash or $fullname !~ /::$/ ) ) {
-            my $file = save_shared_he( $gv->FILE );
-            init()->add( sprintf( "GvFILE_HEK(%s) = &(%s->shared_he_hek);", $sym, $file ) )
-              if $file ne 'NULL' and !$B::C::optimize_cop;
-        }
-
-        save_gv_format( $gv, $fullname, $sym ) if $gp && $savefields & Save_FORM;
-        save_gv_io( $gv, $fullname, $sym ) if $gp && $savefields & Save_IO;
-
+    # XXX Maybe better leave it NULL or asis, than fighting broken
+    if ( $gp && ( !$B::C::stash or $fullname !~ /::$/ ) ) {
+        my $file = save_shared_he( $gv->FILE );
+        init()->add( sprintf( "GvFILE_HEK(%s) = &(%s->shared_he_hek);", $sym, $file ) )
+          if $file ne 'NULL' and !$B::C::optimize_cop;
     }
+
+    save_gv_format( $gv, $fullname, $sym ) if $gp && $savefields & Save_FORM;
+    save_gv_io( $gv, $fullname, $sym ) if $gp && $savefields & Save_IO;
 
     # Shouldn't need to do save_magic since gv_fetchpv handles that. Esp. < and IO not
     # $gv->save_magic($fullname) if $PERL510;
