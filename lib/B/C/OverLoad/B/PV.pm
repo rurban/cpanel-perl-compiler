@@ -58,7 +58,7 @@ sub save {
     if ( $shared_hek and !$static ) {
         my $hek = save_shared_he( $pv, $fullname );
         if ( $hek ne 'NULL' ) {
-            assign_hekkey2pv()->add( sprintf( "%u, %u", $sv_ix, get_index($hek) ) );
+            assign_hekkey2pv()->add( $sv_ix, get_index($hek) );
         }
     }
 

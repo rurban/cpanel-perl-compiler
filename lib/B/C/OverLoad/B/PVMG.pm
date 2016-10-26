@@ -80,8 +80,9 @@ sub save {
 
     if ( defined($pv) and !$static ) {
         my $shared_hek = is_shared_hek($sv);
-        if ( $shared_hek && $shared_hek != 'NULL' ) {
-            assign_hekkey2pv()->add( sprintf( "%u, %u", $sv_ix, get_index($shared_hek) ) );
+        if ($shared_hek) {
+            my $hek = save_shared_he( $pv, $fullname );
+            assign_hekkey2pv()->add( $sv_ix, get_index($hek) ) if $hek ne 'NULL';
         }
     }
 
