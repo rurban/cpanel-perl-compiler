@@ -1,5 +1,6 @@
 .gdb/dashboard
 .gdb/perl
+.gdb_history
 .gdbinit
 .perldb
 Artistic
@@ -19,6 +20,7 @@ lib/B/C/File.pm
 lib/B/C/Helpers.pm
 lib/B/C/Helpers/Symtable.pm
 lib/B/C/InitSection.pm
+lib/B/C/Optimizer/DowngradePVXV.pm
 lib/B/C/Optimizer/DynaLoader.pm
 lib/B/C/Optimizer/ForceHeavy.pm
 lib/B/C/Optimizer/UnusedPackages.pm
@@ -66,6 +68,7 @@ lib/B/C/Save/Hek.pm
 lib/B/C/Save/Signals.pm
 lib/B/C/SaveCOW.pm
 lib/B/C/Section.pm
+lib/B/C/Section/Assign.pm
 lib/B/C/Templates/base.c.tt2
 lib/B/FAKEOP.pm
 lib/B/STASHGV.pm
@@ -73,6 +76,7 @@ Makefile.PL
 MANIFEST			This list of files
 MANIFEST.SKIP
 NOTES
+parse_benchmark.pl
 perlcompile.pod
 perloptree.pod
 README
