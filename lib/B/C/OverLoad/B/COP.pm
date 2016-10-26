@@ -45,7 +45,7 @@ sub save {
         # XXX No idea how a &sv_list[] came up here, a re-used object. Anyway.
         $warn_sv = substr( $warn_sv, 1 ) if substr( $warn_sv, 0, 3 ) eq '&sv';
         $warn_sv = $warnsvcast . '&' . $warn_sv;
-        free()->add( sprintf( "    cop_list[%d].cop_warnings = NULL;", $ix ) )
+        free()->sadd( "    cop_list[%d].cop_warnings = NULL;", $ix )
           if !$B::C::optimize_warn_sv;
 
         #push @B::C::static_free, sprintf("cop_list[%d]", $ix);
@@ -60,7 +60,7 @@ sub save {
     my $add_label = $op->label ? 1 : 0;
 
     copsect()->debug( $op->name, $op );
-    init()->add( sprintf( "cop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
+    init()->sadd( "cop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr )
       unless $B::C::optimize_ppaddr;
 
     my $i = 0;
@@ -70,37 +70,33 @@ sub save {
         if ( $hints && $$hints ) {
             if ( exists $cophhtable{$$hints} ) {
                 my $cophh = $cophhtable{$$hints};
-                init()->add( sprintf( "CopHINTHASH_set(&cop_list[%d], %s);", $ix, $cophh ) );
+                init()->sadd( "CopHINTHASH_set(&cop_list[%d], %s);", $ix, $cophh );
             }
             else {
                 my $hint_hv = $hints->HASH if ref $hints eq 'B::RHE';
                 my $cophh = sprintf( "cophh%d", scalar keys %cophhtable );
                 $cophhtable{$$hints} = $cophh;
-                decl()->add( sprintf( "Static COPHH *%s;", $cophh ) );
+                decl()->sadd( "Static COPHH *%s;", $cophh );
                 foreach my $k ( sort keys %$hint_hv ) {
                     my ( $ck, $kl, $utf8 ) = strlen_flags($k);
                     my $v = $hint_hv->{$k};
                     next if $k eq ':';    #skip label, see below
                     my $val = B::svref_2object( \$v )->save("\$^H{$k}");
                     if ($utf8) {
-                        init()->add(
-                            sprintf(
-                                "%s = cophh_store_pvn(%s, %s, %d, 0, %s, COPHH_KEY_UTF8);",
-                                $cophh, $i ? $cophh : 'NULL', $ck, $kl, $val
-                            )
+                        init()->sadd(
+                            "%s = cophh_store_pvn(%s, %s, %d, 0, %s, COPHH_KEY_UTF8);",
+                            $cophh, $i ? $cophh : 'NULL', $ck, $kl, $val
                         );
                     }
                     else {
-                        init()->add(
-                            sprintf(
-                                "%s = cophh_store_pvs(%s, %s, %s, 0);",
-                                $cophh, $i ? $cophh : 'NULL', $ck, $val
-                            )
+                        init()->sadd(
+                            "%s = cophh_store_pvs(%s, %s, %s, 0);",
+                            $cophh, $i ? $cophh : 'NULL', $ck, $val
                         );
                     }
                     $i++;
                 }
-                init()->add( sprintf( "CopHINTHASH_set(&cop_list[%d], %s);", $ix, $cophh ) );
+                init()->sadd( "CopHINTHASH_set(&cop_list[%d], %s);", $ix, $cophh );
             }
         }
 
@@ -111,11 +107,9 @@ sub save {
         # test 29 and 15,16,21. 44,45
         my ( $cstring, $cur, $utf8 ) = strlen_flags( $op->label );
         WARN("utf8 label $cstring");
-        init()->add(
-            sprintf(
-                "Perl_cop_store_label(aTHX_ &cop_list[%d], %s, %u, %s);",
-                $ix, $cstring, $cur, $utf8
-            )
+        init()->sadd(
+            "Perl_cop_store_label(aTHX_ &cop_list[%d], %s, %u, %s);",
+            $ix, $cstring, $cur, $utf8
         );
     }
 
@@ -132,16 +126,16 @@ sub save {
             # which is not the address which will be freed in S_cop_free.
             # Need to use old-style PerlMemShared_, see S_cop_free in op.c (#362)
             # lexwarn<n> might be also be STRLEN* 0
-            init()->add( sprintf( "%s = (STRLEN*)savesharedpvn((const char*)%s, sizeof(%s));", $dest, $copw, $copw ) );
+            init()->sadd( "%s = (STRLEN*)savesharedpvn((const char*)%s, sizeof(%s));", $dest, $copw, $copw );
         }
     }
     else {
-        init()->add( sprintf( "cop_list[%d].cop_warnings = %s;", $ix, $warn_sv ) )
+        init()->sadd( "cop_list[%d].cop_warnings = %s;", $ix, $warn_sv )
           unless $B::C::optimize_warn_sv;
     }
 
     my $stash = savestashpv( $op->stashpv );
-    init()->add( sprintf( "CopSTASH_set(&cop_list[%d], %s);", $ix, $stash ) );
+    init()->sadd( "CopSTASH_set(&cop_list[%d], %s);", $ix, $stash );
 
     if ($B::C::const_strings) {
         my $constpv = constpv($file);
@@ -150,17 +144,15 @@ sub save {
         # cache gv_fetchfile
         if ( !$copgvtable{$constpv} ) {
             $copgvtable{$constpv} = B::GV::inc_index();
-            init()->add( sprintf( "gv_list[%d] = gv_fetchfile(%s);", $copgvtable{$constpv}, $constpv ) );
+            init()->sadd( "gv_list[%d] = gv_fetchfile(%s);", $copgvtable{$constpv}, $constpv );
         }
-        init()->add(
-            sprintf(
-                "CopFILEGV_set(&cop_list[%d], gv_list[%d]); /* %s */",
-                $ix, $copgvtable{$constpv}, cstring($file)
-            )
+        init()->sadd(
+            "CopFILEGV_set(&cop_list[%d], gv_list[%d]); /* %s */",
+            $ix, $copgvtable{$constpv}, cstring($file)
         );
     }
     else {
-        init()->add( sprintf( "CopFILE_set(&cop_list[%d], %s);", $ix, cstring($file) ) );
+        init()->sadd( "CopFILE_set(&cop_list[%d], %s);", $ix, cstring($file) );
     }
 
     # our root: store all packages from this file
@@ -173,17 +165,15 @@ sub save {
 
     # add the cop at the end
     copsect()->comment_common("?, line_t line, HV* stash, GV* filegv, U32 hints, U32 seq, STRLEN* warn_sv, COPHH* hints_hash");
-    copsect()->update(
+    copsect()->supdate(
         $ix,
-        sprintf(
-            "%s, %u, %s, %s, %u, %s, %s, NULL",
-            $op->_save_common, $op->line,
+        "%s, %u, (HV*) %s, (GV*) %s, %u, %s, %s, NULL",
+        $op->_save_common, $op->line,
 
-            # we cannot store this static (attribute exit)
-            "Nullhv",    # stash
-            "Nullgv",    # filegv
-            $op->hints, get_integer_value( $op->cop_seq ), !$dynamic_copwarn ? $warn_sv : 'NULL'
-        )
+        # we cannot store this static (attribute exit)
+        "Nullhv",    # stash
+        "Nullgv",    # filegv
+        $op->hints, get_integer_value( $op->cop_seq ), !$dynamic_copwarn ? $warn_sv : 'NULL'
     );
 
     return savesym( $op, "(OP*)&cop_list[$ix]" );

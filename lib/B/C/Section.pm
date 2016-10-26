@@ -46,6 +46,18 @@ sub add {
     return $self->index();
 }
 
+# simple add using sprintf: avoid boilerplates
+sub sadd {
+    my ( $self, $pattern, @args ) = @_;
+    return $self->add( sprintf( $pattern, @args ) );
+}
+
+# simple update using sprintf: avoid boilerplates
+sub supdate {
+    my ( $self, $row, $pattern, @args ) = @_;
+    return $self->update( $row, sprintf( $pattern, @args ) );
+}
+
 sub update {
     my ( $self, $row, $value, $void ) = @_;
     die "Can only update one single entry" if defined $void;
@@ -57,7 +69,7 @@ sub update {
 }
 
 sub get {
-    my($self, $row) = @_;
+    my ( $self, $row ) = @_;
 
     return $self->{'values'}->[$row];
 }
