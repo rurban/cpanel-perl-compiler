@@ -25,6 +25,7 @@ sub Save_SV()   { 4 }
 sub Save_CV()   { 8 }
 sub Save_FORM() { 16 }
 sub Save_IO()   { 32 }
+sub Save_FILE() { 64 }
 
 my $CORE_SYMS = {
     'main::ENV'    => 'PL_envgv',
@@ -176,10 +177,14 @@ sub get_savefields {
         $savefields &= ~$filter;
     }
 
-    if ( !$gv->isGV_with_GP or $gv->is_coresym() ) {
+    my $is_gvgp    = $gv->isGV_with_GP;
+    my $is_coresym = $gv->is_coresym();
+    if ( !$is_gvgp or $is_coresym ) {
         $savefields &= ~Save_FORM;
         $savefields &= ~Save_IO;
     }
+
+    $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym && ( !$B::C::stash or $fullname !~ /::$/ ) );
 
     return $savefields;
 }
@@ -378,26 +383,30 @@ sub save {
 
     save_gv_cv( $gv, $fullname, $sym ) if $savefields & Save_CV;
 
-    # TODO implement heksect to place all heks at the beginning
-    #heksect()->add($gv->FILE);
-    #init()->add(sprintf("GvFILE_HEK($sym) = hek_list[%d];", heksect()->index));
-
-    my $gp = $gv->GP if ( $gv->isGV_with_GP and !$is_coresym );
-
-    # XXX Maybe better leave it NULL or asis, than fighting broken
-    if ( $gp && ( !$B::C::stash or $fullname !~ /::$/ ) ) {
-        my $file = save_shared_he( $gv->FILE );
-        init()->add( sprintf( "GvFILE_HEK(%s) = &(%s->shared_he_hek);", $sym, $file ) )
-          if $file ne 'NULL' and !$B::C::optimize_cop;
-    }
-
     save_gv_format( $gv, $fullname, $sym ) if $savefields & Save_FORM;
+
     save_gv_io( $gv, $fullname, $sym ) if $savefields & Save_IO;
+
+    save_gv_file( $gv, $fullname, $sym ) if $savefields & Save_FILE;
 
     # Shouldn't need to do save_magic since gv_fetchpv handles that. Esp. < and IO not
     # $gv->save_magic($fullname) if $PERL510;
     debug( gv => "GV::save *$fullname done" );
     return $sym;
+}
+
+sub save_gv_file {
+    my ( $gv, $fullname, $sym ) = @_;
+
+    return if $B::C::optimize_cop;
+
+    # XXX Maybe better leave it NULL or asis, than fighting broken
+    my $file = save_shared_he( $gv->FILE );
+    return if ( !$file or $file eq 'NULL' );
+
+    init()->add( sprintf( "GvFILE_HEK(%s) = &(%s->shared_he_hek);", $sym, $file ) );
+
+    return;
 }
 
 sub save_gv_with_gp {
