@@ -4,8 +4,7 @@ use strict;
 
 use B qw/cstring SVf_IsCOW SVf_ROK SVf_POK SVp_POK SVs_GMG SVs_SMG SVf_READONLY SVs_OBJECT/;
 use B::C::Config;
-use B::C::Save qw/savepvn/;
-use B::C::SaveCOW qw/savepv/;
+use B::C::Save qw/savepvn savecowpv/;
 use B::C::Save::Hek qw/save_shared_he/;
 use B::C::File qw/xpvsect svsect free assign_hekkey2pv/;
 use B::C::Helpers::Symtable qw/savesym objsym/;
@@ -94,7 +93,7 @@ sub save_pv_or_rv {
     }
 
     my $pv = "";
-    my ( $savesym, $cur, $len ) = savepv($pv);
+    my ( $savesym, $cur, $len ) = savecowpv($pv);
 
     # overloaded VERSION symbols fail to xs boot: ExtUtils::CBuilder with Fcntl::VERSION (i91)
     # 5.6: Can't locate object method "RV" via package "B::PV" Carp::Clan
@@ -131,7 +130,7 @@ sub save_pv_or_rv {
             }
         }
 
-        ( $savesym, $cur, $len ) = savepv($pv) if $pok;
+        ( $savesym, $cur, $len ) = savecowpv($pv) if $pok;
     }
 
     $fullname = '' if !defined $fullname;
