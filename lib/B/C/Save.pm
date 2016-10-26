@@ -4,16 +4,17 @@ use strict;
 
 use B qw(cstring svref_2object);
 use B::C::Config;
-use B::C::File qw( xpvmgsect decl init );
-use B::C::Helpers qw/strlen_flags is_shared_hek cstring_cow/;
+use B::C::File qw( xpvmgsect decl init const );
+use B::C::Helpers qw/strlen_flags is_shared_hek cstring_cow cow_strlen_flags/;
 use B::C::Save::Hek qw/save_shared_he/;
 
 use Exporter ();
 our @ISA = qw(Exporter);
 
-our @EXPORT_OK = qw/savepvn constpv savepv inc_pv_index set_max_string_len get_max_string_len savestash_flags savestashpv/;
+our @EXPORT_OK = qw/savepvn constpv savepv savecowpv inc_pv_index set_max_string_len get_max_string_len savestash_flags savestashpv/;
 
 my %strtable;
+my %cowtable;
 
 # Two different families of save functions
 #   save_* vs save*
@@ -24,7 +25,29 @@ sub inc_pv_index {
     return ++$pv_index;
 }
 
-sub constpv {
+sub savecowpv {
+    my $pv = shift;
+    my ( $cstring, $cur, $len, $utf8 ) = cow_strlen_flags($pv);
+
+    return @{ $cowtable{$cstring} } if defined $cowtable{$cstring};
+
+    my $ix = const()->add('FAKE_CONST');
+    my $pvsym = sprintf( "cowpv%d", $ix );
+
+    my $max_len = B::C::Save::get_max_string_len();
+    if ( $max_len && $cur > $max_len ) {
+        my $chars = join ', ', map { cchar $_ } split //, pack( "a*", $pv );
+        const()->update( $ix, sprintf( "Static const char %s[] = { %s };", $pvsym, $chars ) );
+        $cowtable{$cstring} = [ $pvsym, $cur, $len ];
+    }
+    else {
+        const()->update( $ix, sprintf( "Static const char %s[] = %s;", $pvsym, $cstring ) );
+        $cowtable{$cstring} = [ $pvsym, $cur, $len ];
+    }
+    return ( $pvsym, $cur, $len );    # NOTE: $cur is total size of the perl string. len would be the length of the C string.
+}
+
+sub constpv {                         # could also safely use a cowpv
     return savepv( shift, 1 );
 }
 
