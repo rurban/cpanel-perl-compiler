@@ -176,6 +176,11 @@ sub get_savefields {
         $savefields &= ~$filter;
     }
 
+    if ( !$gv->isGV_with_GP or $gv->is_coresym() ) {
+        $savefields &= ~Save_FORM;
+        $savefields &= ~Save_IO;
+    }
+
     return $savefields;
 }
 
@@ -386,8 +391,8 @@ sub save {
           if $file ne 'NULL' and !$B::C::optimize_cop;
     }
 
-    save_gv_format( $gv, $fullname, $sym ) if $gp && $savefields & Save_FORM;
-    save_gv_io( $gv, $fullname, $sym ) if $gp && $savefields & Save_IO;
+    save_gv_format( $gv, $fullname, $sym ) if $savefields & Save_FORM;
+    save_gv_io( $gv, $fullname, $sym ) if $savefields & Save_IO;
 
     # Shouldn't need to do save_magic since gv_fetchpv handles that. Esp. < and IO not
     # $gv->save_magic($fullname) if $PERL510;
