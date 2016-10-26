@@ -292,64 +292,13 @@ sub save {
     #  init1()->add( sprintf( "SvREFCNT($sym) = %u;", $gv->REFCNT ) );
     #  return $sym;
     #}
-    my $svflags = $gv->FLAGS;
 
-    my $obscure_corner_case;
-    my $gp;
-    my $gvadd = $notqual ? "$notqual|GV_ADD" : "GV_ADD";
-    if ( $gv->isGV_with_GP and !$is_coresym ) {
-        $gp = $gv->GP;    # B limitation
-        if ( defined($egvsym) && $egvsym !~ m/Null/ ) {
-            debug(
-                gv => "Shared GV alias for *%s 0x%x%s to %s",
-                $fullname, $svflags, debug('flags') ? "(" . $gv->flagspv . ")" : "", $egvsym
-            );
+    my ( $obscure_corner_case, $was_emptied ) = save_gv_with_gp( $gv, $egvsym, $sym, $name, $notqual, $is_empty );
+    $is_empty = 1 if ($was_emptied);
 
-            # Shared glob *foo = *bar
-            init()->add( "$sym = " . gv_fetchpv_string( $name, "$gvadd|GV_ADDMULTI", 'SVt_PVGV' ) . ";" );
-            init()->add("GvGP_set($sym, GvGP($egvsym));");
-            $is_empty = 1;
-        }
-        elsif ( $gp and exists $gptable{ 0 + $gp } ) {
-            debug(
-                gv => "Shared GvGP for *%s 0x%x%s %s GP:0x%x",
-                $fullname, $svflags, debug('flags') ? "(" . $gv->flagspv . ")" : "",
-                $gv->FILE, $gp
-            );
-            init()->add( "$sym = " . gv_fetchpv_string( $name, $notqual, 'SVt_PVGV' ) . ";" );
-            init()->add( sprintf( "GvGP_set(%s, %s);", $sym, $gptable{ 0 + $gp } ) );
-            $is_empty = 1;
-        }
-        elsif ( $gp and !$is_empty and $gvname =~ /::$/ ) {
-            debug(
-                gv => "Shared GvGP for stash %%%s 0x%x%s %s GP:0x%x",
-                $fullname, $svflags, debug('flags') ? "(" . $gv->flagspv . ")" : "",
-                $gv->FILE, $gp
-            );
-            init()->add( "$sym = " . gv_fetchpv_string( $name, 'GV_ADD', 'SVt_PVHV' ) . ";" );
-            $gptable{ 0 + $gp } = "GvGP($sym)" if 0 + $gp;
-        }
-        elsif ( $gp and !$is_empty ) {
-            debug(
-                gv => "New GV for *%s 0x%x%s %s GP:0x%x",
-                $fullname, $svflags, debug('flags') ? "(" . $gv->flagspv . ")" : "",
-                $gv->FILE, $gp
-            );
-
-            # XXX !PERL510 and OPf_COP_TEMP we need to fake PL_curcop for gp_file hackery
-            init()->add( "$sym = " . gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) . ";" );
-            $gptable{ 0 + $gp } = "GvGP($sym)";
-            $obscure_corner_case = 1;
-        }
-        else {
-            init()->add( "$sym = " . gv_fetchpv_string( $name, $gvadd, 'SVt_PVGV' ) . ";" );
-        }
-    }
-    elsif ( !$is_coresym ) {
-        init()->add( "$sym = " . gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) . ";" );
-    }
     my $gvflags = $gv->GvFLAGS;
 
+    my $svflags = $gv->FLAGS;
     init()->add(
         sprintf(
             "SvFLAGS(%s) = 0x%x;%s", $sym, $svflags,
@@ -408,7 +357,8 @@ sub save {
 
     my $savefields = get_savefields( $gv, $gvname, $fullname, $filter, $obscure_corner_case );
 
-    return $sym if ( !$savefields );
+    # There's nothing to save if savefields were not returned.
+    return $sym unless $savefields;
 
     # Don't save subfields of special GVs (*_, *1, *# and so on)
     debug( gv => "GV::save saving subfields $savefields" );
@@ -427,6 +377,8 @@ sub save {
     #heksect()->add($gv->FILE);
     #init()->add(sprintf("GvFILE_HEK($sym) = hek_list[%d];", heksect()->index));
 
+    my $gp = $gv->GP if ( $gv->isGV_with_GP and !$is_coresym );
+
     # XXX Maybe better leave it NULL or asis, than fighting broken
     if ( $gp && ( !$B::C::stash or $fullname !~ /::$/ ) ) {
         my $file = save_shared_he( $gv->FILE );
@@ -441,6 +393,61 @@ sub save {
     # $gv->save_magic($fullname) if $PERL510;
     debug( gv => "GV::save *$fullname done" );
     return $sym;
+}
+
+sub save_gv_with_gp {
+    my ( $gv, $egvsym, $sym, $name, $notqual, $is_empty ) = @_;
+
+    my $gvname   = $gv->NAME();
+    my $svflags  = $gv->FLAGS;
+    my $fullname = $gv->get_fullname();
+
+    # Core syms don't have a GP?
+    return if $CORE_SYMS->{$fullname};
+
+    my $gvadd = $notqual ? "$notqual|GV_ADD" : "GV_ADD";
+
+    my $obscure_corner_case;
+    my $was_emptied;
+
+    if ( !$gv->isGV_with_GP ) {
+        init()->add( "$sym = " . gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) . ";" );
+        return;
+    }
+
+    my $gp = $gv->GP;    # B limitation
+    if ( defined($egvsym) && $egvsym !~ m/Null/ ) {
+        debug( gv => "Shared GV alias for *%s 0x%x%s to %s", $fullname, $svflags, debug('flags') ? "(" . $gv->flagspv . ")" : "", $egvsym );
+
+        # Shared glob *foo = *bar
+        init()->add( "$sym = " . gv_fetchpv_string( $name, "$gvadd|GV_ADDMULTI", 'SVt_PVGV' ) . ";" );
+        init()->add("GvGP_set($sym, GvGP($egvsym));");
+        $was_emptied = 1;
+    }
+    elsif ( $gp and exists $gptable{ 0 + $gp } ) {
+        debug( gv => "Shared GvGP for *%s 0x%x%s %s GP:0x%x", $fullname, $svflags, debug('flags') ? "(" . $gv->flagspv . ")" : "", $gv->FILE, $gp );
+        init()->add( "$sym = " . gv_fetchpv_string( $name, $notqual, 'SVt_PVGV' ) . ";" );
+        init()->add( sprintf( "GvGP_set(%s, %s);", $sym, $gptable{ 0 + $gp } ) );
+        $was_emptied = 1;
+    }
+    elsif ( $gp and !$is_empty and $gvname =~ /::$/ ) {
+        debug( gv => "Shared GvGP for stash %%%s 0x%x%s %s GP:0x%x", $fullname, $svflags, debug('flags') ? "(" . $gv->flagspv . ")" : "", $gv->FILE, $gp );
+        init()->add( "$sym = " . gv_fetchpv_string( $name, 'GV_ADD', 'SVt_PVHV' ) . ";" );
+        $gptable{ 0 + $gp } = "GvGP($sym)" if 0 + $gp;
+    }
+    elsif ( $gp and !$is_empty ) {
+        debug( gv => "New GV for *%s 0x%x%s %s GP:0x%x", $fullname, $svflags, debug('flags') ? "(" . $gv->flagspv . ")" : "", $gv->FILE, $gp );
+
+        # XXX !PERL510 and OPf_COP_TEMP we need to fake PL_curcop for gp_file hackery
+        init()->add( "$sym = " . gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) . ";" );
+        $gptable{ 0 + $gp } = "GvGP($sym)";
+        $obscure_corner_case = 1;
+    }
+    else {
+        init()->add( "$sym = " . gv_fetchpv_string( $name, $gvadd, 'SVt_PVGV' ) . ";" );
+    }
+
+    return ( $obscure_corner_case, $was_emptied );
 }
 
 sub save_gv_cv {
