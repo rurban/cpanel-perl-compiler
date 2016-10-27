@@ -275,14 +275,8 @@ sub save {
         }
     }
 
-    my $is_coresym;
-
-    # those are already initialized in init_predump_symbols()
-    # and init_main_stash()
-    if ( $CORE_SYMS->{$fullname} ) {
-        $sym = savesym( $gv, $CORE_SYMS->{$fullname} );
-        $is_coresym++;
-    }
+    # Core syms are initialized by perl so we don't need to other than tracking the symbol itself see init_main_stash()
+    $sym = savesym( $gv, $CORE_SYMS->{$fullname} ) if $gv->is_coresym();
 
     if ( $fullname =~ /^main::std(in|out|err)$/ ) {    # same as uppercase above
         init()->sadd(qq[$sym = gv_fetchpv($cname, $notqual, SVt_PVGV);]);
