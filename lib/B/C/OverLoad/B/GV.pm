@@ -203,11 +203,6 @@ sub normalize_filter {
         $filter = 0;
     }
 
-    # checked for defined'ness in Carp. So the GV must exist, the CV not
-    if ( $fullname =~ /^threads::(tid|AUTOLOAD)$/ and USE_ITHREADS() ) {
-        $filter = Save_CV;
-    }
-
     # no need to assign any SV/AV/HV to them (172)
     if ( $fullname =~ /^DynaLoader::dl_(require_symbols|resolve_using|librefs)/ ) {
         $filter = Save_SV | Save_AV | Save_HV;
@@ -299,22 +294,11 @@ sub save {
         init()->sadd( "SvREFCNT(%s) = %u;", $sym, $gv->REFCNT );
         return $sym;
     }
-    elsif ( $B::C::ro_inc and $fullname =~ /^main::([0-9])$/ ) {    # ignore PV regexp captures with -O2
-        $filter = Save_SV;
-    }
-
-    # gv_fetchpv loads Errno resp. Tie::Hash::NamedCapture, but needs *INC #90
-    #elsif ( $fullname eq 'main::!' or $fullname eq 'main::+' or $fullname eq 'main::-') {
-    #  init1()->add(qq[$sym = gv_fetchpv($name, TRUE, SVt_PVGV);]); # defer until INC is setup
-    #  init1()->add( sprintf( "SvREFCNT($sym) = %u;", $gv->REFCNT ) );
-    #  return $sym;
-    #}
 
     my ( $obscure_corner_case, $was_emptied ) = save_gv_with_gp( $gv, $egvsym, $sym, $name, $notqual, $is_empty );
     $is_empty = 1 if ($was_emptied);
 
     my $gvflags = $gv->GvFLAGS;
-
     my $svflags = $gv->FLAGS;
     init()->sadd( "SvFLAGS(%s) = 0x%x;%s",  $sym, $svflags, debug('flags') ? " /* " . $gv->flagspv . " */"          : "" );
     init()->sadd( "GvFLAGS(%s) = 0x%x; %s", $sym, $gvflags, debug('flags') ? "/* " . $gv->flagspv(SVt_PVGV) . " */" : "" );
@@ -331,6 +315,7 @@ sub save {
     if ( $gv->REFCNT > 1 ) {
         init()->sadd( "SvREFCNT(%s) = %u;", $sym, $gv->REFCNT );
     }
+
     return $sym if $is_empty;
 
     my $gvrefcnt = $gv->GvREFCNT;
