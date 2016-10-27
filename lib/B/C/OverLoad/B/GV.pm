@@ -77,6 +77,9 @@ sub savecv {
     my $av      = $gv->AV;
     my $hv      = $gv->HV;
 
+    # We NEVER compile B::C packages so if we get here, it's a bug.
+    die if $package eq 'B::C';
+
     my $fullname = $package . "::" . $name;
     debug( gv => "Checking GV *%s 0x%x\n", cstring($fullname), ref $gv ? $$gv : 0 ) if verbose();
 
@@ -110,11 +113,8 @@ sub savecv {
         }
         return;
     }
-    if ( $package eq 'B::C' ) {
-        debug( gv => "Skip XS \&$fullname 0x%x\n", ref $cv ? $$cv : 0 );
-        return;
-    }
 
+    # load utf8 and bytes on demand.
     if ( my $newgv = force_heavy( $package, $fullname ) ) {
         $gv = $newgv;
     }
@@ -254,7 +254,6 @@ sub save {
 
     my $is_special = ref($gv) eq 'B::SPECIAL';
 
-    # FIXME: diff here with upstream
     if ( my $newgv = force_heavy( $package, $fullname ) ) {
         $gv = $newgv;                          # defer to run-time autoload, or compile it in?
         $sym = savesym( $gv, $sym );           # override new gv ptr to sym
