@@ -252,7 +252,6 @@ sub save {
     my $cname   = $package eq 'main' ? cstring($gvname) : cstring($fullname);
     my $notqual = $package eq 'main' ? 'GV_NOTQUAL'     : '0';
 
-    my $egvsym;
     my $is_special = ref($gv) eq 'B::SPECIAL';
 
     # FIXME: diff here with upstream
@@ -260,20 +259,8 @@ sub save {
         $gv = $newgv;                          # defer to run-time autoload, or compile it in?
         $sym = savesym( $gv, $sym );           # override new gv ptr to sym
     }
-    if ( !$is_empty ) {
-        my $egv = $gv->EGV;
-        unless ( ref($egv) eq 'B::SPECIAL' or ref( $egv->STASH ) eq 'B::SPECIAL' ) {
-            my $estash = $egv->STASH->NAME;
-            if ( $$gv != $$egv ) {
 
-                # debug(
-                #      gv => "EGV name is %s, saving it now\n",
-                #      $estash . "::" . $egv->NAME
-                # );
-                $egvsym = $egv->save;
-            }
-        }
-    }
+    my $egvsym = save_egv($gv);
 
     # Core syms are initialized by perl so we don't need to other than tracking the symbol itself see init_main_stash()
     $sym = savesym( $gv, $CORE_SYMS->{$fullname} ) if $gv->is_coresym();
@@ -359,6 +346,19 @@ sub save {
     # $gv->save_magic($fullname) if $PERL510;
     debug( gv => "GV::save *$fullname done" );
     return $sym;
+}
+
+sub save_egv {
+    my ($gv) = @_;
+
+    return if $gv->is_empty;
+
+    my $egv = $gv->EGV;
+    if ( ref($egv) ne 'B::SPECIAL' && ref( $egv->STASH ) ne 'B::SPECIAL' && $$gv != $$egv ) {
+        return $egv->save;
+    }
+
+    return;
 }
 
 sub save_gv_file {
