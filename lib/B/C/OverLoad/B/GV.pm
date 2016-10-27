@@ -259,7 +259,7 @@ sub save {
         $sym = savesym( $gv, $sym );           # override new gv ptr to sym
     }
 
-    my $egvsym = save_egv($gv);
+    my $egvsym = $gv->save_egv();
 
     # Core syms are initialized by perl so we don't need to other than tracking the symbol itself see init_main_stash()
     $sym = savesym( $gv, $CORE_SYMS->{$fullname} ) if $gv->is_coresym();
@@ -327,19 +327,19 @@ sub save {
     # Don't save subfields of special GVs (*_, *1, *# and so on)
     debug( gv => "GV::save saving subfields $savefields" );
 
-    save_gv_sv( $gv, $fullname, $sym, $package, $gvname ) if $savefields & Save_SV;
+    $gv->save_gv_sv( $fullname, $sym, $package, $gvname ) if $savefields & Save_SV;
 
-    save_gv_av( $gv, $fullname, $sym ) if $savefields & Save_AV;
+    $gv->save_gv_av( $fullname, $sym ) if $savefields & Save_AV;
 
-    save_gv_hv( $gv, $fullname, $sym, $gvname ) if $savefields & Save_HV;
+    $gv->save_gv_hv( $fullname, $sym, $gvname ) if $savefields & Save_HV;
 
-    save_gv_cv( $gv, $fullname, $sym ) if $savefields & Save_CV;
+    $gv->save_gv_cv( $fullname, $sym ) if $savefields & Save_CV;
 
-    save_gv_format( $gv, $fullname, $sym ) if $savefields & Save_FORM;
+    $gv->save_gv_format( $fullname, $sym ) if $savefields & Save_FORM;
 
-    save_gv_io( $gv, $fullname, $sym ) if $savefields & Save_IO;
+    $gv->save_gv_io( $fullname, $sym ) if $savefields & Save_IO;
 
-    save_gv_file( $gv, $fullname, $sym ) if $savefields & Save_FILE;
+    $gv->save_gv_file( $fullname, $sym ) if $savefields & Save_FILE;
 
     # Shouldn't need to do save_magic since gv_fetchpv handles that. Esp. < and IO not
     # $gv->save_magic($fullname) if $PERL510;
