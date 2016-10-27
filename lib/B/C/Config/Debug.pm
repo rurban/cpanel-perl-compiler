@@ -21,6 +21,7 @@ my %debug_map = (
     'v'     => 'verbose',     # special case to consider verbose as a debug level
     'W'     => 'walk',
     'bench' => 'benchmark',
+    'stack' => 'stack',
 );
 
 my %reverse_map = reverse %debug_map;
