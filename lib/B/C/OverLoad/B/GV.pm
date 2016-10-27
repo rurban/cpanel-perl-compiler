@@ -134,14 +134,17 @@ sub savecv {
 }
 
 sub get_savefields {
-    my ( $gv, $gvname, $fullname, $filter, $obscure_corner_case ) = @_;
+    my ( $gv, $gvname, $fullname, $filter ) = @_;
 
     # default savefields
-    my $savefields = 0;
+    my $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
 
-    if ($obscure_corner_case) {
-        $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
-    }
+    $savefields = 0 if $gv->save_egv();
+    $savefields = 0 if $gvname =~ /::$/;
+    $savefields = 0 if $gv->is_empty();
+
+    my $gp = $gv->GP;
+    $savefields = 0 if !$gp or !exists $gptable{ 0 + $gp };
 
     # some non-alphabetic globs require some parts to be saved
     # ( ex. %!, but not $! )
@@ -257,15 +260,13 @@ sub save {
         $sym = savesym( $gv, $sym );           # override new gv ptr to sym
     }
 
-    my $egvsym = $gv->save_egv();
-
     # Core syms are initialized by perl so we don't need to other than tracking the symbol itself see init_main_stash()
     $sym = savesym( $gv, $CORE_SYMS->{$fullname} ) if $gv->is_coresym();
 
     return $sym if $gv->save_special_gv($sym);
 
     my $notqual = $package eq 'main' ? 'GV_NOTQUAL' : '0';
-    my ( $obscure_corner_case, $was_emptied ) = save_gv_with_gp( $gv, $egvsym, $sym, $name, $notqual, $is_empty );
+    my $was_emptied = save_gv_with_gp( $gv, $sym, $name, $notqual, $is_empty );
     $is_empty = 1 if ($was_emptied);
 
     my $gvflags = $gv->GvFLAGS;
@@ -309,7 +310,7 @@ sub save {
         $B::C::use_xsloader = 1;
     }
 
-    my $savefields = get_savefields( $gv, $gvname, $fullname, $filter, $obscure_corner_case );
+    my $savefields = get_savefields( $gv, $gvname, $fullname, $filter );
 
     # There's nothing to save if savefields were not returned.
     return $sym unless $savefields;
@@ -393,7 +394,7 @@ sub save_gv_file {
 }
 
 sub save_gv_with_gp {
-    my ( $gv, $egvsym, $sym, $name, $notqual, $is_empty ) = @_;
+    my ( $gv, $sym, $name, $notqual, $is_empty ) = @_;
 
     my $gvname   = $gv->NAME();
     my $svflags  = $gv->FLAGS;
@@ -404,7 +405,6 @@ sub save_gv_with_gp {
 
     my $gvadd = $notqual ? "$notqual|GV_ADD" : "GV_ADD";
 
-    my $obscure_corner_case;
     my $was_emptied;
 
     if ( !$gv->isGV_with_GP ) {
@@ -412,7 +412,8 @@ sub save_gv_with_gp {
         return;
     }
 
-    my $gp = $gv->GP;    # B limitation
+    my $gp     = $gv->GP;           # B limitation
+    my $egvsym = $gv->save_egv();
     if ( defined($egvsym) && $egvsym !~ m/Null/ ) {
         debug( gv => "Shared GV alias for *%s 0x%x%s to %s", $fullname, $svflags, debug('flags') ? "(" . $gv->flagspv . ")" : "", $egvsym );
 
@@ -438,13 +439,12 @@ sub save_gv_with_gp {
         # XXX !PERL510 and OPf_COP_TEMP we need to fake PL_curcop for gp_file hackery
         init()->sadd( "%s = %s;", $sym, gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) );
         $gptable{ 0 + $gp } = "GvGP($sym)";
-        $obscure_corner_case = 1;
     }
     else {
         init()->sadd( "%s = %s;", $sym, gv_fetchpv_string( $name, $gvadd, 'SVt_PVGV' ) );
     }
 
-    return ( $obscure_corner_case, $was_emptied );
+    return $was_emptied;
 }
 
 sub save_gv_cv {
