@@ -145,7 +145,12 @@ sub get_savefields {
 
     # some non-alphabetic globs require some parts to be saved
     # ( ex. %!, but not $! )
-    if ( $gvname !~ /^([^A-Za-z]|STDIN|STDOUT|STDERR|ARGV|SIG|ENV)$/ ) {
+    if ( ref($gv) eq 'B::STASHGV' and $gvname !~ /::$/ ) {
+
+        # https://code.google.com/archive/p/perl-compiler/issues/79 - Only save stashes for stashes.
+        $savefields = 0;
+    }
+    elsif ( $gvname !~ /^([^A-Za-z]|STDIN|STDOUT|STDERR|ARGV|SIG|ENV)$/ ) {
         $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
     }
     elsif ( $fullname eq 'main::!' ) {    #Errno
@@ -334,13 +339,6 @@ sub save {
     }
 
     debug( gv => "check which savefields for \"$gvname\"" );
-
-    # issue 79: Only save stashes for stashes.
-    # But not other values to avoid recursion into unneeded territory.
-    # We walk via savecv, not via stashes.
-    if ( ref($gv) eq 'B::STASHGV' and $gvname !~ /::$/ ) {
-        return $sym;
-    }
 
     # attributes::bootstrap is created in perl_parse.
     # Saving it would overwrite it, because perl_init() is
