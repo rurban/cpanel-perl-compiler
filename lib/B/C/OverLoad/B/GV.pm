@@ -223,7 +223,7 @@ sub save {
     }
     else {
         my $ix = inc_index();
-        $sym = savesym( $gv, "gv_list[$ix]" );
+        $sym = savesym( $gv, "dynamic_gv_list[$ix]" );
         debug( gv => "Saving GV 0x%x as $sym", ref $gv ? $$gv : 0 );
     }
 

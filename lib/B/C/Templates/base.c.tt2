@@ -196,7 +196,7 @@ typedef struct p5rx RE;
 Static IV PL_sv_objcount = 0; /* deprecated with 5.21.1 but still needed and used */
 SV* sv;
 [% IF gv_index %]
-Static GV *gv_list[[% gv_index %]];
+Static GV *dynamic_gv_list[[% gv_index %]];
 [% END %]
 
 /* back in output_all() */
