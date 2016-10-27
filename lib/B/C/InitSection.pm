@@ -79,7 +79,7 @@ sub add {
     my $current = $self->{'current'};
     my $nosplit = $self->{'nosplit'};
 
-    if ( $self->benchmark_enabled() && grep { $_ =~ m/\S/ } @_ ) {
+    if ( grep { $_ =~ m/\S/ } @_ ) {
 
         my $caller = "@{[(caller(1))[3]]}";
         if ( $caller =~ m/InitSection/ ) {
