@@ -249,11 +249,8 @@ sub save {
         die("We don't think this ever happens");
         return q/(SV*)&PL_sv_undef/;
     }
-    my $name    = $package eq 'main' ? $gvname          : $fullname;
-    my $cname   = $package eq 'main' ? cstring($gvname) : cstring($fullname);
-    my $notqual = $package eq 'main' ? 'GV_NOTQUAL'     : '0';
 
-    my $is_special = ref($gv) eq 'B::SPECIAL';
+    my $name = $package eq 'main' ? $gvname : $fullname;
 
     if ( my $newgv = force_heavy( $package, $fullname ) ) {
         $gv = $newgv;                          # defer to run-time autoload, or compile it in?
@@ -265,17 +262,9 @@ sub save {
     # Core syms are initialized by perl so we don't need to other than tracking the symbol itself see init_main_stash()
     $sym = savesym( $gv, $CORE_SYMS->{$fullname} ) if $gv->is_coresym();
 
-    if ( $fullname =~ /^main::std(in|out|err)$/ ) {    # same as uppercase above
-        init()->sadd(qq[$sym = gv_fetchpv($cname, $notqual, SVt_PVGV);]);
-        init()->sadd( "SvREFCNT(%s) = %u;", $sym, $gv->REFCNT );
-        return $sym;
-    }
-    elsif ( $fullname eq 'main::0' ) {                 # dollar_0 already handled before, so don't overwrite it
-        init()->sadd(qq[$sym = gv_fetchpv($cname, $notqual, SVt_PV);]);
-        init()->sadd( "SvREFCNT(%s) = %u;", $sym, $gv->REFCNT );
-        return $sym;
-    }
+    return $sym if $gv->save_special_gv($sym);
 
+    my $notqual = $package eq 'main' ? 'GV_NOTQUAL' : '0';
     my ( $obscure_corner_case, $was_emptied ) = save_gv_with_gp( $gv, $egvsym, $sym, $name, $notqual, $is_empty );
     $is_empty = 1 if ($was_emptied);
 
@@ -346,6 +335,34 @@ sub save {
     # $gv->save_magic($fullname) if $PERL510;
     debug( gv => "GV::save *$fullname done" );
     return $sym;
+}
+
+sub save_special_gv {
+    my ( $gv, $sym ) = @_;
+
+    my $package  = $gv->get_package();
+    my $gvname   = $gv->NAME();
+    my $fullname = $gv->get_fullname();
+
+    my $cname   = $package eq 'main' ? cstring($gvname) : cstring($fullname);
+    my $notqual = $package eq 'main' ? 'GV_NOTQUAL'     : '0';
+
+    my $type;
+    if ( $fullname =~ /^main::std(in|out|err)$/ ) {    # same as uppercase above
+        $type = 'SVt_PVGV';
+    }
+    elsif ( $fullname eq 'main::0' ) {                 # dollar_0 already handled before, so don't overwrite it
+        $type = 'SVt_PV';
+    }
+    else {
+        return 0;
+    }
+
+    init()->sadd( '%s = gv_fetchpv(%s, %s, %s);', $sym, $cname, $notqual, $type );
+    init()->sadd( "SvREFCNT(%s) = %u;", $sym, $gv->REFCNT );
+
+    return 1;
+
 }
 
 sub save_egv {
