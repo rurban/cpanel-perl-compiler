@@ -68,155 +68,6 @@ sub get_fullname {
     return $gv->get_package() . "::" . $gv->NAME();
 }
 
-sub savecv {
-    my $gv      = shift;
-    my $package = $gv->STASH->NAME;
-    my $name    = $gv->NAME;
-    my $cv      = $gv->CV;
-    my $sv      = $gv->SV;
-    my $av      = $gv->AV;
-    my $hv      = $gv->HV;
-
-    # We NEVER compile B::C packages so if we get here, it's a bug.
-    die if $package eq 'B::C';
-
-    my $fullname = $package . "::" . $name;
-    debug( gv => "Checking GV *%s 0x%x\n", cstring($fullname), ref $gv ? $$gv : 0 ) if verbose();
-
-    # We may be looking at this package just because it is a branch in the
-    # symbol table which is on the path to a package which we need to save
-    # e.g. this is 'Getopt' and we need to save 'Getopt::Long'
-    #
-    return if ( $package ne 'main' and !is_package_used($package) );
-    return if ( $package eq 'main'
-        and $name =~ /^([^\w].*|_\<.*|INC|ARGV|SIG|ENV|BEGIN|main::|!)$/ );
-
-    debug( gv => "Used GV \*$fullname 0x%x", ref $gv ? $$gv : 0 );
-    return unless ( $$cv || $$av || $$sv || $$hv || $gv->IO || $gv->FORM );
-    if ( $$cv and $name eq 'bootstrap' and $cv->XSUB ) {
-
-        #return $cv->save($fullname);
-        debug( gv => "Skip XS \&$fullname 0x%x", ref $cv ? $$cv : 0 );
-        return;
-    }
-    if (
-        $$cv and B::C::in_static_core( $package, $name ) and ref($cv) eq 'B::CV'    # 5.8,4 issue32
-        and $cv->XSUB
-      ) {
-        debug( gv => "Skip internal XS $fullname" );
-
-        # but prevent it from being deleted
-        unless ( $B::C::dumped_package{$package} ) {
-
-            #$B::C::dumped_package{$package} = 1;
-            mark_package( $package, 1 );
-        }
-        return;
-    }
-
-    # load utf8 and bytes on demand.
-    if ( my $newgv = force_heavy( $package, $fullname ) ) {
-        $gv = $newgv;
-    }
-
-    # XXX fails and should not be needed. The B::C part should be skipped 9 lines above, but be defensive
-    return if $fullname eq 'B::walksymtable' or $fullname eq 'B::C::walksymtable';
-
-    # Config is marked on any Config symbol. TIE and DESTROY are exceptions,
-    # used by the compiler itself
-    if ( $name eq 'Config' ) {
-        mark_package( 'Config', 1 ) if !is_package_used('Config');
-    }
-
-    $B::C::dumped_package{$package} = 1 if !exists $B::C::dumped_package{$package} and $package !~ /::$/;
-    debug( gv => "Saving GV \*$fullname 0x%x", ref $gv ? $$gv : 0 );
-    $gv->save($fullname);
-}
-
-sub get_savefields {
-    my ( $gv, $gvname, $fullname, $filter ) = @_;
-
-    # default savefields
-    my $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
-
-    $savefields = 0 if $gv->save_egv();
-    $savefields = 0 if $gvname =~ /::$/;
-    $savefields = 0 if $gv->is_empty();
-
-    my $gp = $gv->GP;
-    $savefields = 0 if !$gp or !exists $gptable{ 0 + $gp };
-
-    # some non-alphabetic globs require some parts to be saved
-    # ( ex. %!, but not $! )
-    if ( ref($gv) eq 'B::STASHGV' and $gvname !~ /::$/ ) {
-
-        # https://code.google.com/archive/p/perl-compiler/issues/79 - Only save stashes for stashes.
-        $savefields = 0;
-    }
-    elsif ( $gvname !~ /^([^A-Za-z]|STDIN|STDOUT|STDERR|ARGV|SIG|ENV)$/ ) {
-        $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
-    }
-    elsif ( $fullname eq 'main::!' ) {    #Errno
-        $savefields = Save_HV | Save_SV | Save_CV;
-    }
-    elsif ( $fullname eq 'main::ENV' or $fullname eq 'main::SIG' ) {
-        $savefields = Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
-    }
-    elsif ( $fullname eq 'main::ARGV' ) {
-        $savefields = Save_HV | Save_SV | Save_CV | Save_FORM | Save_IO;
-    }
-    elsif ( $fullname =~ /^main::STD(IN|OUT|ERR)$/ ) {
-        $savefields = Save_FORM | Save_IO;
-    }
-    elsif ( $fullname eq 'main::_' or $fullname eq 'main::@' ) {
-        $savefields = 0;
-    }
-
-    # avoid overly dynamic POSIX redefinition warnings: GH #335, #345
-    if ( $fullname =~ m/^POSIX::M/ or $fullname eq 'attributes::bootstrap' ) {
-        $savefields &= ~Save_CV;
-    }
-
-    # compute filter
-    $filter = normalize_filter( $filter, $fullname );
-
-    # apply filter
-    if ( $filter and $filter =~ qr{^[0-9]$} ) {
-        $savefields &= ~$filter;
-    }
-
-    my $is_gvgp    = $gv->isGV_with_GP;
-    my $is_coresym = $gv->is_coresym();
-    if ( !$is_gvgp or $is_coresym ) {
-        $savefields &= ~Save_FORM;
-        $savefields &= ~Save_IO;
-    }
-
-    $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym && ( !$B::C::stash or $fullname !~ /::$/ ) );
-
-    $savefields &= Save_SV if $gvname eq '\\';
-
-    return $savefields;
-}
-
-sub normalize_filter {
-    my ( $filter, $fullname ) = @_;
-
-    if ( $filter and $filter =~ m/ :pad/ ) {
-        $filter = 0;
-    }
-
-    # no need to assign any SV/AV/HV to them (172)
-    if ( $fullname =~ /^DynaLoader::dl_(require_symbols|resolve_using|librefs)/ ) {
-        $filter = Save_SV | Save_AV | Save_HV;
-    }
-    if ( $B::C::ro_inc and $fullname =~ /^main::([1-9])$/ ) {    # ignore PV regexp captures with -O2
-        $filter = Save_SV;
-    }
-
-    return $filter;
-}
-
 sub save {
     my ( $gv, $filter ) = @_;
     my $sym = objsym($gv);
@@ -771,4 +622,152 @@ sub gv_fetchpv_string {
     return "gv_fetchpvn_flags($cname, $cur, $flags, $type)";
 }
 
+sub savecv {
+    my $gv      = shift;
+    my $package = $gv->STASH->NAME;
+    my $name    = $gv->NAME;
+    my $cv      = $gv->CV;
+    my $sv      = $gv->SV;
+    my $av      = $gv->AV;
+    my $hv      = $gv->HV;
+
+    # We NEVER compile B::C packages so if we get here, it's a bug.
+    die if $package eq 'B::C';
+
+    my $fullname = $package . "::" . $name;
+    debug( gv => "Checking GV *%s 0x%x\n", cstring($fullname), ref $gv ? $$gv : 0 ) if verbose();
+
+    # We may be looking at this package just because it is a branch in the
+    # symbol table which is on the path to a package which we need to save
+    # e.g. this is 'Getopt' and we need to save 'Getopt::Long'
+    #
+    return if ( $package ne 'main' and !is_package_used($package) );
+    return if ( $package eq 'main'
+        and $name =~ /^([^\w].*|_\<.*|INC|ARGV|SIG|ENV|BEGIN|main::|!)$/ );
+
+    debug( gv => "Used GV \*$fullname 0x%x", ref $gv ? $$gv : 0 );
+    return unless ( $$cv || $$av || $$sv || $$hv || $gv->IO || $gv->FORM );
+    if ( $$cv and $name eq 'bootstrap' and $cv->XSUB ) {
+
+        #return $cv->save($fullname);
+        debug( gv => "Skip XS \&$fullname 0x%x", ref $cv ? $$cv : 0 );
+        return;
+    }
+    if (
+        $$cv and B::C::in_static_core( $package, $name ) and ref($cv) eq 'B::CV'    # 5.8,4 issue32
+        and $cv->XSUB
+      ) {
+        debug( gv => "Skip internal XS $fullname" );
+
+        # but prevent it from being deleted
+        unless ( $B::C::dumped_package{$package} ) {
+
+            #$B::C::dumped_package{$package} = 1;
+            mark_package( $package, 1 );
+        }
+        return;
+    }
+
+    # load utf8 and bytes on demand.
+    if ( my $newgv = force_heavy( $package, $fullname ) ) {
+        $gv = $newgv;
+    }
+
+    # XXX fails and should not be needed. The B::C part should be skipped 9 lines above, but be defensive
+    return if $fullname eq 'B::walksymtable' or $fullname eq 'B::C::walksymtable';
+
+    # Config is marked on any Config symbol. TIE and DESTROY are exceptions,
+    # used by the compiler itself
+    if ( $name eq 'Config' ) {
+        mark_package( 'Config', 1 ) if !is_package_used('Config');
+    }
+
+    $B::C::dumped_package{$package} = 1 if !exists $B::C::dumped_package{$package} and $package !~ /::$/;
+    debug( gv => "Saving GV \*$fullname 0x%x", ref $gv ? $$gv : 0 );
+    $gv->save($fullname);
+}
+
+sub get_savefields {
+    my ( $gv, $gvname, $fullname, $filter ) = @_;
+
+    # default savefields
+    my $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
+
+    $savefields = 0 if $gv->save_egv();
+    $savefields = 0 if $gvname =~ /::$/;
+    $savefields = 0 if $gv->is_empty();
+
+    my $gp = $gv->GP;
+    $savefields = 0 if !$gp or !exists $gptable{ 0 + $gp };
+
+    # some non-alphabetic globs require some parts to be saved
+    # ( ex. %!, but not $! )
+    if ( ref($gv) eq 'B::STASHGV' and $gvname !~ /::$/ ) {
+
+        # https://code.google.com/archive/p/perl-compiler/issues/79 - Only save stashes for stashes.
+        $savefields = 0;
+    }
+    elsif ( $gvname !~ /^([^A-Za-z]|STDIN|STDOUT|STDERR|ARGV|SIG|ENV)$/ ) {
+        $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
+    }
+    elsif ( $fullname eq 'main::!' ) {    #Errno
+        $savefields = Save_HV | Save_SV | Save_CV;
+    }
+    elsif ( $fullname eq 'main::ENV' or $fullname eq 'main::SIG' ) {
+        $savefields = Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
+    }
+    elsif ( $fullname eq 'main::ARGV' ) {
+        $savefields = Save_HV | Save_SV | Save_CV | Save_FORM | Save_IO;
+    }
+    elsif ( $fullname =~ /^main::STD(IN|OUT|ERR)$/ ) {
+        $savefields = Save_FORM | Save_IO;
+    }
+    elsif ( $fullname eq 'main::_' or $fullname eq 'main::@' ) {
+        $savefields = 0;
+    }
+
+    # avoid overly dynamic POSIX redefinition warnings: GH #335, #345
+    if ( $fullname =~ m/^POSIX::M/ or $fullname eq 'attributes::bootstrap' ) {
+        $savefields &= ~Save_CV;
+    }
+
+    # compute filter
+    $filter = normalize_filter( $filter, $fullname );
+
+    # apply filter
+    if ( $filter and $filter =~ qr{^[0-9]$} ) {
+        $savefields &= ~$filter;
+    }
+
+    my $is_gvgp    = $gv->isGV_with_GP;
+    my $is_coresym = $gv->is_coresym();
+    if ( !$is_gvgp or $is_coresym ) {
+        $savefields &= ~Save_FORM;
+        $savefields &= ~Save_IO;
+    }
+
+    $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym && ( !$B::C::stash or $fullname !~ /::$/ ) );
+
+    $savefields &= Save_SV if $gvname eq '\\';
+
+    return $savefields;
+}
+
+sub normalize_filter {
+    my ( $filter, $fullname ) = @_;
+
+    if ( $filter and $filter =~ m/ :pad/ ) {
+        $filter = 0;
+    }
+
+    # no need to assign any SV/AV/HV to them (172)
+    if ( $fullname =~ /^DynaLoader::dl_(require_symbols|resolve_using|librefs)/ ) {
+        $filter = Save_SV | Save_AV | Save_HV;
+    }
+    if ( $B::C::ro_inc and $fullname =~ /^main::([1-9])$/ ) {    # ignore PV regexp captures with -O2
+        $filter = Save_SV;
+    }
+
+    return $filter;
+}
 1;
