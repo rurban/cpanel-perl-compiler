@@ -50,13 +50,7 @@ sub new {
 sub benchmark_time {
     my ( $self, $label, $next_label ) = @_;
 
-    my $str = '';
-    if ( $self->benchmark_enabled() ) {
-        $str .= sprintf( qq{\nbenchmark_time("%s");\n}, $label );
-    }
-    $str .= sprintf( qq{\n/*%s %s %s*/\n}, '*' x 15, $next_label, '*' x 15 );
-
-    return $str;
+    return sprintf( qq{\nbenchmark_time("%s");\n}, $label ) . sprintf( qq{\n/*%s %s %s*/\n}, '*' x 15, $next_label, '*' x 15 );
 }
 
 sub split {
@@ -83,8 +77,7 @@ sub add {
     my $current = $self->{'current'};
     my $nosplit = $self->{'nosplit'};
 
-    my $ok = grep { $_ =~ m/\S/ } @_;
-    if ($ok) {
+    if ( $self->benchmark_enabled() && grep { $_ =~ m/\S/ } @_ ) {
 
         my $caller = "@{[(caller(1))[3]]}";
         if ( $caller =~ m/InitSection/ ) {
