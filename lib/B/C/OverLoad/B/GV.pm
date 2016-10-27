@@ -246,6 +246,7 @@ sub save {
 
     my $is_empty = $gv->is_empty;
     if ( !defined $gvname and $is_empty ) {    # 5.8 curpad name
+        die("We don't think this ever happens");
         return q/(SV*)&PL_sv_undef/;
     }
     my $name    = $package eq 'main' ? $gvname          : $fullname;
