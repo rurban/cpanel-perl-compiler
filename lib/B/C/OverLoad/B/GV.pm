@@ -49,10 +49,7 @@ my $CORE_SVS = {                       # special SV syms to assign to the right 
 sub get_package {
     my $gv = shift;
 
-    if ( ref( $gv->STASH ) eq 'B::SPECIAL' ) {
-        return '__ANON__';
-    }
-
+    return '__ANON__' if ref( $gv->STASH ) eq 'B::SPECIAL';
     return $gv->STASH->NAME;
 }
 
@@ -68,26 +65,28 @@ sub get_fullname {
     return $gv->get_package() . "::" . $gv->NAME();
 }
 
+sub set_dynamic_gv {
+    my $gv = shift;
+    return savesym( $gv, sprintf( "dynamic_gv_list[%s]", inc_index() ) );
+}
+
 sub save {
     my ( $gv, $filter ) = @_;
-    my $sym = objsym($gv);
-    if ( defined($sym) ) {
-        debug( gv => "GV 0x%x already saved as $sym", ref $gv ? $$gv : 0 );
-        return $sym;
-    }
-    else {
-        my $ix = inc_index();
-        $sym = savesym( $gv, "dynamic_gv_list[$ix]" );
-        debug( gv => "Saving GV 0x%x as $sym", ref $gv ? $$gv : 0 );
+
+    {    # cache lookup
+        my $cached_sym = objsym($gv);
+        return $cached_sym if defined $cached_sym;
     }
 
-    # GV $sym isa FBM
-    return B::BM::save($gv) if $gv->FLAGS & 0x40000000;    # SVpbm_VALID
+    # return earlier for special cases
+    return B::BM::save($gv)       if $gv->FLAGS & 0x40000000;                # SVpbm_VALID # GV $sym isa FBM
+    return q/(SV*)&PL_sv_undef/   if B::C::skip_pkg( $gv->get_package() );
+    return $gv->save_special_gv() if $gv->is_special_gv();
+
+    my $sym = set_dynamic_gv($gv);
 
     my $package = $gv->get_package();
-    return q/(SV*)&PL_sv_undef/ if B::C::skip_pkg($package);
-
-    my $gvname = $gv->NAME();
+    my $gvname  = $gv->NAME();
 
     # If we come across a stash hash, we therefore have code using it so we need to mark it was used so it won't be deleted.
     if ( $gvname =~ m/::$/ ) {
@@ -113,8 +112,6 @@ sub save {
 
     # Core syms are initialized by perl so we don't need to other than tracking the symbol itself see init_main_stash()
     $sym = savesym( $gv, $CORE_SYMS->{$fullname} ) if $gv->is_coresym();
-
-    return $sym if $gv->save_special_gv($sym);
 
     my $notqual = $package eq 'main' ? 'GV_NOTQUAL' : '0';
     my $was_emptied = save_gv_with_gp( $gv, $sym, $name, $notqual, $is_empty );
@@ -161,7 +158,7 @@ sub save {
         $B::C::use_xsloader = 1;
     }
 
-    my $savefields = get_savefields( $gv, $gvname, $fullname, $filter );
+    my $savefields = get_savefields( $gv, $fullname, $filter );
 
     # There's nothing to save if savefields were not returned.
     return $sym unless $savefields;
@@ -169,7 +166,7 @@ sub save {
     # Don't save subfields of special GVs (*_, *1, *# and so on)
     debug( gv => "GV::save saving subfields $savefields" );
 
-    $gv->save_gv_sv( $fullname, $sym, $package, $gvname ) if $savefields & Save_SV;
+    $gv->save_gv_sv( $fullname, $sym, $package ) if $savefields & Save_SV;
 
     $gv->save_gv_av( $fullname, $sym ) if $savefields & Save_AV;
 
@@ -189,32 +186,33 @@ sub save {
     return $sym;
 }
 
-sub save_special_gv {
-    my ( $gv, $sym ) = @_;
+sub is_special_gv {
+    my $gv = shift;
 
-    my $package  = $gv->get_package();
+    my $fullname = $gv->get_fullname();
+    return 1 if $fullname =~ /^main::std(in|out|err)$/;    # same as uppercase above
+    return 1 if $fullname eq 'main::0';                    # dollar_0 already handled before, so don't overwrite it
+    return;
+}
+
+sub save_special_gv {
+    my $gv = shift;
+
     my $gvname   = $gv->NAME();
     my $fullname = $gv->get_fullname();
 
-    my $cname   = $package eq 'main' ? cstring($gvname) : cstring($fullname);
-    my $notqual = $package eq 'main' ? 'GV_NOTQUAL'     : '0';
+    # package is main
+    my $cname   = cstring($gvname);
+    my $notqual = 'GV_NOTQUAL';
 
-    my $type;
-    if ( $fullname =~ /^main::std(in|out|err)$/ ) {    # same as uppercase above
-        $type = 'SVt_PVGV';
-    }
-    elsif ( $fullname eq 'main::0' ) {                 # dollar_0 already handled before, so don't overwrite it
-        $type = 'SVt_PV';
-    }
-    else {
-        return 0;
-    }
+    my $type = 'SVt_PVGV';
+    $type = 'SVt_PV' if $fullname eq 'main::0';
 
+    my $sym = $gv->set_dynamic_gv;    # use a dynamic slot from there + cache
     init()->sadd( '%s = gv_fetchpv(%s, %s, %s);', $sym, $cname, $notqual, $type );
     init()->sadd( "SvREFCNT(%s) = %u;", $sym, $gv->REFCNT );
 
-    return 1;
-
+    return $sym;
 }
 
 sub save_egv {
@@ -252,7 +250,7 @@ sub save_gv_with_gp {
     my $fullname = $gv->get_fullname();
 
     # Core syms don't have a GP?
-    return if $CORE_SYMS->{$fullname};
+    return if $gv->is_coresym;
 
     my $gvadd = $notqual ? "$notqual|GV_ADD" : "GV_ADD";
 
@@ -317,7 +315,6 @@ sub save_gv_cv {
         return;
     }
 
-    return if B::C::skip_pkg($package);
     return unless ref($gvcv) eq 'B::CV';
     return if ref( $gvcv->GV ) eq 'B::SPECIAL' or ref( $gvcv->GV->EGV ) eq 'B::SPECIAL';
 
@@ -489,6 +486,8 @@ sub save_gv_sv {
     my $gvsv = $gv->SV;
     return unless $$gvsv;
 
+    my $gvname = $gv->NAME;
+
     debug( gv => "GV::save \$" . $sym . " $gvsv" );
 
     if ( my $pl_core_sv = $CORE_SVS->{$fullname} ) {
@@ -502,7 +501,6 @@ sub save_gv_sv {
         no strict 'refs';
         ${$fullname} = "$origsv";
         svref_2object( \${$fullname} )->save($fullname);
-        init()->sadd( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv );
     }
     else {
         $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
@@ -515,9 +513,8 @@ sub save_gv_sv {
             $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
             init()->sadd( "SvREFCNT(s\\_%x) += 1;", $$gvsv );
         }
-
-        init()->sadd( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv );
     }
+    init()->sadd( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv );
     if ( $fullname eq 'main::$' ) {    # $$ = PerlProc_getpid() issue #108
         debug( gv => "  GV $sym \$\$ perlpid" );
         init()->sadd( "sv_setiv(GvSV(%s), (IV)PerlProc_getpid());", $sym );
@@ -689,7 +686,9 @@ sub savecv {
 }
 
 sub get_savefields {
-    my ( $gv, $gvname, $fullname, $filter ) = @_;
+    my ( $gv, $fullname, $filter ) = @_;
+
+    my $gvname = $gv->NAME;
 
     # default savefields
     my $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;

@@ -66,7 +66,7 @@ sub save {
     my $ix = svopsect()->index;
     init()->add( sprintf( "svop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
       unless $B::C::optimize_ppaddr;
-    init()->add("svop_list[$ix].op_sv = $svsym;")
+    init()->add("svop_list[$ix].op_sv = (SV*) $svsym;")
       unless $is_const_addr;
     savesym( $op, "(OP*)&svop_list[$ix]" );
 }
