@@ -161,7 +161,7 @@ sub save {
         $B::C::use_xsloader = 1;
     }
 
-    my $savefields = get_savefields( $gv, $gvname, $fullname, $filter );
+    my $savefields = get_savefields( $gv, $fullname, $filter );
 
     # There's nothing to save if savefields were not returned.
     return $sym unless $savefields;
@@ -169,7 +169,7 @@ sub save {
     # Don't save subfields of special GVs (*_, *1, *# and so on)
     debug( gv => "GV::save saving subfields $savefields" );
 
-    $gv->save_gv_sv( $fullname, $sym, $package, $gvname ) if $savefields & Save_SV;
+    $gv->save_gv_sv( $fullname, $sym, $package ) if $savefields & Save_SV;
 
     $gv->save_gv_av( $fullname, $sym ) if $savefields & Save_AV;
 
@@ -489,6 +489,8 @@ sub save_gv_sv {
     my $gvsv = $gv->SV;
     return unless $$gvsv;
 
+    my $gvname = $gv->NAME;
+
     debug( gv => "GV::save \$" . $sym . " $gvsv" );
 
     if ( my $pl_core_sv = $CORE_SVS->{$fullname} ) {
@@ -687,7 +689,9 @@ sub savecv {
 }
 
 sub get_savefields {
-    my ( $gv, $gvname, $fullname, $filter ) = @_;
+    my ( $gv, $fullname, $filter ) = @_;
+
+    my $gvname = $gv->NAME;
 
     # default savefields
     my $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
