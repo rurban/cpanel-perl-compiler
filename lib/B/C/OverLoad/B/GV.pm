@@ -497,15 +497,15 @@ sub save_gv_sv {
         savesym( $gvsv, $pl_core_sv );
     }
 
-    if ( $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
-        debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
-        my $rv     = $gvsv->object_2svref();
-        my $origsv = $$rv;
-        no strict 'refs';
-        ${$fullname} = "$origsv";
-        svref_2object( \${$fullname} )->save($fullname);
-    }
-    else {
+    # if ( $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
+    #     debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
+    #     my $rv     = $gvsv->object_2svref();
+    #     my $origsv = $$rv;
+    #     no strict 'refs';
+    #     ${$fullname} = "$origsv";
+    #     svref_2object( \${$fullname} )->save($fullname);
+    # }
+    # else {
         $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
                                    # we need sv magic for the core_svs (PL_rs -> gv) (#314)
 
@@ -516,7 +516,7 @@ sub save_gv_sv {
             $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
             init()->sadd( "SvREFCNT(s\\_%x) += 1;", $$gvsv );
         }
-    }
+    #}
     init()->sadd( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv );
     if ( $fullname eq 'main::$' ) {    # $$ = PerlProc_getpid() issue #108
         debug( gv => "  GV $sym \$\$ perlpid" );
