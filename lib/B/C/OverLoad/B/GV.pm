@@ -502,7 +502,6 @@ sub save_gv_sv {
         no strict 'refs';
         ${$fullname} = "$origsv";
         svref_2object( \${$fullname} )->save($fullname);
-        init()->sadd( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv );
     }
     else {
         $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
@@ -515,9 +514,8 @@ sub save_gv_sv {
             $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
             init()->sadd( "SvREFCNT(s\\_%x) += 1;", $$gvsv );
         }
-
-        init()->sadd( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv );
     }
+    init()->sadd( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv );
     if ( $fullname eq 'main::$' ) {    # $$ = PerlProc_getpid() issue #108
         debug( gv => "  GV $sym \$\$ perlpid" );
         init()->sadd( "sv_setiv(GvSV(%s), (IV)PerlProc_getpid());", $sym );
