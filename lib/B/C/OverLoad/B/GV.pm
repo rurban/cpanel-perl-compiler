@@ -213,6 +213,11 @@ sub legacy_save {
 
     return $sym if $is_empty;
 
+    my $gvrefcnt = $gv->GvREFCNT; # should be saved with the GV
+    if ( $gvrefcnt > 1 ) {
+        init()->sadd( "GvREFCNT(%s) += %u;", $sym, $gvrefcnt - 1 );
+    }
+
     # attributes::bootstrap is created in perl_parse.
     # Saving it would overwrite it, because perl_init() is
     # called after perl_parse(). But we need to xsload it.
