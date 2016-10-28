@@ -38,6 +38,7 @@ sub savesym {
 sub objsym {
     my $obj = shift;
     no strict 'refs';
+    use Carp; warn Carp::longmess() if !$obj or !$$obj;
     return $SYMTABLE{ sprintf( "s\\_%x", $$obj ) };
 }
 

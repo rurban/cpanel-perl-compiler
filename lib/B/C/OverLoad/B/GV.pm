@@ -74,14 +74,18 @@ my %saved_gps;
 sub savegp_from_gv {
     my ( $gv, $savefields ) = @_;
 
-    my $gp = $gv->GP;    # B limitation GP is just a number not a reference so we cannot use objsym / savesym
+    # no GP to save there...
+    return 'NULL' unless $gv->isGV_with_GP and !$gv->is_coresym() and $gv->GP;
+    # B limitation GP is just a number not a reference so we cannot use objsym / savesym
+    my $gp = $gv->GP;       
     return $saved_gps{$gp} if defined $saved_gps{$gp};
 
     my $gvname   = $gv->NAME;
     my $fullname = $gv->get_fullname;
 
-    my $gpsym = objsym($gp);
-    return $gpsym if defined $gpsym;
+    # cannot do this as gp is just a number
+    #my $gpsym = objsym($gp);
+    #return $gpsym if defined $gpsym;
 
     # gp fields initializations
     # gp_cvgen: not set, no B api ( could be done in init section )
@@ -119,7 +123,6 @@ sub savegp_from_gv {
 
 sub save {
     my ( $gv, $filter ) = @_;
-    my $sym = objsym($gv);
 
     {    # cache lookup
         my $cached_sym = objsym($gv);
@@ -132,10 +135,7 @@ sub save {
     my $package = $gv->get_package();
     return q/(SV*)&PL_sv_undef/ if B::C::skip_pkg($package);
 
-    my $gpsym      = 'NULL';
-    if ( $gv->isGV_with_GP and !$gv->is_coresym() ) {
-        $gpsym = savegp_from_gv( $gv, $filter );           # might be $gp->save( )
-    }
+    my $gpsym      = savegp_from_gv( $gv, $filter ); # might be $gp->save( )
 
     xpvgvsect()->comment("stash, magic, cur, len, xiv_u={.xivu_namehek=}, xnv_u={.xgv_stash=}");
     xpvgvsect()->sadd(
