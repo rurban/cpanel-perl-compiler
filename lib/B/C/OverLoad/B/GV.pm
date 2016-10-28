@@ -96,6 +96,12 @@ sub savegp_from_gv {
 
     my $gp_line  = $gv->LINE;               # we want to use GvLINE from B.xs
                                             # present only in perl 5.22.0 and higher. this flag seems unused ( saving 0 for now should be similar )
+
+    if ( !$gv->is_empty ) {
+        # S32 INT_MAX
+        $gp_line = $gp_line > 2147483647 ? 4294967294 - $gp_line : $gp_line;
+    }
+
     my $gp_flags = $gv->GPFLAGS;            # PERL_BITFIELD32 gp_flags:1; ~ unsigned gp_flags:1
     die("gp_flags seems used now ???") if $gp_flags;
 
@@ -205,22 +211,7 @@ sub legacy_save {
     init()->sadd( "SvFLAGS(%s) = 0x%x;%s",  $sym, $svflags, debug('flags') ? " /* " . $gv->flagspv . " */"          : "" );
     init()->sadd( "GvFLAGS(%s) = 0x%x; %s", $sym, $gvflags, debug('flags') ? "/* " . $gv->flagspv(SVt_PVGV) . " */" : "" );
 
-    if ( !$is_empty ) {
-        my $line = $gv->LINE;
-
-        # S32 INT_MAX
-        $line = $line > 2147483647 ? 4294967294 - $line : $line;
-        init()->sadd( 'GvLINE(%s) = %d;', $sym, $line );
-    }
-
     return $sym if $is_empty;
-
-    my $gvrefcnt = $gv->GvREFCNT;
-    if ( $gvrefcnt > 1 ) {
-        init()->sadd( "GvREFCNT(%s) += %u;", $sym, $gvrefcnt - 1 );
-    }
-
-    debug( gv => "check which savefields for \"$gvname\"" );
 
     # attributes::bootstrap is created in perl_parse.
     # Saving it would overwrite it, because perl_init() is
