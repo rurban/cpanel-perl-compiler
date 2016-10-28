@@ -153,23 +153,18 @@ sub save {
         $gv_ix = gvsect()->add( sprintf( "&%s, %u, 0x%x, {.svu_gp=(GP*)%s}", $xpvgv, $gv_refcnt, $gv_flags, $gpsym ) );
     }
 
-    #my $sym = savesym( $gv, sprintf( '&gv_list[%d]', $gv_ix ) );
+    #my $gvsym = savesym( $gv, sprintf( '&gv_list[%d]', $gv_ix ) );
+    my $gvsym = sprintf( '&gv_list[%d]', $gv_ix );
 
-    return legacy_save( $gv, $filter );
+    return legacy_save( $gv, $filter, $gvsym );
 }
 
 sub legacy_save {
-    my ( $gv, $filter ) = @_;
-    my $sym = objsym($gv);
-    if ( defined($sym) ) {
-        debug( gv => "GV 0x%x already saved as $sym", ref $gv ? $$gv : 0 );
-        return $sym;
-    }
-    else {
-        my $ix = inc_index();
-        $sym = savesym( $gv, "dynamic_gv_list[$ix]" );
-        debug( gv => "Saving GV 0x%x as $sym", ref $gv ? $$gv : 0 );
-    }
+    my ( $gv, $filter, $gvsym ) = @_;
+    
+    # dynamic / legacy one
+    my $sym = savesym( $gv, sprintf( "dynamic_gv_list[%s]", inc_index() ) );
+    init()->add( "$sym = $gvsym; ");
 
     my $gvname = $gv->NAME();
 
