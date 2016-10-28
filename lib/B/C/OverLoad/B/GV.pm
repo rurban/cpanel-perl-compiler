@@ -164,7 +164,7 @@ sub legacy_save {
     
     # dynamic / legacy one
     my $sym = savesym( $gv, sprintf( "dynamic_gv_list[%s]", inc_index() ) );
-    init()->add( "$sym = $gvsym; ");
+    init()->add( "$sym = $gvsym; "); # init the sym
 
     my $gvname = $gv->NAME();
 
@@ -211,11 +211,6 @@ sub legacy_save {
         # S32 INT_MAX
         $line = $line > 2147483647 ? 4294967294 - $line : $line;
         init()->sadd( 'GvLINE(%s) = %d;', $sym, $line );
-    }
-
-    # walksymtable creates an extra reference to the GV (#197)
-    if ( $gv->REFCNT > 1 ) {
-        init()->sadd( "SvREFCNT(%s) = %u;", $sym, $gv->REFCNT );
     }
 
     return $sym if $is_empty;
