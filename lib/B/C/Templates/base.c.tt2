@@ -916,6 +916,8 @@ XS(boot_$cmodule)
 #undef exit
 #endif
 
+PerlInterpreter BC_unthreaded_interpreter;
+
 int
 main(int argc, char **argv, char **env)
 {
@@ -923,7 +925,9 @@ main(int argc, char **argv, char **env)
     int i;
     char **fakeargv;
     int options_count;
-    PerlInterpreter *my_perl;
+
+    /* Assure the interpreter struct is zeroed out. */
+    Zero(&BC_unthreaded_interpreter, 1, PerlInterpreter);
 
 #ifdef DEBUG_BENCHMARK
     clock_gettime(CLOCK_MONOTONIC_RAW, &start);
@@ -934,11 +938,7 @@ main(int argc, char **argv, char **env)
 
     init_pl_strtab(); /* Initialize PL_Strtab on our own before perl gets to it in perl_alloc. This allows us to use immportal constant shared HEKs */
 
-	my_perl = perl_alloc();
-
-	if (!my_perl) exit(1);
-
-	perl_construct( my_perl );
+	perl_construct( &BC_unthreaded_interpreter );
 	PL_perl_destruct_level = 0;
 
 #ifdef DEBUG_BENCHMARK
@@ -986,7 +986,7 @@ main(int argc, char **argv, char **env)
     fakeargv[argc + options_count - 1] = 0;
 
     benchmark_time("pre perl_parse");
-    exitstatus = perl_parse(my_perl, xs_init, argc + options_count - 1,
+    exitstatus = perl_parse(&BC_unthreaded_interpreter, xs_init, argc + options_count - 1,
 			    fakeargv, env);
     benchmark_time("post perl_parse");
     if (exitstatus)
@@ -1112,7 +1112,7 @@ benchmark_time("pre global setup");
     benchmark_time("init2 done.");
 
 
-    exitstatus = perl_run( my_perl );
+    exitstatus = perl_run( &BC_unthreaded_interpreter );
     benchmark_time("program complete");
 
     /* init pre_destruct */
@@ -1124,15 +1124,13 @@ benchmark_time("pre global setup");
     /* destruct */
 
     [% IF destruct %]
-    my_perl_destruct( my_perl );
+    my_perl_destruct( &BC_unthreaded_interpreter );
     [% ELSE %]
-    fast_perl_destruct( my_perl );
+    fast_perl_destruct( &BC_unthreaded_interpreter );
     [% END %]
 
     /*  XXX endav is called via call_list and so it is freed right after usage. Setting dirty here is useless */
     /* [% UNLESS pv_copy_on_grow %]PL_dirty = 1;[% END %]   protect against pad undef in END block */
-
-    perl_free( my_perl );
 
     PERL_SYS_TERM();
 
