@@ -56,9 +56,6 @@ sub save {
         $cv->save if $cv;
     }
     my $is_const_addr = $svsym =~ m/Null|\&/;
-    if ( USE_MULTIPLICITY() and svimmortal($svsym) ) {                                          # t/testm.sh Test::Pod
-        $is_const_addr = 0;
-    }
 
     svopsect()->comment_common("sv");
     svopsect()->add( sprintf( "%s, %s", $op->_save_common, ( $is_const_addr ? $svsym : "Nullsv /* $svsym */" ) ) );

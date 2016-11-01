@@ -1483,7 +1483,6 @@ sub build_template_stash {
         'stashxsubs'                       => $stashxsubs,
         'init_name'                        => $init_name || "perl_init",
         'gv_index'                         => $gv_index,
-        'MULTI'                            => USE_MULTIPLICITY(),
         'init2_remap'                      => \%init2_remap,
         'HAVE_DLFCN_DLOPEN'                => HAVE_DLFCN_DLOPEN(),
         'compile_stats'                    => compile_stats(),
@@ -1824,16 +1823,15 @@ sub compile {
     elsif ( $B::C::av_init2 and $B::C::av_init ) {
         $B::C::av_init = 0;
     }
-    $B::C::save_data_fh = 1 if USE_MULTIPLICITY();
-    $B::C::destruct     = 1 if $^O eq 'MSWin32';     # skip -ffast-destruct there
+    $B::C::destruct = 1 if $^O eq 'MSWin32';    # skip -ffast-destruct there
 
-    B::C::File::new($output_file);                   # Singleton.
-    B::C::Packages::new();                           # Singleton.
+    B::C::File::new($output_file);              # Singleton.
+    B::C::Packages::new();                      # Singleton.
 
     foreach my $i (@eval_at_startup) {
         init2()->add_eval($i);
     }
-    if (@options) {                                  # modules or main?
+    if (@options) {                             # modules or main?
         return sub {
             my $objname;
             foreach $objname (@options) {

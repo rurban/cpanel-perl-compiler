@@ -198,13 +198,9 @@ Static const char emptystring[] = "\0";
 /* newXS for core XS needs a filename */
 Static const char xsfile[] = "universal.c";
 
-[% IF MULTI %]
-#define ptr_undef 0
-[% ELSE %]
 #define ptr_undef NULL
 #undef CopFILE_set
 #define CopFILE_set(c,pv)  CopFILEGV_set((c), gv_fetchfile(pv))
-[% END %]
 
 /* PadlistNAMES broken as lvalue with v5.21.6-197-g0f94cb1,
     fixed with 5.22.1 and 5.23.0 by commit 73949fca08
@@ -664,9 +660,7 @@ int my_perl_destruct( PerlInterpreter *my_perl ) {
     PadnameREFCNT([% to_free %]) = 0;
 /* was marked: dead code below --- */
   [% ELSIF to_free.match('^cop_list') %]
-    [% IF !MULTI %]
     CopFILE_set(&[% to_free %], NULL);
-    [% END %]
     CopSTASH_set(&[% to_free %], NULL);
   /* was marked: end of dead code --- */
   [% END %]

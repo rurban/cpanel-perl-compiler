@@ -26,8 +26,7 @@ sub LOWEST_IMAGEBASE() { 0x10000 }
 sub _autoload_map {
 
     my $map = {
-        USE_MULTIPLICITY => $B::C::Flags::Config{usemultiplicity},
-        MAD              => $B::C::Flags::Config{mad},
+        MAD => $B::C::Flags::Config{mad},
     };
     $map->{HAVE_DLFCN_DLOPEN} = $B::C::Flags::Config{i_dlfcn} && $B::C::Flags::Config{d_dlopen};
 
