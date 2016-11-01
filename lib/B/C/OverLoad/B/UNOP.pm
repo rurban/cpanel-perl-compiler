@@ -25,10 +25,6 @@ sub save {
 
     if ( $op->name eq 'method' and $op->first and $op->first->name eq 'const' ) {
         my $method = svop_name( $op->first );
-        if ( !$method and USE_ITHREADS() ) {
-            $method = padop_name( $op->first, curcv() );    # XXX (curpad[targ])
-        }
-        debug( pkg => "method -> const $method" ) if USE_ITHREADS();
 
         #324,#326 need to detect ->(maybe::next|maybe|next)::(method|can)
         if ( $method =~ /^(maybe::next|maybe|next)::(method|can)$/ ) {

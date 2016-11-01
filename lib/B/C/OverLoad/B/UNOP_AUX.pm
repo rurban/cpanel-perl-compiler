@@ -15,8 +15,8 @@ sub save {
 
     $level ||= 0;
 
-    my @aux_list = $op->name eq 'multideref' ? $op->aux_list_thr : $op->aux_list; # GH#283, GH#341
-    my $auxlen   = scalar @aux_list;
+    my @aux_list = $op->name eq 'multideref' ? $op->aux_list_thr : $op->aux_list;    # GH#283, GH#341
+    my $auxlen = scalar @aux_list;
 
     unopauxsect()->comment_common("first, aux");
 
@@ -54,8 +54,8 @@ sub save {
                     $cmt .= ' INDEX_padsv' if $idx == 0x20;
                     $cmt .= ' INDEX_gvsv'  if $idx == 0x30;
                 }
-                elsif ( $op->name eq 'signature' ) { # cperl only for now
-                    my $act = $item & 0xf;     # SIGNATURE_ACTION_MASK
+                elsif ( $op->name eq 'signature' ) {    # cperl only for now
+                    my $act = $item & 0xf;              # SIGNATURE_ACTION_MASK
                     $cmt = 'reload'            if $act == 0;
                     $cmt = 'end'               if $act == 1;
                     $cmt = 'padintro'          if $act == 2;

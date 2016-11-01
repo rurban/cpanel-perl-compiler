@@ -46,7 +46,7 @@ sub save {
         # svop const or pad OBJECT,IOK
         if (
             # fixme simply the or logic
-            ( ( !USE_ITHREADS() and $fullname and $fullname =~ /^svop const|^padop|^Encode::Encoding| :pad\[1\]/ ) or USE_ITHREADS() )
+            ( ( $fullname and $fullname =~ /^svop const|^padop|^Encode::Encoding| :pad\[1\]/ ) )
             and $ivx > LOWEST_IMAGEBASE    # some crazy heuristic for a sharedlibrary ptr in .data (> image_base)
             and ref( $sv->SvSTASH ) ne 'B::SPECIAL'
           ) {

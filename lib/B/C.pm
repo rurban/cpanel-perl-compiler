@@ -1484,7 +1484,6 @@ sub build_template_stash {
         'init_name'                        => $init_name || "perl_init",
         'gv_index'                         => $gv_index,
         'MULTI'                            => USE_MULTIPLICITY(),
-        'ITHREADS'                         => USE_ITHREADS(),
         'init2_remap'                      => \%init2_remap,
         'HAVE_DLFCN_DLOPEN'                => HAVE_DLFCN_DLOPEN(),
         'compile_stats'                    => compile_stats(),
@@ -1497,13 +1496,12 @@ sub build_template_stash {
         'use_perl_script_name'             => $use_perl_script_name,
         'all_eval_pvs'                     => \@B::C::InitSection::all_eval_pvs,
         'TAINT'                            => ( ${^TAINT} ? 1 : 0 ),
-        USE_ITHREADS() ? ( regex_padav_pad_len => regex_padav->FILL ) : (),    # Only needed for ITHREADS.
-        'devel_peek_needed' => $devel_peek_needed,
-        'optimizer'         => {
+        'devel_peek_needed'                => $devel_peek_needed,
+        'optimizer'                        => {
             'dynaloader' => $dynaloader_optimizer->stash(),
         }
     };
-    chomp $c_file_stash->{'compile_stats'};                                    # Injects a new line when you call compile_stats()
+    chomp $c_file_stash->{'compile_stats'};    # Injects a new line when you call compile_stats()
 
     # Was in a section that wrote some stuff out instead of main's subroutine.
     if ( defined module() ) {

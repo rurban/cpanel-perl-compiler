@@ -58,24 +58,13 @@ sub save {
     if ( !$type and $OP_COP{ $op->targ } ) {
         debug( cops => "Null COP: %d\n", $op->targ );
 
-        if ( USE_ITHREADS() ) {
-            copsect()->comment_common("line, stashoff, file, hints, seq, warnings, hints_hash");
-            copsect()->add(
-                sprintf(
-                    "%s, 0, 0, (char *)NULL, 0, 0, NULL, NULL",
-                    $op->_save_common
-                )
-            );
-        }
-        else {
-            copsect()->comment_common("line, stash, file, hints, seq, warnings, hints_hash");
-            copsect()->add(
-                sprintf(
-                    "%s, 0, %s, NULL, 0, 0, NULL, NULL",
-                    $op->_save_common, "Nullhv"
-                )
-            );
-        }
+        copsect()->comment_common("line, stash, file, hints, seq, warnings, hints_hash");
+        copsect()->add(
+            sprintf(
+                "%s, 0, %s, NULL, 0, 0, NULL, NULL",
+                $op->_save_common, "Nullhv"
+            )
+        );
 
         my $ix = copsect()->index;
         init()->add( sprintf( "cop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )

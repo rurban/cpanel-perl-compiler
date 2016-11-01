@@ -26,7 +26,6 @@ sub LOWEST_IMAGEBASE() { 0x10000 }
 sub _autoload_map {
 
     my $map = {
-        USE_ITHREADS     => $B::C::Flags::Config{useithreads},
         USE_MULTIPLICITY => $B::C::Flags::Config{usemultiplicity},
         MAD              => $B::C::Flags::Config{mad},
     };
