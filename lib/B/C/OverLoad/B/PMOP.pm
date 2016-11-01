@@ -23,22 +23,13 @@ sub save {
     $level    ||= 0;
     $fullname ||= '????';
 
-    # 5.8.5-thr crashes here (7) at pushre
-    if ( USE_ITHREADS() and $$op < 256 ) {    # B bug. split->first->pmreplroot = 0x1
-        die "Internal B::walkoptree error: invalid PMOP for pushre\n";
-        return;
-    }
     my $replroot  = $op->pmreplroot;
     my $replstart = $op->pmreplstart;
     my $ppaddr    = $op->ppaddr;
 
     # under ithreads, OP_PUSHRE.op_replroot is an integer. multi not.
     $replrootfield = sprintf( "s\\_%x", $$replroot ) if ref $replroot;
-    if ( USE_ITHREADS() && $op->name eq "pushre" ) {
-        debug( gv => "PMOP::save saving a pp_pushre as int ${replroot}" );
-        $replrootfield = "INT2PTR(OP*,${replroot})";
-    }
-    elsif ($$replroot) {
+    if ($$replroot) {
 
         # OP_PUSHRE (a mutated version of OP_MATCH for the regexp
         # argument to a split) stores a GV in op_pmreplroot instead
@@ -65,7 +56,7 @@ sub save {
         sprintf(
             "%s, s\\_%x, s\\_%x, %u, 0x%x, {%s}, {%s}",
             $op->_save_common, ${ $op->first },
-            ${ $op->last }, ( USE_ITHREADS() ? $op->pmoffset : 0 ),
+            ${ $op->last },    0,
             $op->pmflags, $replrootfield, $replstartfield
         )
     );
@@ -145,10 +136,7 @@ sub save {
         # See toke.c:8964
         # set in the stash the PERL_MAGIC_symtab PTR to the PMOP: ((PMOP**)mg->mg_ptr) [elements++] = pm;
         if ( $op->pmflags & PMf_ONCE() ) {
-            my $stash =
-                USE_MULTIPLICITY()          ? $op->pmstashpv
-              : ref $op->pmstash eq 'B::HV' ? $op->pmstash->NAME
-              :                               '__ANON__';
+            my $stash = ref $op->pmstash eq 'B::HV' ? $op->pmstash->NAME : '__ANON__';
             $B::C::Regexp{$$op} = $op;    #188: restore PMf_ONCE, set PERL_MAGIC_symtab in $stash
         }
     }

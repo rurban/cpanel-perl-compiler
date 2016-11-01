@@ -31,9 +31,9 @@ sub add_to_init {
     my $fill1 = $self->fill + 1;
 
     init()->no_split;
-    init()->add( "{" );
+    init()->add("{");
     init()->add("\tregister int gcount;") if $acc =~ qr{\bgcount\b};
-    init()->add(sprintf("\tPADNAME **svp = INITPADNAME($sym, %d);", $fill1));
+    init()->add( sprintf( "\tPADNAME **svp = INITPADNAME($sym, %d);", $fill1 ) );
     init()->add( substr( $acc, 0, -2 ) );
     init()->add("}");
     init()->split;

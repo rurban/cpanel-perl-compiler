@@ -18,10 +18,10 @@ sub save {
     methopsect()->comment_common("first, rclass");
 
     my $union = $op->name eq 'method' ? "{.op_first=(OP*)%s}" : "{.op_meth_sv=(SV*)%s}";
-    my $s = "%s, $union, " . ( USE_ITHREADS() ? "(PADOFFSET)%s" : "(SV*)%s" );    # rclass
+    my $s = "%s, $union, (SV*)%s";    # rclass
 
-    my $ix = methopsect()->index + 1;
-    my $rclass = USE_ITHREADS() ? $op->rclass : $op->rclass->save("op_rclass_sv");
+    my $ix     = methopsect()->index + 1;
+    my $rclass = $op->rclass->save("op_rclass_sv");
     if ( $rclass =~ /^&sv_list/ ) {
         init()->add( sprintf( "SvREFCNT_inc_simple_NN(%s); /* methop_list[%d].op_rclass_sv */", $rclass, $ix ) );
 
