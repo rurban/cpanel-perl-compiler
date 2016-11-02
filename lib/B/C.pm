@@ -127,7 +127,7 @@ our $unresolved_count = 0;
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $optimize_warn_sv, $use_perl_script_name,
-    $save_data_fh, $optimize_cop, $destruct,
+    $optimize_cop,
     $fold, $warnings, $const_strings, $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
     $walkall
 );
@@ -137,12 +137,10 @@ our %option_map = (
     #ignored until IsCOW has a seperate COWREFCNT field (5.22 maybe)
     'cog'             => \$B::C::pv_copy_on_grow,
     'const-strings'   => \$B::C::const_strings,
-    'save-data'       => \$B::C::save_data_fh,
     'walkall'         => \$B::C::walkall,
     'warn-sv'         => \$B::C::optimize_warn_sv,
     'delete-pkg'      => \$B::C::can_delete_pkg,
     'stash'           => \$B::C::stash,                          # enable with -fstash
-    'destruct'        => \$B::C::destruct,                       # disable with -fno-destruct
     'fold'            => \$B::C::fold,                           # disable with -fno-fold
     'warnings'        => \$B::C::warnings,                       # disable with -fno-warnings
     'use-script-name' => \$use_perl_script_name,
@@ -153,16 +151,16 @@ our %option_map = (
                                                                  # NULL cops also there.
 );
 our %optimization_map = (
-    0 => [qw()],                                                        # special case
+    0 => [qw()],                                                 # special case
     1 => [qw()],
-    2 => [qw(-fsave-data)],
-    3 => [qw(-fno-destruct -fconst-strings -fno-fold -fno-warnings)],
+    2 => [qw()],
+    3 => [qw(-fconst-strings -fno-fold -fno-warnings)],
     4 => [qw(-fcop -fno-dyn-padlist)],
 );
 
 our @xpvav_sizes;
 our ($in_endav);
-my %static_core_pkg;                                                    # = map {$_ => 1} static_core_packages();
+my %static_core_pkg;                                             # = map {$_ => 1} static_core_packages();
 
 # used by B::OBJECT
 sub add_to_isa_cache {
@@ -1410,8 +1408,6 @@ sub save_main_rest {
     delete $xsub{'DynaLoader'};
     delete $xsub{'UNIVERSAL'};
 
-    verbose("fast_perl_destruct (-fno-destruct)") if $destruct;
-
     my $dynaloader_optimizer = B::C::Optimizer::DynaLoader->new( { 'xsub' => \%xsub, 'skip_package' => \%skip_package, 'curINC' => \%curINC, 'output_file' => $output_file, 'staticxs' => $staticxs } );
     $dynaloader_optimizer->optimize();
 
@@ -1435,7 +1431,6 @@ sub build_template_stash {
         'debug'                 => B::C::Config::Debug::save(),
         'creator'               => "created at " . scalar localtime() . " with B::C $VERSION for $^X",
         'DEBUG_LEAKING_SCALARS' => DEBUG_LEAKING_SCALARS(),
-        'destruct'              => $destruct,
         'static_ext'            => $static_ext,
         'stashxsubs'            => $stashxsubs,
         'init_name'             => $init_name || "perl_init",
@@ -1617,7 +1612,6 @@ sub compile {
     my @eval_at_startup;
     $B::C::can_delete_pkg = 1;
     B::C::Save::Signals::enable();
-    $B::C::destruct         = 1;
     $B::C::stash            = 0;
     $B::C::fold             = 1;                             # always include utf8::Cased tables
     $B::C::warnings         = 1;                             # always include Carp warnings categories and B

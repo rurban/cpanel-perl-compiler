@@ -85,7 +85,6 @@ Static SHARED_HE* sharedhe_list[[% section.sharedhe.index + 1 %]] =  {
 [%- END %]
 };
 
-[% IF ! destruct %]
 static int fast_perl_destruct( PerlInterpreter *my_perl );
 static void my_curse( pTHX_ SV* const sv );
 
@@ -97,9 +96,6 @@ static void my_curse( pTHX_ SV* const sv );
 #  define dVAR		dNOOP
 # endif
 #endif
-[% ELSE %]
-int my_perl_destruct( PerlInterpreter *my_perl );
-[% END %]
 
 [%# Add static modules like " Win32CORE". This data comes from $Config{static_ext} %]
 [% FOREACH xsub IN stashxsubs %]
@@ -437,8 +433,6 @@ my_share_hek( pTHX_ const char *str, I32 len, register U32 hash ) {
     return share_hek_hek(Perl_share_hek(aTHX_ str, len, hash));
 }
 
-[% IF ! destruct %]
-
 static void
 my_curse( pTHX_ SV* const sv ) {
     dSP;
@@ -621,56 +615,6 @@ static int fast_perl_destruct( PerlInterpreter *my_perl ) {
 #endif
     return 0;
 }
-[% ELSE %][%# ELSE for the IF destruct #%]
-/* special COW handling for 5.10 because of S_unshare_hek_or_pvn limitations
-   XXX This fails in S_doeval SAVEFREEOP(PL_eval_root): test 15               */
-
-int my_perl_destruct( PerlInterpreter *my_perl ) {
-    /* set all our static pv and hek to &PL_sv_undef for perl_destruct() */
-
-[% FOREACH to_free IN static_free %]
-  [% IF to_free.match('^sv_list\[\d+\]\.') %]
-    [% to_free %] = NULL;
-  [% ELSIF to_free.match('^sv_list') %]
-    SvLEN(&[% to_free %]) = 0;
-    SvPV_set(&[% to_free %], (char*)&PL_sv_undef);
-  [% ELSIF to_free.match('^&sv_list') %]
-    SvLEN([% to_free %]) = 0;
-    SvPV_set([% to_free %], (char*)&PL_sv_undef);
-  [% ELSIF to_free.match('^\(HV\*\)&sv_list') %]
-    SvREADONLY_on((SV*)[% to_free %]);
-    SvREFCNT([% to_free %]) = SvREFCNT_IMMORTAL;
-  [% ELSIF to_free.match('\(AV\*\)&sv_list') %]
-  /* Nothing is done for AV* sv_list - SVs_OBJECT flag, as the HV */
-  [% ELSIF to_free.match('^&padnamelist_list') %]
-    Safefree(PadnamelistARRAY([% to_free %]));
-    PadnamelistMAX([% to_free %]) = 0;
-    PadnamelistREFCNT([% to_free %]) = 0;
-  [% ELSIF to_free.match('^&padname_list') %]
-    PadnameREFCNT([% to_free %]) = 0;
-/* was marked: dead code below --- */
-  [% ELSIF to_free.match('^cop_list') %]
-    CopFILE_set(&[% to_free %], NULL);
-    CopSTASH_set(&[% to_free %], NULL);
-  /* was marked: end of dead code --- */
-  [% END %]
-[% END %]
-[% section.free.output("%s\n") %]
-
-    /* B::C specific: prepend static svs to arena for sv_clean_objs */
-    SvANY(&sv_list[0]) = (void *)PL_sv_arenaroot;
-    PL_sv_arenaroot = &sv_list[0];
-    if (DEBUG_D_TEST) {
-        SV* sva;
-        PerlIO_printf(Perl_debug_log, "\n");
-        for (sva = PL_sv_arenaroot; sva; sva = (SV*)SvANY(sva)) {
-            PerlIO_printf(Perl_debug_log, "sv_arena: 0x%p - 0x%p (%lu)\n",
-              sva, sva+SvREFCNT(sva), 0+SvREFCNT(sva));
-        }
-    }
-    return perl_destruct( my_perl );
-}
-[% END %]
 
 /* yanked from perl.c */
 static void
@@ -1021,11 +965,7 @@ benchmark_time("pre global setup");
 
     /* destruct */
 
-    [% IF destruct %]
-    my_perl_destruct( &BC_unthreaded_interpreter );
-    [% ELSE %]
     fast_perl_destruct( &BC_unthreaded_interpreter );
-    [% END %]
 
     /*  XXX endav is called via call_list and so it is freed right after usage. Setting dirty here is useless */
     /* [% UNLESS pv_copy_on_grow %]PL_dirty = 1;[% END %]   protect against pad undef in END block */
