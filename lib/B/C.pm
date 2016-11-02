@@ -115,13 +115,12 @@ our $unresolved_count = 0;
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $use_perl_script_name,
-     $stash, $can_delete_pkg,
+     $stash
 );
 
 our $const_strings = 1;    # TODO: This var needs to go away.
 
 our %option_map = (
-    'delete-pkg'      => \$B::C::can_delete_pkg,
     'stash'           => \$B::C::stash,                          # enable with -fstash
     'use-script-name' => \$use_perl_script_name,
     'save-sig-hash'   => sub { B::C::Save::Signals::set(@_) },
@@ -878,7 +877,7 @@ sub skip_pkg {
 # i.e. not defined in B::C or O. Just to be on the safe side.
 sub can_delete {
     my $pkg = shift;
-    if ( exists $all_bc_deps{$pkg} and $B::C::can_delete_pkg ) { return 1 }
+    if ( exists $all_bc_deps{$pkg} ) { return 1 }
     return undef;
 }
 
@@ -1578,7 +1577,6 @@ sub compile {
     $DB::single = 1 if defined &DB::DB;
     my ( $option, $opt, $arg );
     my @eval_at_startup;
-    $B::C::can_delete_pkg = 1;
     B::C::Save::Signals::enable();
     $B::C::stash            = 0;
 
