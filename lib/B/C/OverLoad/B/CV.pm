@@ -613,7 +613,7 @@ sub save {
                     "GvXPVGV(s\\_%x)->xnv_u.xgv_stash = s\\_%x;",
                     $$cv, $$gvstash
                 )
-            ) if $gvstash and !$B::C::stash;
+            ) if $gvstash;
             debug( gv => "done saving GvSTASH 0x%x for CV 0x%x\n", $$gvstash, $$cv )
               if $gvstash and debug('cv');
 

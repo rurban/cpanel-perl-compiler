@@ -740,7 +740,7 @@ sub get_savefields {
         $savefields &= ~Save_IO;
     }
 
-    $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym && ( !$B::C::stash or $fullname !~ /::$/ ) );
+    $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym );
 
     $savefields &= Save_SV if $gvname eq '\\';
 

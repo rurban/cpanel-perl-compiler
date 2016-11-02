@@ -132,7 +132,7 @@ sub save_magic {
             # core already initialized this stash for us
             if ( $fullname ne 'main::STDOUT' ) {
                 if ( ref $pkg eq 'B::HV' ) {
-                    if ( $fullname !~ /::$/ or $B::C::stash ) {
+                    if ( $fullname !~ /::$/ ) {
                         $pkgsym = $pkg->save($fullname);
                     }
                     else {

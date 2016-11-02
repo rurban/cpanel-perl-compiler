@@ -105,23 +105,19 @@ sub save {
         # For efficiency we skip most stash symbols unless -fstash.
         # However it should be now safe to save all stash symbols.
         # $fullname !~ /::$/ or
-        if ( !$B::C::stash ) {    # -fno-stash: do not save stashes
-            $magic = $hv->save_magic( '%' . $name . '::' );    #symtab magic set in PMOP #188 (#267)
-            if ( is_using_mro() && mro::get_mro($name) eq 'c3' ) {
-                B::C::make_c3($name);
-            }
 
-            if ( $magic and $magic =~ m/c/ ) {
-                debug( mg => "defer AMT magic of $name" );
-
-                # defer AMT magic of XS loaded hashes.
-                #init1()->add(qq[$sym = gv_stashpvn($cname, $len, GV_ADDWARN|GV_ADDMULTI);]);
-            }
-            return $sym;
+        $magic = $hv->save_magic( '%' . $name . '::' );    #symtab magic set in PMOP #188 (#267)
+        if ( is_using_mro() && mro::get_mro($name) eq 'c3' ) {
+            B::C::make_c3($name);
         }
-        return $sym if B::C::skip_pkg($name) or $name eq 'main';
-        init()->add("SvREFCNT_inc($sym);");
-        debug( hv => "Saving stash keys for HV \"$name\" from \"$fullname\"" );
+
+        if ( $magic and $magic =~ m/c/ ) {
+            debug( mg => "defer AMT magic of $name" );
+
+            # defer AMT magic of XS loaded hashes.
+            #init1()->add(qq[$sym = gv_stashpvn($cname, $len, GV_ADDWARN|GV_ADDMULTI);]);
+        }
+        return $sym;
     }
 
     # protect against recursive self-reference

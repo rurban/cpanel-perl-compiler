@@ -115,18 +115,17 @@ our $unresolved_count = 0;
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $use_perl_script_name,
-     $stash
+
 );
 
 our $const_strings = 1;    # TODO: This var needs to go away.
 
 our %option_map = (
-    'stash'           => \$B::C::stash,                          # enable with -fstash
     'use-script-name' => \$use_perl_script_name,
     'save-sig-hash'   => sub { B::C::Save::Signals::set(@_) },
 );
 our %optimization_map = (
-    0 => [qw()],                                                 # special case
+    0 => [qw()],           # special case
     1 => [qw()],
     2 => [qw()],
     3 => [qw()],
@@ -135,7 +134,7 @@ our %optimization_map = (
 
 our @xpvav_sizes;
 our ($in_endav);
-my %static_core_pkg;                                             # = map {$_ => 1} static_core_packages();
+my %static_core_pkg;       # = map {$_ => 1} static_core_packages();
 
 # used by B::OBJECT
 sub add_to_isa_cache {
@@ -412,14 +411,10 @@ sub padop_name {
         my $t     = $types[$ix];
         if ( defined($t) and ref($t) ne 'B::SPECIAL' ) {
             my $pv = $sv->can("PV") ? $sv->PV : ( $t->can('PVX') ? $t->PVX : '' );
-
-            # need to fix B for SVpad_TYPEDI without formal STASH
-            my $stash = ( ref($t) eq 'B::PVMG' and ref( $t->SvSTASH ) ne 'B::SPECIAL' ) ? $t->SvSTASH->NAME : '';
             return $pv;
         }
         elsif ($sv) {
-            my $pv    = $sv->PV          if $sv->can("PV");
-            my $stash = $sv->STASH->NAME if $sv->can("STASH");
+            my $pv = $sv->PV if $sv->can("PV");
             return $pv;
         }
     }
@@ -1005,8 +1000,8 @@ sub inc_cleanup {
 
     # issue 340,350: do only on -fwalkall? do it in the main walker step
     # as in branch walkall-early?
-        my $again = dump_rest();
-        inc_cleanup( $rec_cnt++ ) if $again and $rec_cnt < 2;    # maximal 3 times
+    my $again = dump_rest();
+    inc_cleanup( $rec_cnt++ ) if $again and $rec_cnt < 2;    # maximal 3 times
 
     # final cleanup
     for my $p ( sort keys %INC ) {
@@ -1239,7 +1234,7 @@ sub save_main_rest {
     my $end_av;
     {
         # >=5.10 need to defer nullifying of all vars in END, not only new ones.
-        local ( $B::C::const_strings );
+        local ($B::C::const_strings);
         $in_endav = 1;
         debug( 'av' => "Writing end_av" );
         init()->add("/* END block */");
@@ -1578,7 +1573,6 @@ sub compile {
     my ( $option, $opt, $arg );
     my @eval_at_startup;
     B::C::Save::Signals::enable();
-    $B::C::stash            = 0;
 
     mark_skip qw(B::C B::C::Flags B::CC B::FAKEOP O
       B::Section B::Pseudoreg B::Shadow B::C::InitSection);
