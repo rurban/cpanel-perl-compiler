@@ -104,7 +104,7 @@ sub optimize {
            exists( $INC{'unicore/To/Title.pl'} )
         or exists( $INC{'unicore/To/Tc.pl'} )    #242
         or exists( $INC{'unicore/Heavy.pl'} )    #242
-        or ( $B::C::savINC{'utf8_heavy.pl'} and ( $B::C::fold or exists( $B::C::savINC{'utf8.pm'} ) ) )
+        or ( $B::C::savINC{'utf8_heavy.pl'} and exists( $B::C::savINC{'utf8.pm'} ) )
       ) {
         require "utf8.pm" unless $B::C::savINC{"utf8.pm"};
         mark_package('utf8');

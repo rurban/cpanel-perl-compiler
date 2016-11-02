@@ -25,7 +25,7 @@ if ( $0 =~ m{/template\.pl$} ) {
     exit;
 }
 
-my @optimizations = $ENV{'BC_TEST_OPTIMIZATIONS'} || '-O3,-fno-fold';
+my @optimizations = $ENV{'BC_TEST_OPTIMIZATIONS'} || '-O3';
 $optimizations[0] .= ',-v'     if ( $ENV{VERBOSE} );
 $optimizations[0] .= ',-Dwalk' if ( $ENV{BC_WALK} );
 

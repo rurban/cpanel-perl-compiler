@@ -35,10 +35,9 @@ sub save {
         init()->add( sprintf( "(void)find_threadsv(%s);", cstring( $threadsv_names[ $op->targ ] ) ) );
     }
     if ( $type == $B::C::OP_UCFIRST ) {
-        $B::C::fold = 1;
-
         verbose("enabling -ffold with ucfirst");
         require "utf8.pm" unless $B::C::savINC{"utf8.pm"};
+        $B::C::savINC{'utf8.pm'} = 1;
         B::C::mark_package("utf8");
         B::C::load_utf8_heavy();
 
