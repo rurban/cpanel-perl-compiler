@@ -115,7 +115,7 @@ our $unresolved_count = 0;
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $optimize_warn_sv, $use_perl_script_name,
-     $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
+     $stash, $can_delete_pkg, $pv_copy_on_grow,
     $walkall
 );
 
@@ -131,16 +131,13 @@ our %option_map = (
     'stash'           => \$B::C::stash,                          # enable with -fstash
     'use-script-name' => \$use_perl_script_name,
     'save-sig-hash'   => sub { B::C::Save::Signals::set(@_) },
-    'dyn-padlist'     => \$B::C::dyn_padlist,                    # with -O4, needed for cv cleanup with non-local exits since 5.18
-                                                                 # Better do it in CC, but get rid of
-                                                                 # NULL cops also there.
 );
 our %optimization_map = (
     0 => [qw()],                                                 # special case
     1 => [qw()],
     2 => [qw()],
     3 => [qw()],
-    4 => [qw(-fno-dyn-padlist)],
+    4 => [qw()],
 );
 
 our @xpvav_sizes;
@@ -1599,7 +1596,6 @@ sub compile {
     B::C::Save::Signals::enable();
     $B::C::stash            = 0;
     $B::C::optimize_warn_sv = 1 if $Config{cc} !~ m/^cl/i;
-    $B::C::dyn_padlist      = 1;                             # default is dynamic and safe, disable with -O4
     $B::C::walkall          = 1;
 
     mark_skip qw(B::C B::C::Flags B::CC B::FAKEOP O

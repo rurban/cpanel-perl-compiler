@@ -465,19 +465,14 @@ sub save {
 
             # issue 298: dynamic CvPADLIST(&END) since 5.18 - END{} blocks
             # and #169 and #304 Attribute::Handlers
-            if ( $B::C::dyn_padlist or $fullname =~ /^(main::END|Attribute::Handlers)/ ) {
-                init()->add(
-                    "{ /* &$fullname needs a dynamic padlist */",
-                    "  PADLIST *pad;",
-                    "  Newxz(pad, sizeof(PADLIST), PADLIST);",
-                    "  Copy($padlistsym, pad, sizeof(PADLIST), char);",
-                    "  CvPADLIST($sym) = pad;",
-                    "}"
-                );
-            }
-            else {
-                init()->add("CvPADLIST($sym) = $padlistsym;");
-            }
+            init()->add(
+                "{ /* &$fullname needs a dynamic padlist */",
+                "  PADLIST *pad;",
+                "  Newxz(pad, sizeof(PADLIST), PADLIST);",
+                "  Copy($padlistsym, pad, sizeof(PADLIST), char);",
+                "  CvPADLIST($sym) = pad;",
+                "}"
+            );
         }
         debug( sub => $fullname );
     }
