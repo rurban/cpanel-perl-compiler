@@ -60,8 +60,6 @@ sub save {
     my $add_label = $op->label ? 1 : 0;
 
     copsect()->debug( $op->name, $op );
-    init()->sadd( "cop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr )
-      unless $B::C::optimize_ppaddr;
 
     my $i = 0;
     if ( $op->hints_hash ) {

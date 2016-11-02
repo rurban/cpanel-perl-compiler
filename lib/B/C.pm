@@ -126,7 +126,7 @@ our $unresolved_count = 0;
 # options and optimizations shared with B::CC
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
-    $optimize_ppaddr, $optimize_warn_sv, $use_perl_script_name,
+    $optimize_warn_sv, $use_perl_script_name,
     $save_data_fh, $optimize_cop, $av_init, $av_init2, $ro_inc, $destruct,
     $fold, $warnings, $const_strings, $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
     $walkall
@@ -138,7 +138,6 @@ our %option_map = (
     'cog'             => \$B::C::pv_copy_on_grow,
     'const-strings'   => \$B::C::const_strings,
     'save-data'       => \$B::C::save_data_fh,
-    'ppaddr'          => \$B::C::optimize_ppaddr,
     'walkall'         => \$B::C::walkall,
     'warn-sv'         => \$B::C::optimize_warn_sv,
     'av-init'         => \$B::C::av_init,
@@ -158,7 +157,7 @@ our %option_map = (
 );
 our %optimization_map = (
     0 => [qw()],                                                        # special case
-    1 => [qw(-fppaddr -fav-init2)],                                     # falls back to -fav-init
+    1 => [qw( -fav-init2)],                                             # falls back to -fav-init
     2 => [qw(-fro-inc -fsave-data)],
     3 => [qw(-fno-destruct -fconst-strings -fno-fold -fno-warnings)],
     4 => [qw(-fcop -fno-dyn-padlist)],
@@ -1336,7 +1335,7 @@ sub save_main_rest {
         }
     }
 
-    fixup_ppaddr() if ($optimize_ppaddr);
+    fixup_ppaddr();
 
     my $remap = 0;
     for my $pkg ( sort keys %init2_remap ) {
@@ -1529,8 +1528,6 @@ sub build_template_stash {
 # some ops might not be initialized
 # but it needs to happen before CALLREGCOMP, as a /i calls a compiled utf8::SWASHNEW
 sub fixup_ppaddr {
-    return unless $B::C::optimize_ppaddr;
-
     foreach my $op_section_name ( B::C::File::op_sections() ) {
         my $section = B::C::File::get_sect($op_section_name);
         my $num     = $section->index;

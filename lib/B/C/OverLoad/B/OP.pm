@@ -67,8 +67,6 @@ sub save {
         );
 
         my $ix = copsect()->index;
-        init()->add( sprintf( "cop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
-          unless $B::C::optimize_ppaddr;
         savesym( $op, "(OP*)&cop_list[$ix]" );
     }
     else {
@@ -77,8 +75,6 @@ sub save {
 
         opsect()->debug( $op->name, $op );
         my $ix = opsect()->index;
-        init()->add( sprintf( "op_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
-          unless $B::C::optimize_ppaddr;
         debug(
             op => "  OP=%s targ=%d flags=0x%x private=0x%x\n",
             peekop($op), $op->targ, $op->flags, $op->private
@@ -97,9 +93,7 @@ sub B::OP::fake_ppaddr {
     if ( $op->type == $OP_CUSTOM ) {
         return ( verbose() ? sprintf( "/*XOP %s*/NULL", $op->name ) : "NULL" );
     }
-    return $B::C::optimize_ppaddr
-      ? sprintf( "INT2PTR(void*,OP_%s)", uc( $op->name ) )
-      : sprintf( "/*OP_%s*/NULL",        uc( $op->name ) );
+    return sprintf( "INT2PTR(void*,OP_%s)", uc( $op->name ) );
 }
 
 sub _save_common {
