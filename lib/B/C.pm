@@ -127,7 +127,7 @@ our $unresolved_count = 0;
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $optimize_warn_sv, $use_perl_script_name,
-    $save_data_fh, $optimize_cop, $av_init, $ro_inc, $destruct,
+    $save_data_fh, $optimize_cop, $ro_inc, $destruct,
     $fold, $warnings, $const_strings, $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
     $walkall
 );
@@ -140,7 +140,6 @@ our %option_map = (
     'save-data'       => \$B::C::save_data_fh,
     'walkall'         => \$B::C::walkall,
     'warn-sv'         => \$B::C::optimize_warn_sv,
-    'av-init'         => \$B::C::av_init,
     'delete-pkg'      => \$B::C::can_delete_pkg,
     'ro-inc'          => \$B::C::ro_inc,
     'stash'           => \$B::C::stash,                          # enable with -fstash
@@ -156,7 +155,7 @@ our %option_map = (
 );
 our %optimization_map = (
     0 => [qw()],                                                        # special case
-    1 => [qw()],                                                        # falls back to -fav-init
+    1 => [qw()],
     2 => [qw(-fro-inc -fsave-data)],
     3 => [qw(-fno-destruct -fconst-strings -fno-fold -fno-warnings)],
     4 => [qw(-fcop -fno-dyn-padlist)],
@@ -1760,7 +1759,6 @@ sub compile {
             set_max_string_len($arg);
         }
     }
-    $B::C::av_init = 1;
 
     B::C::File::new($output_file);    # Singleton.
     B::C::Packages::new();            # Singleton.

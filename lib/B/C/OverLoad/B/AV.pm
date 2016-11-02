@@ -46,8 +46,7 @@ sub save {
     else {
         # 5.14
         # 5.13.3: STASH, MAGIC, fill max ALLOC
-        my $line = "Nullhv, {0}, -1, -1, 0";
-        $line = "Nullhv, {0}, $fill, $fill, 0" if $B::C::av_init;
+        my $line = "Nullhv, {0}, $fill, $fill, 0";
         xpvavsect()->add($line);
         svsect()->add(
             sprintf(
@@ -159,7 +158,7 @@ sub save {
         # Since we are always initializing every single element we don't need
         # calloc, only malloc. wmemset'ting the pointer to PL_sv_undef
         # might be faster also.
-        elsif ($B::C::av_init) {
+        else {
             init()->add( "{ /* Slow array init mode. */", );
             init()->add("\tregister int gcount;") if $count;
             my $fill1 = $fill < 3 ? 3 : $fill + 1;
@@ -167,18 +166,7 @@ sub save {
             init()->add( substr( $acc, 0, -2 ) );    # AvFILLp already in XPVAV
             init()->add("}");
         }
-        else {                                       # unoptimized with the full av_extend()
-            my $fill1 = $fill < 3 ? 3 : $fill + 1;
-            init()->add( "{", "\tSV **svp;" );
-            init()->add("\tregister int gcount;") if $count;
-            init()->add(
-                "\tAV *av = $sym;",
-                "\tav_extend(av, $fill1);",
-                "\tsvp = AvARRAY(av);"
-            );
-            init()->add( substr( $acc, 0, -2 ) );
-            init()->add( "\tAvFILLp(av) = $fill;", "}" );
-        }
+
         init()->split;
 
         # we really added a lot of lines ( B::C::InitSection->add
