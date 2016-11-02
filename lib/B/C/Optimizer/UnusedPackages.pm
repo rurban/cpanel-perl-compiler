@@ -111,16 +111,6 @@ sub optimize {
         B::C::load_utf8_heavy();
     }
 
-    # run-time Carp
-    # With -fno-warnings we don't insist on initializing warnings::register_categories and Carp.
-    # Until it is compile-time required.
-    # 68KB exe size 32-bit
-    if ( $B::C::warnings and exists $B::C::dumped_package{Carp} ) {
-        svref_2object( \&{"warnings\::register_categories"} )->save;    # 68Kb 32bit
-        add_hashINC("warnings");
-        add_hashINC("warnings::register");
-    }
-
     #196 missing INIT
     if ( $B::C::xsub{EV} and $B::C::dumped_package{EV} and $EV::VERSION le '4.21' ) {
         init2()->add_eval( q(EV::default_loop() or ) . q(die 'EV: cannot initialise libev backend. bad $ENV{LIBEV_FLAGS}?';) );

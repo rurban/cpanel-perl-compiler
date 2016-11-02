@@ -98,18 +98,6 @@ our %all_bc_subs = map { $_ => 1 } qw(B::AV::save B::BINOP::save B::BM::save B::
 # uses now @B::C::Flags::deps
 our %all_bc_deps = map { $_ => 1 } @B::C::Flags::deps;
 
-# B::C stash footprint: mainly caused by blib, warnings, and Carp loaded with DynaLoader
-# perl5.15.7d-nt -MO=C,-o/dev/null -MO=Stash -e0
-# -umain,-ure,-umro,-ustrict,-uAnyDBM_File,-uFcntl,-uRegexp,-uoverload,-uErrno,-uExporter,-uExporter::Heavy,-uConfig,-uwarnings,-uwarnings::register,-uDB,-unext,-umaybe,-umaybe::next,-uFileHandle,-ufields,-uvars,-uAutoLoader,-uCarp,-uSymbol,-uPerlIO,-uPerlIO::scalar,-uSelectSaver,-uExtUtils,-uExtUtils::Constant,-uExtUtils::Constant::ProxySubs,-uthreads,-ubase
-# perl5.15.7d-nt -MErrno -MO=Stash -e0
-# -umain,-ure,-umro,-ustrict,-uRegexp,-uoverload,-uErrno,-uExporter,-uExporter::Heavy,-uwarnings,-uwarnings::register,-uConfig,-uDB,-uvars,-uCarp,-uPerlIO,-uthreads
-# perl5.15.7d-nt -Mblib -MO=Stash -e0
-# -umain,-ure,-umro,-ustrict,-uCwd,-uRegexp,-uoverload,-uFile,-uFile::Spec,-uFile::Spec::Unix,-uDos,-uExporter,-uExporter::Heavy,-uConfig,-uwarnings,-uwarnings::register,-uDB,-uEPOC,-ublib,-uScalar,-uScalar::Util,-uvars,-uCarp,-uVMS,-uVMS::Filespec,-uVMS::Feature,-uWin32,-uPerlIO,-uthreads
-# perl -MO=Stash -e0
-# -umain,-uTie,-uTie::Hash,-ure,-umro,-ustrict,-uRegexp,-uoverload,-uExporter,-uExporter::Heavy,-uwarnings,-uDB,-uCarp,-uPerlIO,-uthreads
-# pb -MB::Stash -e0
-# -umain,-ure,-umro,-uRegexp,-uPerlIO,-uExporter,-uDB
-
 our ( $package_pv, @package_pv );    # global stash for methods since 5.13
 our ( %xsub,       %init2_remap );
 our ($staticxs);
@@ -127,7 +115,7 @@ our $unresolved_count = 0;
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $optimize_warn_sv, $use_perl_script_name,
-    $optimize_cop, $warnings, $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
+    $optimize_cop, $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
     $walkall
 );
 
@@ -141,7 +129,6 @@ our %option_map = (
     'warn-sv'         => \$B::C::optimize_warn_sv,
     'delete-pkg'      => \$B::C::can_delete_pkg,
     'stash'           => \$B::C::stash,                          # enable with -fstash
-    'warnings'        => \$B::C::warnings,                       # disable with -fno-warnings
     'use-script-name' => \$use_perl_script_name,
     'save-sig-hash'   => sub { B::C::Save::Signals::set(@_) },
     'dyn-padlist'     => \$B::C::dyn_padlist,                    # with -O4, needed for cv cleanup with non-local exits since 5.18
@@ -153,7 +140,7 @@ our %optimization_map = (
     0 => [qw()],                                                 # special case
     1 => [qw()],
     2 => [qw()],
-    3 => [qw(-fno-warnings)],
+    3 => [qw()],
     4 => [qw(-fcop -fno-dyn-padlist)],
 );
 
@@ -1069,7 +1056,7 @@ sub dump_rest {
             and !exists $dumped_package{$p}
             and !$static_core_pkg{$p}
             and $p !~ /^(threads|main|__ANON__|PerlIO)$/ ) {
-            if ( $p eq 'warnings::register' and !$B::C::warnings ) {
+            if ( $p eq 'warnings::register' ) {
                 delete_unsaved_hashINC('warnings::register');
                 next;
             }
@@ -1612,7 +1599,6 @@ sub compile {
     $B::C::can_delete_pkg = 1;
     B::C::Save::Signals::enable();
     $B::C::stash            = 0;
-    $B::C::warnings         = 1;                             # always include Carp warnings categories and B
     $B::C::optimize_warn_sv = 1 if $Config{cc} !~ m/^cl/i;
     $B::C::dyn_padlist      = 1;                             # default is dynamic and safe, disable with -O4
     $B::C::walkall          = 1;
