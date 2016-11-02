@@ -115,7 +115,7 @@ our $unresolved_count = 0;
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $optimize_warn_sv, $use_perl_script_name,
-    $optimize_cop, $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
+     $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
     $walkall
 );
 
@@ -132,7 +132,6 @@ our %option_map = (
     'use-script-name' => \$use_perl_script_name,
     'save-sig-hash'   => sub { B::C::Save::Signals::set(@_) },
     'dyn-padlist'     => \$B::C::dyn_padlist,                    # with -O4, needed for cv cleanup with non-local exits since 5.18
-    'cop'             => \$optimize_cop,                         # XXX very unsafe!
                                                                  # Better do it in CC, but get rid of
                                                                  # NULL cops also there.
 );
@@ -141,7 +140,7 @@ our %optimization_map = (
     1 => [qw()],
     2 => [qw()],
     3 => [qw()],
-    4 => [qw(-fcop -fno-dyn-padlist)],
+    4 => [qw(-fno-dyn-padlist)],
 );
 
 our @xpvav_sizes;

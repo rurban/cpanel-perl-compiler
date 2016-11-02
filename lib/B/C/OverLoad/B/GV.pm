@@ -231,8 +231,6 @@ sub save_egv {
 sub save_gv_file {
     my ( $gv, $fullname, $sym ) = @_;
 
-    return if $B::C::optimize_cop;
-
     # XXX Maybe better leave it NULL or asis, than fighting broken
     my $file = save_shared_he( $gv->FILE );
     return if ( !$file or $file eq 'NULL' );

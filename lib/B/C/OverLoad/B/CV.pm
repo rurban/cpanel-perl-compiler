@@ -682,15 +682,15 @@ sub save {
             $$gv, $$cv
         ) if debug('cv');
     }
-    unless ($B::C::optimize_cop) {
-        my $file = $cv->FILE();
-        if ( $B::C::const_strings && length $file ) {
-            init()->add( sprintf( "CvFILE(%s) = (char *) %s;", $sym, constpv($file) ) );
-        }
-        else {
-            init()->add( sprintf( "CvFILE(%s) = %s;", $sym, cstring( $cv->FILE ) ) );
-        }
+
+    my $file = $cv->FILE();
+    if ( $B::C::const_strings && length $file ) {
+        init()->add( sprintf( "CvFILE(%s) = (char *) %s;", $sym, constpv($file) ) );
     }
+    else {
+        init()->add( sprintf( "CvFILE(%s) = %s;", $sym, cstring( $cv->FILE ) ) );
+    }
+
     my $stash = $cv->STASH;
     if ( $$stash and ref($stash) ) {
 
