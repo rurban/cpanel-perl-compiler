@@ -127,7 +127,7 @@ our $unresolved_count = 0;
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $optimize_warn_sv, $use_perl_script_name,
-    $save_data_fh, $optimize_cop, $av_init, $av_init2, $ro_inc, $destruct,
+    $save_data_fh, $optimize_cop, $av_init, $ro_inc, $destruct,
     $fold, $warnings, $const_strings, $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
     $walkall
 );
@@ -141,7 +141,6 @@ our %option_map = (
     'walkall'         => \$B::C::walkall,
     'warn-sv'         => \$B::C::optimize_warn_sv,
     'av-init'         => \$B::C::av_init,
-    'av-init2'        => \$B::C::av_init2,
     'delete-pkg'      => \$B::C::can_delete_pkg,
     'ro-inc'          => \$B::C::ro_inc,
     'stash'           => \$B::C::stash,                          # enable with -fstash
@@ -157,7 +156,7 @@ our %option_map = (
 );
 our %optimization_map = (
     0 => [qw()],                                                        # special case
-    1 => [qw( -fav-init2)],                                             # falls back to -fav-init
+    1 => [qw()],                                                        # falls back to -fav-init
     2 => [qw(-fro-inc -fsave-data)],
     3 => [qw(-fno-destruct -fconst-strings -fno-fold -fno-warnings)],
     4 => [qw(-fcop -fno-dyn-padlist)],
@@ -1310,31 +1309,6 @@ sub save_main_rest {
 
     return if $check;
 
-    # These calls were buried in output statements. They don't belong there so pulling them in front of write for now.
-    if ($B::C::av_init2) {
-        my $last = xpvavsect()->index;
-        my $size = $last + 1;
-        if ($last) {
-            decl()->add("Static void* avchunks[$size];");
-            decl()->add("Static size_t avsizes[$size] = ");
-            my $ptrsize = $Config{ptrsize};
-            my $acc     = "";
-            for ( 0 .. $last ) {
-                if ( $xpvav_sizes[$_] > 0 ) {
-                    $acc .= $xpvav_sizes[$_] * $ptrsize;
-                }
-                else {
-                    $acc .= 3 * $ptrsize;
-                }
-                $acc .= "," if $_ != $last;
-                $acc .= "\n\t" unless ( $_ + 1 ) % 30;
-            }
-            decl()->add("\t{$acc};");
-            init()->add_initav("if (!independent_comalloc( $size, avsizes, avchunks ))");
-            init()->add_initav("    Perl_die(aTHX_ \"panic: AV alloc failed\");");
-        }
-    }
-
     fixup_ppaddr();
 
     my $remap = 0;
@@ -1459,31 +1433,28 @@ sub build_template_stash {
     my ( $static_ext, $stashxsubs, $dynaloader_optimizer ) = @_;
 
     my $c_file_stash = {
-        'verbose'                          => verbose(),
-        'debug'                            => B::C::Config::Debug::save(),
-        'creator'                          => "created at " . scalar localtime() . " with B::C $VERSION for $^X",
-        'DEBUG_LEAKING_SCALARS'            => DEBUG_LEAKING_SCALARS(),
-        'have_independent_comalloc'        => $B::C::Flags::have_independent_comalloc,
-        'use_declare_independent_comalloc' => $B::C::Flags::use_declare_independent_comalloc,
-        'av_init2'                         => $av_init2,
-        'destruct'                         => $destruct,
-        'static_ext'                       => $static_ext,
-        'stashxsubs'                       => $stashxsubs,
-        'init_name'                        => $init_name || "perl_init",
-        'gv_index'                         => $gv_index,
-        'init2_remap'                      => \%init2_remap,
-        'HAVE_DLFCN_DLOPEN'                => HAVE_DLFCN_DLOPEN(),
-        'compile_stats'                    => compile_stats(),
-        'nullop_count'                     => $nullop_count,
-        'static_free'                      => \@static_free,
-        'xsub'                             => \%xsub,
-        'curINC'                           => \%curINC,
-        'staticxs'                         => $staticxs,
-        'use_perl_script_name'             => $use_perl_script_name,
-        'all_eval_pvs'                     => \@B::C::InitSection::all_eval_pvs,
-        'TAINT'                            => ( ${^TAINT} ? 1 : 0 ),
-        'devel_peek_needed'                => $devel_peek_needed,
-        'optimizer'                        => {
+        'verbose'               => verbose(),
+        'debug'                 => B::C::Config::Debug::save(),
+        'creator'               => "created at " . scalar localtime() . " with B::C $VERSION for $^X",
+        'DEBUG_LEAKING_SCALARS' => DEBUG_LEAKING_SCALARS(),
+        'destruct'              => $destruct,
+        'static_ext'            => $static_ext,
+        'stashxsubs'            => $stashxsubs,
+        'init_name'             => $init_name || "perl_init",
+        'gv_index'              => $gv_index,
+        'init2_remap'           => \%init2_remap,
+        'HAVE_DLFCN_DLOPEN'     => HAVE_DLFCN_DLOPEN(),
+        'compile_stats'         => compile_stats(),
+        'nullop_count'          => $nullop_count,
+        'static_free'           => \@static_free,
+        'xsub'                  => \%xsub,
+        'curINC'                => \%curINC,
+        'staticxs'              => $staticxs,
+        'use_perl_script_name'  => $use_perl_script_name,
+        'all_eval_pvs'          => \@B::C::InitSection::all_eval_pvs,
+        'TAINT'                 => ( ${^TAINT} ? 1 : 0 ),
+        'devel_peek_needed'     => $devel_peek_needed,
+        'optimizer'             => {
             'dynaloader' => $dynaloader_optimizer->stash(),
         }
     };
@@ -1789,18 +1760,7 @@ sub compile {
             set_max_string_len($arg);
         }
     }
-    if ( !$B::C::Flags::have_independent_comalloc ) {
-        if ($B::C::av_init2) {
-            $B::C::av_init  = 1;
-            $B::C::av_init2 = 0;
-        }
-        elsif ($B::C::av_init) {
-            $B::C::av_init2 = 0;
-        }
-    }
-    elsif ( $B::C::av_init2 and $B::C::av_init ) {
-        $B::C::av_init = 0;
-    }
+    $B::C::av_init = 1;
 
     B::C::File::new($output_file);    # Singleton.
     B::C::Packages::new();            # Singleton.

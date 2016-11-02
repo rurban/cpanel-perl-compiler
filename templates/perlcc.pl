@@ -586,7 +586,6 @@ sub cc_harness_msvc {
     my $obj     = "${Output}.obj";
     my $compile = ExtUtils::Embed::ccopts . " -c -Fo$obj $cfile ";
     my $link    = "-out:$Output $obj";
-    $compile .= " -DHAVE_INDEPENDENT_COMALLOC" if $B::C::Flags::have_independent_comalloc;
     $compile .= $B::C::Flags::extra_cflags;
     $compile .= " -I" . $_ for split /\s+/, opt('I');
     $compile .= " -DSTATICXS"   if opt('staticxs');
@@ -637,7 +636,6 @@ sub cc_harness {
     use ExtUtils::Embed ();
     my $command = ExtUtils::Embed::ccopts . " -o $Output $cfile ";
     $command =~ s/\s-pipe\s/ /;    # Strip -pipe out of the compile flags so less memory is used building binaries
-    $command .= " -DHAVE_INDEPENDENT_COMALLOC" if $B::C::Flags::have_independent_comalloc;
     $command .= $B::C::Flags::extra_cflags if $B::C::Flags::extra_cflags;
     $command .= " -I" . $_ for split /\s+/, opt('I');
     $command .= " -L" . $_ for split /\s+/, opt('L');

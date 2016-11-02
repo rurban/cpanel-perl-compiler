@@ -8,12 +8,6 @@
 #define DEBUG_BENCHMARK 1
 [% END -%]
 
-[% IF have_independent_comalloc %]
-#ifdef NEED_MALLOC_283
-# include "malloc-2.8.3.h"
-#endif
-[% END %]
-
 #define CopSTASHPVN_set(c,pv, len, flags)    CopSTASH_set((c), gv_stashpvn(pv,len,flags|GV_ADD))
 
 #define PERL_CORE /* Needed for some extensions perl core refeses to export (win32 only)*/
@@ -65,10 +59,6 @@ EXTERN_C void boot_DynaLoader (pTHX_ CV* cv);
 
 static void xs_init (pTHX);
 static void dl_init (pTHX);
-
-[% IF av_init2 AND use_declare_independent_comalloc %]
-void** dlindependent_comalloc(size_t, size_t*, void**);
-[% END %] 
 
 typedef struct shared_he SHARED_HE;
 

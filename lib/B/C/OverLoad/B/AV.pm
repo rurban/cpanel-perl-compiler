@@ -47,7 +47,7 @@ sub save {
         # 5.14
         # 5.13.3: STASH, MAGIC, fill max ALLOC
         my $line = "Nullhv, {0}, -1, -1, 0";
-        $line = "Nullhv, {0}, $fill, $fill, 0" if $B::C::av_init or $B::C::av_init2;
+        $line = "Nullhv, {0}, $fill, $fill, 0" if $B::C::av_init;
         xpvavsect()->add($line);
         svsect()->add(
             sprintf(
@@ -153,20 +153,6 @@ sub save {
             $av->add_to_init( $sym, $acc );
         }
 
-        # With -fav-init2 use independent_comalloc()
-        elsif ($B::C::av_init2) {
-            my $i = $av_index;
-            $B::C::xpvav_sizes[$i] = $fill;
-            my $init_add = "{ SV **svp = avchunks[$i]; AV *av = $sym;\n";
-            $init_add .= "\tregister int gcount;\n" if $count;
-            if ( $fill > -1 ) {
-
-                $init_add .= "\tAvALLOC(av) = svp;\n" . "\tAvARRAY(av) = svp;\n";
-            }
-            $init_add .= substr( $acc, 0, -2 );
-            init()->add( $init_add . "}" );
-        }
-
         # With -fav-init faster initialize the array as the initial av_extend()
         # is very expensive.
         # The problem was calloc, not av_extend.
@@ -174,10 +160,10 @@ sub save {
         # calloc, only malloc. wmemset'ting the pointer to PL_sv_undef
         # might be faster also.
         elsif ($B::C::av_init) {
-            init()->add("{ /* Slow array init mode. */",);
+            init()->add( "{ /* Slow array init mode. */", );
             init()->add("\tregister int gcount;") if $count;
             my $fill1 = $fill < 3 ? 3 : $fill + 1;
-            init()->add(sprintf("\tSV **svp = INITAv($sym, %d);", $fill1 )) if $fill1 > -1;
+            init()->add( sprintf( "\tSV **svp = INITAv($sym, %d);", $fill1 ) ) if $fill1 > -1;
             init()->add( substr( $acc, 0, -2 ) );    # AvFILLp already in XPVAV
             init()->add("}");
         }
