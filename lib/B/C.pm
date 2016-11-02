@@ -128,15 +128,18 @@ our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $optimize_warn_sv, $use_perl_script_name,
     $optimize_cop,
-    $fold, $warnings, $const_strings, $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
+    $fold, $warnings, $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
     $walkall
 );
+
+
+our $const_strings = 1; # TODO: This var needs to go away.
+
 
 our %option_map = (
 
     #ignored until IsCOW has a seperate COWREFCNT field (5.22 maybe)
     'cog'             => \$B::C::pv_copy_on_grow,
-    'const-strings'   => \$B::C::const_strings,
     'walkall'         => \$B::C::walkall,
     'warn-sv'         => \$B::C::optimize_warn_sv,
     'delete-pkg'      => \$B::C::can_delete_pkg,
@@ -151,16 +154,16 @@ our %option_map = (
                                                                  # NULL cops also there.
 );
 our %optimization_map = (
-    0 => [qw()],                                                 # special case
+    0 => [qw()],                                                        # special case
     1 => [qw()],
     2 => [qw()],
-    3 => [qw(-fconst-strings -fno-fold -fno-warnings)],
+    3 => [qw(-fno-fold -fno-warnings)],
     4 => [qw(-fcop -fno-dyn-padlist)],
 );
 
 our @xpvav_sizes;
 our ($in_endav);
-my %static_core_pkg;                                             # = map {$_ => 1} static_core_packages();
+my %static_core_pkg;                                                    # = map {$_ => 1} static_core_packages();
 
 # used by B::OBJECT
 sub add_to_isa_cache {
