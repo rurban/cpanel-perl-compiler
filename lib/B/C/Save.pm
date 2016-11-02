@@ -130,7 +130,7 @@ sub savepvn {
 }
 
 sub _caller_comment {
-    return '' unless debug('pv');
+    return '' unless debug('stack');
 
     my $s = '';
     foreach my $level ( 0 .. 20 ) {
