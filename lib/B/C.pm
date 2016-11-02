@@ -957,7 +957,6 @@ sub delete_unsaved_hashINC {
           if $package =~ /^DynaLoader|XSLoader$/
       and defined $use_xsloader
       and $use_xsloader == 0;
-    return if $^O eq 'MSWin32' and $package =~ /^Carp|File::Basename$/;
     mark_package_unused($package);
     if ( $curINC{$incpack} ) {
 
@@ -1672,10 +1671,10 @@ sub compile {
     B::C::Save::Signals::enable();
     $B::C::destruct         = 1;
     $B::C::stash            = 0;
-    $B::C::fold             = 1;                                                 # always include utf8::Cased tables
-    $B::C::warnings         = 1;                                                 # always include Carp warnings categories and B
-    $B::C::optimize_warn_sv = 1 if $^O ne 'MSWin32' or $Config{cc} !~ m/^cl/i;
-    $B::C::dyn_padlist      = 1;                                                 # default is dynamic and safe, disable with -O4
+    $B::C::fold             = 1;                             # always include utf8::Cased tables
+    $B::C::warnings         = 1;                             # always include Carp warnings categories and B
+    $B::C::optimize_warn_sv = 1 if $Config{cc} !~ m/^cl/i;
+    $B::C::dyn_padlist      = 1;                             # default is dynamic and safe, disable with -O4
     $B::C::walkall          = 1;
 
     mark_skip qw(B::C B::C::Flags B::CC B::FAKEOP O
@@ -1823,15 +1822,14 @@ sub compile {
     elsif ( $B::C::av_init2 and $B::C::av_init ) {
         $B::C::av_init = 0;
     }
-    $B::C::destruct = 1 if $^O eq 'MSWin32';    # skip -ffast-destruct there
 
-    B::C::File::new($output_file);              # Singleton.
-    B::C::Packages::new();                      # Singleton.
+    B::C::File::new($output_file);    # Singleton.
+    B::C::Packages::new();            # Singleton.
 
     foreach my $i (@eval_at_startup) {
         init2()->add_eval($i);
     }
-    if (@options) {                             # modules or main?
+    if (@options) {                   # modules or main?
         return sub {
             my $objname;
             foreach $objname (@options) {
