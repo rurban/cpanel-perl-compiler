@@ -117,7 +117,6 @@ our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our $const_strings = 1;    # TODO: This var needs to go away.
 
 our %option_map = ( # -f 
-    'save-sig-hash'   => sub { B::C::Save::Signals::set(@_) },
 );
 our %optimization_map = (
     0 => [qw()],           # special case

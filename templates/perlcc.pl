@@ -242,7 +242,6 @@ sub parse_argv {
         'f=s@',             # pass compiler option(s) to backend (new since 2.14)
         'Wc=s',             # pass (comma-seperated) options to cc (new since 2.13)
         'Wl=s',             # pass (comma-seperated) options to ld (new since 2.13)
-        'testsuite',        # try to be nice to testsuite modules (STDOUT, STDERR handles)
         'spawn!',           # --no-spawn (new since 2.12)
         'time',             # print benchmark timings (new since 2.08)
         'version',          # (new since 2.13)
@@ -412,7 +411,6 @@ sub compile_cstyle {
     # What are we going to call our output C file?
     my $lose = 0;
     my ($cfh);
-    my $testsuite  = '';
     my $addoptions = '';
     if ( @_ == 1 ) {
         $addoptions .= $_[0] . ",";
@@ -437,15 +435,6 @@ sub compile_cstyle {
     my $staticxs = opt('staticxs') ? "-staticxs," : '';
     warn "Warning: --staticxs on darwin is very experimental\n"
       if $staticxs and $^O eq 'darwin';
-    if ( opt('testsuite') ) {
-        my $bo = join '', @begin_output;
-        $bo =~ s/\\/\\\\\\\\/gs;
-        $bo =~ s/\n/\\n/gs;
-        $bo =~ s/,/\\054/gs;
-
-        # don't look at that: it hurts
-        $testsuite = q{-fuse-script-name,-fsave-data,-fsave-sig-hash,} . qq[-e"print q{$bo}",] . q{-e"open(Test::Builder::TESTOUT\054 '>&STDOUT') or die $!",} . q{-e"open(Test::Builder::TESTERR\054 '>&STDERR') or die $!",};
-    }
     if ( opt('check') ) {
         $cfile    = "";
         $staticxs = "";
@@ -487,7 +476,7 @@ sub compile_cstyle {
         $max_line_len = '-l2000,';
     }
 
-    my $options = "$addoptions$testsuite$max_line_len$staticxs$stash";
+    my $options = "$addoptions$max_line_len$staticxs$stash";
     $options .= "-o$cfile" unless opt('check');
     $options = substr( $options, 0, -1 ) if substr( $options, -1, 1 ) eq ",";
 
@@ -971,7 +960,7 @@ $0 [-o executable] [-h][-r] [-O|-B|-c|-S] [-I /foo] [-L /foo] [--log log] [sourc
 More options (see perldoc perlcc)
   -v[1-4]
   --stash     --staticxs --shared --static
-  --testsuite --time
+  --time
 EOU
 }
 
@@ -1239,13 +1228,6 @@ at the client, modification of @INC in the source is probably required.
 
 Create a module, resp. a shared library.
 Currently only enabled for Bytecode and CC. I<(not yet tested)>
-
-=item --testsuite
-
-Tries be nice to Test:: modules, like preallocating the file
-handles 4 and 5, and munge the output of BEGIN.
-
-  perlcc -r --testsuite t/harness
 
 =item --time
 
