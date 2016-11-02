@@ -207,15 +207,6 @@ my $saveoptree_callback = \&walk_and_save_optree;
 sub set_callback { $saveoptree_callback = shift }
 sub saveoptree { &$saveoptree_callback(@_) }
 
-{
-    my $module;
-
-    sub module {
-        $module = shift if @_;
-        return $module;
-    }
-}
-
 # Look this up here so we can do just a number compare
 # rather than looking up the name of every BASEOP in B::OP
 # maybe use contant
@@ -1295,26 +1286,25 @@ sub save_main_rest {
         $end_av   = end_av->save('END');
         $in_endav = 0;
     }
-    if ( !defined( module() ) ) {
-        init()->add(
-            "/* startpoints */",
-            sprintf( "PL_main_root = s\\_%x;",  ${ main_root() } ),
-            sprintf( "PL_main_start = s\\_%x;", ${ main_start() } ),
-        );
-        init()->add(
-            index( $init_av, '(AV*)' ) >= 0
-            ? "PL_initav = $init_av;"
-            : "PL_initav = (AV*)$init_av;"
-        );
-        init()->add(
-            index( $end_av, '(AV*)' ) >= 0
-            ? "PL_endav = $end_av;"
-            : "PL_endav = (AV*)$end_av;"
-        );
-    }
+
+    init()->add(
+        "/* startpoints */",
+        sprintf( "PL_main_root = s\\_%x;",  ${ main_root() } ),
+        sprintf( "PL_main_start = s\\_%x;", ${ main_start() } ),
+    );
+    init()->add(
+        index( $init_av, '(AV*)' ) >= 0
+        ? "PL_initav = $init_av;"
+        : "PL_initav = (AV*)$init_av;"
+    );
+    init()->add(
+        index( $end_av, '(AV*)' ) >= 0
+        ? "PL_endav = $end_av;"
+        : "PL_endav = (AV*)$end_av;"
+    );
 
     my %INC_BACKUP = %INC;
-    save_context() unless defined( module() );
+    save_context();
 
     # verbose("use_xsloader=$use_xsloader");
     # If XSLoader was forced later, e.g. in curpad, INIT or END block
@@ -1491,7 +1481,6 @@ sub build_template_stash {
         'xsub'                             => \%xsub,
         'curINC'                           => \%curINC,
         'staticxs'                         => $staticxs,
-        'module'                           => module(),
         'use_perl_script_name'             => $use_perl_script_name,
         'all_eval_pvs'                     => \@B::C::InitSection::all_eval_pvs,
         'TAINT'                            => ( ${^TAINT} ? 1 : 0 ),
@@ -1502,41 +1491,34 @@ sub build_template_stash {
     };
     chomp $c_file_stash->{'compile_stats'};    # Injects a new line when you call compile_stats()
 
-    # Was in a section that wrote some stuff out instead of main's subroutine.
-    if ( defined module() ) {
-        init()->add("/* curpad syms */");
-        $c_file_stash->{'module_curpad_sym'} = ( comppadlist->ARRAY )[1]->save;
-    }
-
     # main() .c generation needs a buncha globals to be determined so the stash can access them.
     # Some of the vars are only put in the stash if they meet certain coditions.
-    else {
-        $c_file_stash->{'global_vars'} = {
-            'dollar_0'             => $0,
-            'dollar_caret_A'       => $^A,
-            'dollar_caret_H'       => $^H,
-            'dollar_caret_X'       => cstring($^X),
-            'dollar_caret_UNICODE' => ${^UNICODE},
-            'dollar_comma'         => ${,},
-            'dollar_backslash'     => ${\},
-            'dollar_pipe'          => $|,
-            'dollar_percent'       => $%,
-        };
 
-        $c_file_stash->{'global_vars'}->{'dollar_semicolon'} = cstring($;)  if $; ne "\34";     # $;
-        $c_file_stash->{'global_vars'}->{'dollar_quote'}     = cstring($")  if $" ne " ";       # $"
-        $c_file_stash->{'global_vars'}->{'dollar_slash'}     = cstring($/)  if $/ ne "\n";      # $/  - RS
-        $c_file_stash->{'global_vars'}->{'dollar_caret_L'}   = cstring($^L) if $^L ne "\f";     # $^L - FORMFEED
-        $c_file_stash->{'global_vars'}->{'dollar_colon'}     = cstring($:)  if $: ne " \n-";    # $:  - LINE_BREAK_CHARACTERS
-        $c_file_stash->{'global_vars'}->{'dollar_minus'} = $- unless ( $- == 0 or $- == 60 );   # $-  - LINES_LEFT
-        $c_file_stash->{'global_vars'}->{'dollar_equal'} = $= if $= != 60;                      # $=  - LINES_PER_PAGE
+    $c_file_stash->{'global_vars'} = {
+        'dollar_0'             => $0,
+        'dollar_caret_A'       => $^A,
+        'dollar_caret_H'       => $^H,
+        'dollar_caret_X'       => cstring($^X),
+        'dollar_caret_UNICODE' => ${^UNICODE},
+        'dollar_comma'         => ${,},
+        'dollar_backslash'     => ${\},
+        'dollar_pipe'          => $|,
+        'dollar_percent'       => $%,
+    };
 
-        # Need more than just the cstring.
-        $c_file_stash->{'global_vars'}->{'dollar_caret'} = { 'str' => cstring($^), 'len' => length($^) } if $^ ne "STDOUT_TOP";
-        $c_file_stash->{'global_vars'}->{'dollar_tilde'} = { 'str' => cstring($~), 'len' => length($~) } if $~ ne "STDOUT";
+    $c_file_stash->{'global_vars'}->{'dollar_semicolon'} = cstring($;)  if $; ne "\34";     # $;
+    $c_file_stash->{'global_vars'}->{'dollar_quote'}     = cstring($")  if $" ne " ";       # $"
+    $c_file_stash->{'global_vars'}->{'dollar_slash'}     = cstring($/)  if $/ ne "\n";      # $/  - RS
+    $c_file_stash->{'global_vars'}->{'dollar_caret_L'}   = cstring($^L) if $^L ne "\f";     # $^L - FORMFEED
+    $c_file_stash->{'global_vars'}->{'dollar_colon'}     = cstring($:)  if $: ne " \n-";    # $:  - LINE_BREAK_CHARACTERS
+    $c_file_stash->{'global_vars'}->{'dollar_minus'} = $- unless ( $- == 0 or $- == 60 );   # $-  - LINES_LEFT
+    $c_file_stash->{'global_vars'}->{'dollar_equal'} = $= if $= != 60;                      # $=  - LINES_PER_PAGE
 
-        $[ and die 'Since the variable is deprecated, B::C does not support setting $[ to anything other than 0';
-    }
+    # Need more than just the cstring.
+    $c_file_stash->{'global_vars'}->{'dollar_caret'} = { 'str' => cstring($^), 'len' => length($^) } if $^ ne "STDOUT_TOP";
+    $c_file_stash->{'global_vars'}->{'dollar_tilde'} = { 'str' => cstring($~), 'len' => length($~) } if $~ ne "STDOUT";
+
+    $[ and die 'Since the variable is deprecated, B::C does not support setting $[ to anything other than 0';
 
     # PL_strtab's hash size
     $c_file_stash->{'PL_strtab_max'} = B::HV::get_max_hash_from_keys( sharedhe()->index() + 1, 511 ) + 1;
