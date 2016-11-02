@@ -115,16 +115,13 @@ our $unresolved_count = 0;
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $optimize_warn_sv, $use_perl_script_name,
-     $stash, $can_delete_pkg, $pv_copy_on_grow,
+     $stash, $can_delete_pkg,
     $walkall
 );
 
 our $const_strings = 1;    # TODO: This var needs to go away.
 
 our %option_map = (
-
-    #ignored until IsCOW has a seperate COWREFCNT field (5.22 maybe)
-    'cog'             => \$B::C::pv_copy_on_grow,
     'walkall'         => \$B::C::walkall,
     'warn-sv'         => \$B::C::optimize_warn_sv,
     'delete-pkg'      => \$B::C::can_delete_pkg,
@@ -1254,7 +1251,7 @@ sub save_main_rest {
     my $end_av;
     {
         # >=5.10 need to defer nullifying of all vars in END, not only new ones.
-        local ( $B::C::pv_copy_on_grow, $B::C::const_strings );
+        local ( $B::C::const_strings );
         $in_endav = 1;
         debug( 'av' => "Writing end_av" );
         init()->add("/* END block */");

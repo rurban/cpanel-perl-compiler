@@ -968,7 +968,6 @@ benchmark_time("pre global setup");
     fast_perl_destruct( &BC_unthreaded_interpreter );
 
     /*  XXX endav is called via call_list and so it is freed right after usage. Setting dirty here is useless */
-    /* [% UNLESS pv_copy_on_grow %]PL_dirty = 1;[% END %]   protect against pad undef in END block */
 
     PERL_SYS_TERM();
 

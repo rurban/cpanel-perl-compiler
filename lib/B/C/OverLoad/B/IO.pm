@@ -83,15 +83,14 @@ sub save {
     svsect()->add(
         sprintf(
             "&xpvio_list[%d], %Lu, 0x%x, {%s}",
-            xpviosect()->index, $io->REFCNT, $io->FLAGS,
-            $B::C::pv_copy_on_grow ? $pvsym : 0
+            xpviosect()->index, $io->REFCNT, $io->FLAGS, 0
         )
     );
 
     svsect()->debug( $fullname, $io );
     $sym = savesym( $io, sprintf( "(IO*)&sv_list[%d]", svsect()->index ) );
 
-    if ( !$B::C::pv_copy_on_grow and $cur ) {
+    if ( $cur ) {
         init()->add( sprintf( "SvPVX(sv_list[%d]) = %s;", svsect()->index, $pvsym ) );
     }
     my ($field);
