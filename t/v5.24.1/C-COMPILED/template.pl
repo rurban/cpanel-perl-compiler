@@ -25,9 +25,9 @@ if ( $0 =~ m{/template\.pl$} ) {
     exit;
 }
 
-my @optimizations = $ENV{'BC_TEST_OPTIMIZATIONS'} || '-O3';
-$optimizations[0] .= ',-v'     if ( $ENV{VERBOSE} );
-$optimizations[0] .= ',-Dwalk' if ( $ENV{BC_WALK} );
+my $optimization = '';
+$optimization .= '-v,'     if ( $ENV{VERBOSE} );
+$optimization .= '-Dwalk,' if ( $ENV{BC_WALK} );
 
 # Setup file_to_test to be the file we actually want to test.
 my ( $file_to_test, $path ) = fileparse($0);
@@ -63,7 +63,7 @@ if ( $type eq 'COMPAT' || $type eq 'SKIP' ) {
 # need to run CORE test suite in t
 chdir "$FindBin::Bin/../../t" or die "Cannot chdir to t directory: $!";
 
-plan tests => 3 + 9 * scalar @optimizations;
+plan tests => 12;
 
 ok( !-z $file_to_test, "$file_to_test exists" );
 open( my $fh, '<', $file_to_test ) or die("Can't open $file_to_test");
@@ -84,51 +84,50 @@ like( $check, qr/syntax OK/, "$PERL -c $taint $file_to_test" );
 
 $ENV{HARNESS_NOTTY} = 1;
 
-foreach my $optimization (@optimizations) {
-  TODO: SKIP: {
-        local $TODO;
+TODO: SKIP: {
+    local $TODO;
 
-        $errors->{to_skip} = 9;
+    $errors->{to_skip} = 9;
 
-        # shared logic with testc
-        my ( $parser, $errormsg ) = compile_script(
-            $file_to_test, $errors,
-            {
-                extra        => $taint,
-                optimization => $optimization,
-                c_file       => $c_file,
-                bin_file     => $bin_file,
+    # shared logic with testc
+    my ( $parser, $errormsg ) = compile_script(
+        $file_to_test, $errors,
+        {
+            extra        => $taint,
+            optimization => $optimization,
+            c_file       => $c_file,
+            bin_file     => $bin_file,
 
-            }
-        );
-
-        # handle error when compiling script
-        skip $errormsg, $errors->{to_skip} unless $parser;
-
-        my $tests_ok = $errors->check_todo( $parser->{exit} == 0, "Exit code is $parser->{exit}", "EXIT" );
-        $tests_ok = $errors->check_todo( !scalar @{ $parser->{failed} }, "Test results:", 'TESTS' ) && $tests_ok;
-        if ( length $parser->{out} < 1_000_000 ) {
-            print "    $_\n" foreach ( split( "\n", $parser->{out} ) );
         }
-        else {
-            diag("Output is too long to display. Skipping.");
-        }
+    );
 
-        unless ($tests_ok) {
-            note( "Failed tests: " . join( ", ", @{ $parser->{failed} } ) );
-            skip "tests are failing", $errors->{to_skip};
-        }
+    # handle error when compiling script
+    skip $errormsg, $errors->{to_skip} unless $parser;
 
-        $errors->check_todo( !scalar @{ $parser->{parse_errors} }, "Tests are in sequence", 'SEQ' )
-          or do {
-            note explain $parser->{parse_errors};
-            skip "tests are not in sequence", $errors->{to_skip};
-          };
-
-        $errors->check_todo( !scalar @{ $parser->{todo_passed} }, "No TODO tests passed", 'TODO' )
-          or note( "TODO Passed: " . join( ", ", @{ $parser->{todo_passed} } ) );
+    my $tests_ok = $errors->check_todo( $parser->{exit} == 0, "Exit code is $parser->{exit}", "EXIT" );
+    $tests_ok = $errors->check_todo( !scalar @{ $parser->{failed} }, "Test results:", 'TESTS' ) && $tests_ok;
+    if ( length $parser->{out} < 1_000_000 ) {
+        print "    $_\n" foreach ( split( "\n", $parser->{out} ) );
     }
+    else {
+        diag("Output is too long to display. Skipping.");
+    }
+
+    unless ($tests_ok) {
+        note( "Failed tests: " . join( ", ", @{ $parser->{failed} } ) );
+        skip "tests are failing", $errors->{to_skip};
+    }
+
+    $errors->check_todo( !scalar @{ $parser->{parse_errors} }, "Tests are in sequence", 'SEQ' )
+      or do {
+        note explain $parser->{parse_errors};
+        skip "tests are not in sequence", $errors->{to_skip};
+      };
+
+    $errors->check_todo( !scalar @{ $parser->{todo_passed} }, "No TODO tests passed", 'TODO' )
+      or note( "TODO Passed: " . join( ", ", @{ $parser->{todo_passed} } ) );
 }
+
 unlink $bin_file, $c_file unless $ENV{BC_DEVELOPING};
 
 if ( $ENV{BC_DEVELOPING} ) {

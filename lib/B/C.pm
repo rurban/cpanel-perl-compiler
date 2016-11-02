@@ -116,16 +116,6 @@ our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 
 our $const_strings = 1;    # TODO: This var needs to go away.
 
-our %option_map = ( # -f 
-);
-our %optimization_map = (
-    0 => [qw()],           # special case
-    1 => [qw()],
-    2 => [qw()],
-    3 => [qw()],
-    4 => [qw()],
-);
-
 our @xpvav_sizes;
 our ($in_endav);
 my %static_core_pkg;       # = map {$_ => 1} static_core_packages();
@@ -1667,31 +1657,10 @@ sub compile {
             mark_skip($arg);
         }
         elsif ( $opt eq "f" ) {
-            $arg ||= shift @options;
-            $arg =~ m/(no-)?(.*)/;
-            my $no = defined($1) && $1 eq 'no-';
-            $arg = $no ? $2 : $arg;
-            if ( exists $option_map{$arg} ) {
-                if ( ref $option_map{$arg} eq 'CODE' ) {
-                    $option_map{$arg}->( !$no );
-                }
-                else {
-                    ${ $option_map{$arg} } = !$no;
-                }
-            }
-            else {
-                die "Invalid optimization '$arg'";
-            }
+            die "Invalid option -f";
         }
         elsif ( $opt eq "O" ) {
-            $arg = 1 if $arg eq "";
-            my @opt;
-            foreach my $i ( 1 .. $arg ) {
-                push @opt, @{ $optimization_map{$i} }
-                  if exists $optimization_map{$i};
-            }
-            unshift @options, @opt;
-            verbose( "options :", @opt );
+            die "Invalid option -O";
         }
         elsif ( $opt eq "e" ) {
             push @eval_at_startup, $arg;
