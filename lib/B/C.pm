@@ -113,15 +113,10 @@ our $unresolved_count = 0;
 
 # options and optimizations shared with B::CC
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
-our (
-    $use_perl_script_name,
-
-);
 
 our $const_strings = 1;    # TODO: This var needs to go away.
 
-our %option_map = (
-    'use-script-name' => \$use_perl_script_name,
+our %option_map = ( # -f 
     'save-sig-hash'   => sub { B::C::Save::Signals::set(@_) },
 );
 our %optimization_map = (
@@ -1405,7 +1400,6 @@ sub build_template_stash {
         'xsub'                  => \%xsub,
         'curINC'                => \%curINC,
         'staticxs'              => $staticxs,
-        'use_perl_script_name'  => $use_perl_script_name,
         'all_eval_pvs'          => \@B::C::InitSection::all_eval_pvs,
         'TAINT'                 => ( ${^TAINT} ? 1 : 0 ),
         'devel_peek_needed'     => $devel_peek_needed,

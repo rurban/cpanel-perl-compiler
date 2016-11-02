@@ -843,13 +843,8 @@ main(int argc, char **argv, char **env)
 benchmark_time("pre global setup");
 
 /* setup $0 on execution */
-  [% IF use_perl_script_name %]
-    sv_setpv_mg(get_sv("0", GV_ADD|GV_NOTQUAL), [% global_vars.dollar_0 %]);
-    CopFILE_set(&PL_compiling, [% global_vars.dollar_0 %]);
-  [% ELSE %]
     sv_setpv_mg(get_sv("0", GV_ADD|GV_NOTQUAL), argv[0]);
     CopFILE_set(&PL_compiling, argv[0]);
-  [% END %]
 
     [% IF global_vars.dollar_caret_H %]
     PL_hints = [% global_vars.dollar_caret_H %];
