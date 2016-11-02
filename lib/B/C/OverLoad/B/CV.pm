@@ -450,7 +450,7 @@ sub save {
         if ($$padlist) {
 
             # XXX readonly comppad names and symbols invalid
-            #local $B::C::pv_copy_on_grow = 1 if $B::C::ro_inc;
+            #local $B::C::pv_copy_on_grow = 1;
             debug( gv => "saving PADLIST 0x%x for CV 0x%x\n", $$padlist, $$cv )
               if debug('cv');
 

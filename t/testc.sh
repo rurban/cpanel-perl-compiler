@@ -1393,7 +1393,7 @@ print $warn =~ /Prototype after .@. for main::badproto4/ ? "ok" : $warn;}'
 init
 
 #
-# getopts for -q -k -E -Du,-q -v -O2, -a -c -fro-inc
+# getopts for -q -k -E -Du,-q -v -O2, -a -c
 while getopts "XLhaAckoED:B:O:f:q" opt
 do
   if [ "$opt" = "q" ]; then

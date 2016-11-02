@@ -127,7 +127,7 @@ our $unresolved_count = 0;
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $optimize_warn_sv, $use_perl_script_name,
-    $save_data_fh, $optimize_cop, $ro_inc, $destruct,
+    $save_data_fh, $optimize_cop, $destruct,
     $fold, $warnings, $const_strings, $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
     $walkall
 );
@@ -141,7 +141,6 @@ our %option_map = (
     'walkall'         => \$B::C::walkall,
     'warn-sv'         => \$B::C::optimize_warn_sv,
     'delete-pkg'      => \$B::C::can_delete_pkg,
-    'ro-inc'          => \$B::C::ro_inc,
     'stash'           => \$B::C::stash,                          # enable with -fstash
     'destruct'        => \$B::C::destruct,                       # disable with -fno-destruct
     'fold'            => \$B::C::fold,                           # disable with -fno-fold
@@ -156,7 +155,7 @@ our %option_map = (
 our %optimization_map = (
     0 => [qw()],                                                        # special case
     1 => [qw()],
-    2 => [qw(-fro-inc -fsave-data)],
+    2 => [qw(-fsave-data)],
     3 => [qw(-fno-destruct -fconst-strings -fno-fold -fno-warnings)],
     4 => [qw(-fcop -fno-dyn-padlist)],
 );
@@ -1167,7 +1166,7 @@ sub save_context {
     }
     my ( $inc_hv, $inc_av );
     {
-        local $B::C::const_strings = 1 if $B::C::ro_inc;
+        local $B::C::const_strings = 1;
         verbose("\%INC and \@INC:");
         init()->add('/* %INC */');
         inc_cleanup(0);

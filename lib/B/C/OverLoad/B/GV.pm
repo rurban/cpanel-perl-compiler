@@ -764,7 +764,7 @@ sub normalize_filter {
     if ( $fullname =~ /^DynaLoader::dl_(require_symbols|resolve_using|librefs)/ ) {
         $filter = Save_SV | Save_AV | Save_HV;
     }
-    if ( $B::C::ro_inc and $fullname =~ /^main::([1-9])$/ ) {    # ignore PV regexp captures with -O2
+    if ( $fullname =~ /^main::([1-9])$/ ) {    # ignore PV regexp captures with -O2
         $filter = Save_SV;
     }
 
