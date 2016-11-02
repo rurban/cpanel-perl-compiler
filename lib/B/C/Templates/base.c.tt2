@@ -823,28 +823,6 @@ dl_init(pTHX)
 *
 *************************************************************************************************************/
 
-[% IF module.defined %]
-#include "XSUB.h"
-XS(boot_$cmodule)
-{
-    dXSARGS;
-    perl_init();
-    ENTER;
-    SAVETMPS;
-    SAVEVPTR(PL_curpad);
-    SAVEVPTR(PL_op);
-    dl_init(aTHX);
-    PL_curpad = AvARRAY([% module_curpad_sym %]);
-    PL_comppad = [% module_curpad_sym %];
-    PL_op = op_list[0];
-    perl_run( aTHX ); /* Perl_runops_standard(aTHX); */
-    FREETMPS;
-    LEAVE;
-    ST(0) = &PL_sv_yes;
-    XSRETURN(1);
-}
-[% ELSE %]
-
 /* if USE_IMPLICIT_SYS, we need a 'real' exit */
 #if defined(exit)
 #undef exit
@@ -1065,5 +1043,4 @@ benchmark_time("pre global setup");
     PERL_SYS_TERM();
 
     exit( exitstatus );
-[% END %]
 }

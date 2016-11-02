@@ -52,8 +52,8 @@ sub optimize {
         $sav_debug = B::C::Config::Debug::save();
         B::C::Config::Debug::init();
     }
-    my $module = B::C::module();
-    my $main = $module ? $module . "::" : "main::";
+
+    my $main = "main::";
 
     # -fwalkall: better strategy for compile-time added and required packages:
     # loop savecv and check pkg cache for new pkgs.
