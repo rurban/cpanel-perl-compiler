@@ -116,13 +116,11 @@ our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
 our (
     $optimize_warn_sv, $use_perl_script_name,
      $stash, $can_delete_pkg,
-    $walkall
 );
 
 our $const_strings = 1;    # TODO: This var needs to go away.
 
 our %option_map = (
-    'walkall'         => \$B::C::walkall,
     'warn-sv'         => \$B::C::optimize_warn_sv,
     'delete-pkg'      => \$B::C::can_delete_pkg,
     'stash'           => \$B::C::stash,                          # enable with -fstash
@@ -775,8 +773,6 @@ sub mark_package {
               if !is_package_used($package)
               and verbose();
             mark_package_used($package);
-
-            walk_syms($package) if !$B::C::walkall;    # fixes i27-1
         }
         my @isa = get_isa($package);
         if (@isa) {
@@ -995,10 +991,6 @@ sub inc_cleanup {
             delete $curINC{$package};
             delete_unsaved_hashINC('utf8');
         }
-        elsif ( !$B::C::walkall and !exists $dumped_package{$pkg} ) {
-            delete_unsaved_hashINC($pkg);
-            push @deleted_inc, $pkg;
-        }
     }
 
     # sync %curINC deletions back to %INC
@@ -1015,10 +1007,8 @@ sub inc_cleanup {
 
     # issue 340,350: do only on -fwalkall? do it in the main walker step
     # as in branch walkall-early?
-    if ($B::C::walkall) {
         my $again = dump_rest();
         inc_cleanup( $rec_cnt++ ) if $again and $rec_cnt < 2;    # maximal 3 times
-    }
 
     # final cleanup
     for my $p ( sort keys %INC ) {
@@ -1593,7 +1583,6 @@ sub compile {
     B::C::Save::Signals::enable();
     $B::C::stash            = 0;
     $B::C::optimize_warn_sv = 1 if $Config{cc} !~ m/^cl/i;
-    $B::C::walkall          = 1;
 
     mark_skip qw(B::C B::C::Flags B::CC B::FAKEOP O
       B::Section B::Pseudoreg B::Shadow B::C::InitSection);

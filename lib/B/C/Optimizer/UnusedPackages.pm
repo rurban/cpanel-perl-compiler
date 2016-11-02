@@ -76,10 +76,6 @@ sub optimize {
     @dumped = grep { $B::C::dumped_package{$_} and $_ ne 'main' } sort keys %B::C::dumped_package;
     verbose( "old unused: %d, new: %d, dumped: %d", scalar @init_unused, scalar @unused, scalar @dumped );
 
-    if ( !$B::C::walkall ) {
-        @unused = @init_unused = ();
-    }
-    else {
         my $done;
 
         do {
@@ -88,7 +84,6 @@ sub optimize {
             @dumped = grep { $B::C::dumped_package{$_} and $_ ne 'main' } sort keys %B::C::dumped_package;
         } while @unused > @dumped and $done;
         last if $walkall_cnt++ > 3;
-    }
 
     #} while @unused > @init_unused;
 
