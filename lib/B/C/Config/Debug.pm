@@ -76,6 +76,14 @@ sub enable_debug_level {
         return 1;
     }
 
+    # allow custom debug levels
+    _enable_debug_level($l);
+
+    # tricky, but do not enable aliases if the level we are using use an unknown character
+    #   allow to use custom debug levels without enabling all others
+    my @letters = split( //, $l );
+    return 1 if grep { !exists $debug_map{$_} } @letters;
+
     return;
 }
 
@@ -122,7 +130,7 @@ sub display_message {
     print STDERR "$txt\n";
     if ( $ENV{BC_DEVELOPING} ) {
         $logfh or open( $logfh, '>', 'fullog.txt' );
-        print ${logfh} "$txt\n";
+        print {$logfh} "$txt\n";
     }
 
     return;
@@ -132,7 +140,7 @@ sub display_message {
 =item debug( $level, @msg )
  always return the current status for the level
  when call with one single arg print the string
-	 			more than one, use sprintf
+ more than one, use sprintf
 =cut
 
 sub debug {
@@ -141,9 +149,12 @@ sub debug {
     my @levels = ref $level eq 'ARRAY' ? @$level : $level;
 
     if ( !scalar @levels || grep { !defined $debug{$_} } @levels ) {
-        my $error_msg = "One or more unknown debug level in " . ( join( ', ', sort @levels ) );
-        eval q/require Carp; 1/ or die $error_msg;
-        Carp::croak($error_msg);
+        my $error_msg = "One or more unknown debug level in " . ( join( ', ', sort @levels ) ) . ' - ' . "@{[(caller(1))[3]]}";
+
+        # only display the warning once
+        WARN($error_msg);
+        do { $debug{$_} //= 0 }
+          for @levels;
     }
 
     my $debug_on = grep { $debug{$_} } @levels;
@@ -159,7 +170,13 @@ sub debug {
         else {
             my $str = shift @msg;
             eval {
-                $warn = sprintf( $str, @msg );
+                if ( $str =~ qr{%} ) {    # use sprintf style when % is used
+                    $warn = sprintf( $str, @msg );
+                }
+                else {                    # use a regular join when % is not used
+                    $warn = join( ' ', map { $_ // '' } $str, @msg );
+                }
+
                 1;
             } or do {
                 my $error = $@;

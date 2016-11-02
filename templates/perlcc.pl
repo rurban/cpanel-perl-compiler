@@ -1079,9 +1079,9 @@ perlcc - generate executables from Perl programs
 
     perlcc hello -log c.log    # compiles 'hello' into 'a.out', log into 'c.log'
 
-    perlcc -h       	       # help, only SYNOPSIS
-    perlcc -v2 -h  	       # verbose help, also DESCRIPTION and OPTIONS
-    perlcc --version  	       # prints internal perlcc and the B-C release version
+    perlcc -h                  # help, only SYNOPSIS
+    perlcc -v2 -h              # verbose help, also DESCRIPTION and OPTIONS (use v5 to enable verbose in B::C)
+    perlcc --version           # prints internal perlcc and the B-C release version
 
 =head1 DESCRIPTION
 
