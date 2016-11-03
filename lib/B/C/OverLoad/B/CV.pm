@@ -450,7 +450,6 @@ sub save {
         if ($$padlist) {
 
             # XXX readonly comppad names and symbols invalid
-            #local $B::C::pv_copy_on_grow = 1 if $B::C::ro_inc;
             debug( gv => "saving PADLIST 0x%x for CV 0x%x\n", $$padlist, $$cv )
               if debug('cv');
 
@@ -465,19 +464,14 @@ sub save {
 
             # issue 298: dynamic CvPADLIST(&END) since 5.18 - END{} blocks
             # and #169 and #304 Attribute::Handlers
-            if ( $B::C::dyn_padlist or $fullname =~ /^(main::END|Attribute::Handlers)/ ) {
-                init()->add(
-                    "{ /* &$fullname needs a dynamic padlist */",
-                    "  PADLIST *pad;",
-                    "  Newxz(pad, sizeof(PADLIST), PADLIST);",
-                    "  Copy($padlistsym, pad, sizeof(PADLIST), char);",
-                    "  CvPADLIST($sym) = pad;",
-                    "}"
-                );
-            }
-            else {
-                init()->add("CvPADLIST($sym) = $padlistsym;");
-            }
+            init()->add(
+                "{ /* &$fullname needs a dynamic padlist */",
+                "  PADLIST *pad;",
+                "  Newxz(pad, sizeof(PADLIST), PADLIST);",
+                "  Copy($padlistsym, pad, sizeof(PADLIST), char);",
+                "  CvPADLIST($sym) = pad;",
+                "}"
+            );
         }
         debug( sub => $fullname );
     }
@@ -619,7 +613,7 @@ sub save {
                     "GvXPVGV(s\\_%x)->xnv_u.xgv_stash = s\\_%x;",
                     $$cv, $$gvstash
                 )
-            ) if $gvstash and !$B::C::stash;
+            ) if $gvstash;
             debug( gv => "done saving GvSTASH 0x%x for CV 0x%x\n", $$gvstash, $$cv )
               if $gvstash and debug('cv');
 
@@ -682,15 +676,15 @@ sub save {
             $$gv, $$cv
         ) if debug('cv');
     }
-    unless ($B::C::optimize_cop) {
-        my $file = $cv->FILE();
-        if ( $B::C::const_strings && length $file ) {
-            init()->add( sprintf( "CvFILE(%s) = (char *) %s;", $sym, constpv($file) ) );
-        }
-        else {
-            init()->add( sprintf( "CvFILE(%s) = %s;", $sym, cstring( $cv->FILE ) ) );
-        }
+
+    my $file = $cv->FILE();
+    if ( $B::C::const_strings && length $file ) {
+        init()->add( sprintf( "CvFILE(%s) = (char *) %s;", $sym, constpv($file) ) );
     }
+    else {
+        init()->add( sprintf( "CvFILE(%s) = %s;", $sym, cstring( $cv->FILE ) ) );
+    }
+
     my $stash = $cv->STASH;
     if ( $$stash and ref($stash) ) {
 

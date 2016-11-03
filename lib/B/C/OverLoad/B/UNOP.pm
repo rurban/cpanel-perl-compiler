@@ -19,8 +19,6 @@ sub save {
     unopsect()->add( sprintf( "%s, s\\_%x", $op->_save_common, ${ $op->first } ) );
     unopsect()->debug( $op->name, $op );
     my $ix = unopsect()->index;
-    init()->add( sprintf( "unop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
-      unless $B::C::optimize_ppaddr;
     $sym = savesym( $op, "(OP*)&unop_list[$ix]" );
 
     if ( $op->name eq 'method' and $op->first and $op->first->name eq 'const' ) {

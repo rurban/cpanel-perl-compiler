@@ -37,8 +37,6 @@ sub save {
 
     methopsect()->add( sprintf( $s, $op->_save_common, $first, $rclass ) );
     methopsect()->debug( $op->name, $op->flagspv ) if debug('flags');
-    init()->add( sprintf( "methop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
-      unless $B::C::optimize_ppaddr;
     $sym = savesym( $op, "(OP*)&methop_list[$ix]" );
     if ( $op->name eq 'method' ) {
         do_labels( $op, $level + 1, 'first', 'rclass' );

@@ -16,7 +16,6 @@ if ( $0 =~ m{/testc\.pl$} ) {
 
 my @optimizations = $ENV{'BC_TEST_OPTIMIZATIONS'} || ( '-O3', '-O0' );
 $optimizations[0] .= ',-v'        if $ENV{VERBOSE};
-$optimizations[0] .= ',-fwalkall' if $ENV{BC_WALK};
 
 # Setup file_to_test to be the file we actually want to test.
 my ( $file_to_test, $path ) = fileparse($0);

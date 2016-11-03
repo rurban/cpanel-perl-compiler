@@ -33,7 +33,7 @@ sub compile_script {
 
     my $cflags = $ENV{'BC_CFLAGS'} // DEFAULT_CCFLAGS;
 
-    my $cmd = "$PERL $blib $extra -MO=-qq,C,$optimization,-o$c_file $file_to_test 2>&1";
+    my $cmd = "$PERL $blib $extra -MO=-qq,C,$optimization-o$c_file $file_to_test 2>&1";
 
     diag $cmd if $ENV{VERBOSE};
     my $BC_output = `$cmd`;

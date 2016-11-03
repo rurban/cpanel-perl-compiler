@@ -119,7 +119,6 @@ sub save {
 
     decl()->add("$s\n};");
 
-    init()->add( sprintf( "unopaux_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) ) unless $B::C::optimize_ppaddr;
     $sym = savesym( $op, "(OP*)&unopaux_list[$ix]" );
     free()->add("    ($sym)->op_type = OP_NULL;");
     do_labels( $op, $level + 1, 'first' );

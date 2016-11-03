@@ -98,18 +98,6 @@ our %all_bc_subs = map { $_ => 1 } qw(B::AV::save B::BINOP::save B::BM::save B::
 # uses now @B::C::Flags::deps
 our %all_bc_deps = map { $_ => 1 } @B::C::Flags::deps;
 
-# B::C stash footprint: mainly caused by blib, warnings, and Carp loaded with DynaLoader
-# perl5.15.7d-nt -MO=C,-o/dev/null -MO=Stash -e0
-# -umain,-ure,-umro,-ustrict,-uAnyDBM_File,-uFcntl,-uRegexp,-uoverload,-uErrno,-uExporter,-uExporter::Heavy,-uConfig,-uwarnings,-uwarnings::register,-uDB,-unext,-umaybe,-umaybe::next,-uFileHandle,-ufields,-uvars,-uAutoLoader,-uCarp,-uSymbol,-uPerlIO,-uPerlIO::scalar,-uSelectSaver,-uExtUtils,-uExtUtils::Constant,-uExtUtils::Constant::ProxySubs,-uthreads,-ubase
-# perl5.15.7d-nt -MErrno -MO=Stash -e0
-# -umain,-ure,-umro,-ustrict,-uRegexp,-uoverload,-uErrno,-uExporter,-uExporter::Heavy,-uwarnings,-uwarnings::register,-uConfig,-uDB,-uvars,-uCarp,-uPerlIO,-uthreads
-# perl5.15.7d-nt -Mblib -MO=Stash -e0
-# -umain,-ure,-umro,-ustrict,-uCwd,-uRegexp,-uoverload,-uFile,-uFile::Spec,-uFile::Spec::Unix,-uDos,-uExporter,-uExporter::Heavy,-uConfig,-uwarnings,-uwarnings::register,-uDB,-uEPOC,-ublib,-uScalar,-uScalar::Util,-uvars,-uCarp,-uVMS,-uVMS::Filespec,-uVMS::Feature,-uWin32,-uPerlIO,-uthreads
-# perl -MO=Stash -e0
-# -umain,-uTie,-uTie::Hash,-ure,-umro,-ustrict,-uRegexp,-uoverload,-uExporter,-uExporter::Heavy,-uwarnings,-uDB,-uCarp,-uPerlIO,-uthreads
-# pb -MB::Stash -e0
-# -umain,-ure,-umro,-uRegexp,-uPerlIO,-uExporter,-uDB
-
 our ( $package_pv, @package_pv );    # global stash for methods since 5.13
 our ( %xsub,       %init2_remap );
 our ($staticxs);
@@ -125,48 +113,12 @@ our $unresolved_count = 0;
 
 # options and optimizations shared with B::CC
 our ( $init_name, %savINC, %curINC, $mainfile, @static_free );
-our (
-    $optimize_ppaddr, $optimize_warn_sv, $use_perl_script_name,
-    $save_data_fh, $optimize_cop, $av_init, $av_init2, $ro_inc, $destruct,
-    $fold, $warnings, $const_strings, $stash, $can_delete_pkg, $pv_copy_on_grow, $dyn_padlist,
-    $walkall
-);
 
-our %option_map = (
-
-    #ignored until IsCOW has a seperate COWREFCNT field (5.22 maybe)
-    'cog'             => \$B::C::pv_copy_on_grow,
-    'const-strings'   => \$B::C::const_strings,
-    'save-data'       => \$B::C::save_data_fh,
-    'ppaddr'          => \$B::C::optimize_ppaddr,
-    'walkall'         => \$B::C::walkall,
-    'warn-sv'         => \$B::C::optimize_warn_sv,
-    'av-init'         => \$B::C::av_init,
-    'av-init2'        => \$B::C::av_init2,
-    'delete-pkg'      => \$B::C::can_delete_pkg,
-    'ro-inc'          => \$B::C::ro_inc,
-    'stash'           => \$B::C::stash,                          # enable with -fstash
-    'destruct'        => \$B::C::destruct,                       # disable with -fno-destruct
-    'fold'            => \$B::C::fold,                           # disable with -fno-fold
-    'warnings'        => \$B::C::warnings,                       # disable with -fno-warnings
-    'use-script-name' => \$use_perl_script_name,
-    'save-sig-hash'   => sub { B::C::Save::Signals::set(@_) },
-    'dyn-padlist'     => \$B::C::dyn_padlist,                    # with -O4, needed for cv cleanup with non-local exits since 5.18
-    'cop'             => \$optimize_cop,                         # XXX very unsafe!
-                                                                 # Better do it in CC, but get rid of
-                                                                 # NULL cops also there.
-);
-our %optimization_map = (
-    0 => [qw()],                                                        # special case
-    1 => [qw(-fppaddr -fav-init2)],                                     # falls back to -fav-init
-    2 => [qw(-fro-inc -fsave-data)],
-    3 => [qw(-fno-destruct -fconst-strings -fno-fold -fno-warnings)],
-    4 => [qw(-fcop -fno-dyn-padlist)],
-);
+our $const_strings = 1;    # TODO: This var needs to go away.
 
 our @xpvav_sizes;
 our ($in_endav);
-my %static_core_pkg;                                                    # = map {$_ => 1} static_core_packages();
+my %static_core_pkg;       # = map {$_ => 1} static_core_packages();
 
 # used by B::OBJECT
 sub add_to_isa_cache {
@@ -443,14 +395,10 @@ sub padop_name {
         my $t     = $types[$ix];
         if ( defined($t) and ref($t) ne 'B::SPECIAL' ) {
             my $pv = $sv->can("PV") ? $sv->PV : ( $t->can('PVX') ? $t->PVX : '' );
-
-            # need to fix B for SVpad_TYPEDI without formal STASH
-            my $stash = ( ref($t) eq 'B::PVMG' and ref( $t->SvSTASH ) ne 'B::SPECIAL' ) ? $t->SvSTASH->NAME : '';
             return $pv;
         }
         elsif ($sv) {
-            my $pv    = $sv->PV          if $sv->can("PV");
-            my $stash = $sv->STASH->NAME if $sv->can("STASH");
+            my $pv = $sv->PV if $sv->can("PV");
             return $pv;
         }
     }
@@ -802,8 +750,6 @@ sub mark_package {
               if !is_package_used($package)
               and verbose();
             mark_package_used($package);
-
-            walk_syms($package) if !$B::C::walkall;    # fixes i27-1
         }
         my @isa = get_isa($package);
         if (@isa) {
@@ -910,7 +856,7 @@ sub skip_pkg {
 # i.e. not defined in B::C or O. Just to be on the safe side.
 sub can_delete {
     my $pkg = shift;
-    if ( exists $all_bc_deps{$pkg} and $B::C::can_delete_pkg ) { return 1 }
+    if ( exists $all_bc_deps{$pkg} ) { return 1 }
     return undef;
 }
 
@@ -1022,10 +968,6 @@ sub inc_cleanup {
             delete $curINC{$package};
             delete_unsaved_hashINC('utf8');
         }
-        elsif ( !$B::C::walkall and !exists $dumped_package{$pkg} ) {
-            delete_unsaved_hashINC($pkg);
-            push @deleted_inc, $pkg;
-        }
     }
 
     # sync %curINC deletions back to %INC
@@ -1042,10 +984,8 @@ sub inc_cleanup {
 
     # issue 340,350: do only on -fwalkall? do it in the main walker step
     # as in branch walkall-early?
-    if ($B::C::walkall) {
-        my $again = dump_rest();
-        inc_cleanup( $rec_cnt++ ) if $again and $rec_cnt < 2;    # maximal 3 times
-    }
+    my $again = dump_rest();
+    inc_cleanup( $rec_cnt++ ) if $again and $rec_cnt < 2;    # maximal 3 times
 
     # final cleanup
     for my $p ( sort keys %INC ) {
@@ -1076,7 +1016,7 @@ sub dump_rest {
             and !exists $dumped_package{$p}
             and !$static_core_pkg{$p}
             and $p !~ /^(threads|main|__ANON__|PerlIO)$/ ) {
-            if ( $p eq 'warnings::register' and !$B::C::warnings ) {
+            if ( $p eq 'warnings::register' ) {
                 delete_unsaved_hashINC('warnings::register');
                 next;
             }
@@ -1170,7 +1110,7 @@ sub save_context {
     }
     my ( $inc_hv, $inc_av );
     {
-        local $B::C::const_strings = 1 if $B::C::ro_inc;
+        local $B::C::const_strings = 1;
         verbose("\%INC and \@INC:");
         init()->add('/* %INC */');
         inc_cleanup(0);
@@ -1278,7 +1218,7 @@ sub save_main_rest {
     my $end_av;
     {
         # >=5.10 need to defer nullifying of all vars in END, not only new ones.
-        local ( $B::C::pv_copy_on_grow, $B::C::const_strings );
+        local ($B::C::const_strings);
         $in_endav = 1;
         debug( 'av' => "Writing end_av" );
         init()->add("/* END block */");
@@ -1311,32 +1251,7 @@ sub save_main_rest {
 
     return if $check;
 
-    # These calls were buried in output statements. They don't belong there so pulling them in front of write for now.
-    if ($B::C::av_init2) {
-        my $last = xpvavsect()->index;
-        my $size = $last + 1;
-        if ($last) {
-            decl()->add("Static void* avchunks[$size];");
-            decl()->add("Static size_t avsizes[$size] = ");
-            my $ptrsize = $Config{ptrsize};
-            my $acc     = "";
-            for ( 0 .. $last ) {
-                if ( $xpvav_sizes[$_] > 0 ) {
-                    $acc .= $xpvav_sizes[$_] * $ptrsize;
-                }
-                else {
-                    $acc .= 3 * $ptrsize;
-                }
-                $acc .= "," if $_ != $last;
-                $acc .= "\n\t" unless ( $_ + 1 ) % 30;
-            }
-            decl()->add("\t{$acc};");
-            init()->add_initav("if (!independent_comalloc( $size, avsizes, avchunks ))");
-            init()->add_initav("    Perl_die(aTHX_ \"panic: AV alloc failed\");");
-        }
-    }
-
-    fixup_ppaddr() if ($optimize_ppaddr);
+    fixup_ppaddr();
 
     my $remap = 0;
     for my $pkg ( sort keys %init2_remap ) {
@@ -1439,8 +1354,6 @@ sub save_main_rest {
     delete $xsub{'DynaLoader'};
     delete $xsub{'UNIVERSAL'};
 
-    verbose("fast_perl_destruct (-fno-destruct)") if $destruct;
-
     my $dynaloader_optimizer = B::C::Optimizer::DynaLoader->new( { 'xsub' => \%xsub, 'skip_package' => \%skip_package, 'curINC' => \%curINC, 'output_file' => $output_file, 'staticxs' => $staticxs } );
     $dynaloader_optimizer->optimize();
 
@@ -1460,31 +1373,26 @@ sub build_template_stash {
     my ( $static_ext, $stashxsubs, $dynaloader_optimizer ) = @_;
 
     my $c_file_stash = {
-        'verbose'                          => verbose(),
-        'debug'                            => B::C::Config::Debug::save(),
-        'creator'                          => "created at " . scalar localtime() . " with B::C $VERSION for $^X",
-        'DEBUG_LEAKING_SCALARS'            => DEBUG_LEAKING_SCALARS(),
-        'have_independent_comalloc'        => $B::C::Flags::have_independent_comalloc,
-        'use_declare_independent_comalloc' => $B::C::Flags::use_declare_independent_comalloc,
-        'av_init2'                         => $av_init2,
-        'destruct'                         => $destruct,
-        'static_ext'                       => $static_ext,
-        'stashxsubs'                       => $stashxsubs,
-        'init_name'                        => $init_name || "perl_init",
-        'gv_index'                         => $gv_index,
-        'init2_remap'                      => \%init2_remap,
-        'HAVE_DLFCN_DLOPEN'                => HAVE_DLFCN_DLOPEN(),
-        'compile_stats'                    => compile_stats(),
-        'nullop_count'                     => $nullop_count,
-        'static_free'                      => \@static_free,
-        'xsub'                             => \%xsub,
-        'curINC'                           => \%curINC,
-        'staticxs'                         => $staticxs,
-        'use_perl_script_name'             => $use_perl_script_name,
-        'all_eval_pvs'                     => \@B::C::InitSection::all_eval_pvs,
-        'TAINT'                            => ( ${^TAINT} ? 1 : 0 ),
-        'devel_peek_needed'                => $devel_peek_needed,
-        'optimizer'                        => {
+        'verbose'               => verbose(),
+        'debug'                 => B::C::Config::Debug::save(),
+        'creator'               => "created at " . scalar localtime() . " with B::C $VERSION for $^X",
+        'DEBUG_LEAKING_SCALARS' => DEBUG_LEAKING_SCALARS(),
+        'static_ext'            => $static_ext,
+        'stashxsubs'            => $stashxsubs,
+        'init_name'             => $init_name || "perl_init",
+        'gv_index'              => $gv_index,
+        'init2_remap'           => \%init2_remap,
+        'HAVE_DLFCN_DLOPEN'     => HAVE_DLFCN_DLOPEN(),
+        'compile_stats'         => compile_stats(),
+        'nullop_count'          => $nullop_count,
+        'static_free'           => \@static_free,
+        'xsub'                  => \%xsub,
+        'curINC'                => \%curINC,
+        'staticxs'              => $staticxs,
+        'all_eval_pvs'          => \@B::C::InitSection::all_eval_pvs,
+        'TAINT'                 => ( ${^TAINT} ? 1 : 0 ),
+        'devel_peek_needed'     => $devel_peek_needed,
+        'optimizer'             => {
             'dynaloader' => $dynaloader_optimizer->stash(),
         }
     };
@@ -1529,8 +1437,6 @@ sub build_template_stash {
 # some ops might not be initialized
 # but it needs to happen before CALLREGCOMP, as a /i calls a compiled utf8::SWASHNEW
 sub fixup_ppaddr {
-    return unless $B::C::optimize_ppaddr;
-
     foreach my $op_section_name ( B::C::File::op_sections() ) {
         my $section = B::C::File::get_sect($op_section_name);
         my $num     = $section->index;
@@ -1649,15 +1555,7 @@ sub compile {
     $DB::single = 1 if defined &DB::DB;
     my ( $option, $opt, $arg );
     my @eval_at_startup;
-    $B::C::can_delete_pkg = 1;
     B::C::Save::Signals::enable();
-    $B::C::destruct         = 1;
-    $B::C::stash            = 0;
-    $B::C::fold             = 1;                             # always include utf8::Cased tables
-    $B::C::warnings         = 1;                             # always include Carp warnings categories and B
-    $B::C::optimize_warn_sv = 1 if $Config{cc} !~ m/^cl/i;
-    $B::C::dyn_padlist      = 1;                             # default is dynamic and safe, disable with -O4
-    $B::C::walkall          = 1;
 
     mark_skip qw(B::C B::C::Flags B::CC B::FAKEOP O
       B::Section B::Pseudoreg B::Shadow B::C::InitSection);
@@ -1759,31 +1657,10 @@ sub compile {
             mark_skip($arg);
         }
         elsif ( $opt eq "f" ) {
-            $arg ||= shift @options;
-            $arg =~ m/(no-)?(.*)/;
-            my $no = defined($1) && $1 eq 'no-';
-            $arg = $no ? $2 : $arg;
-            if ( exists $option_map{$arg} ) {
-                if ( ref $option_map{$arg} eq 'CODE' ) {
-                    $option_map{$arg}->( !$no );
-                }
-                else {
-                    ${ $option_map{$arg} } = !$no;
-                }
-            }
-            else {
-                die "Invalid optimization '$arg'";
-            }
+            die "Invalid option -f";
         }
         elsif ( $opt eq "O" ) {
-            $arg = 1 if $arg eq "";
-            my @opt;
-            foreach my $i ( 1 .. $arg ) {
-                push @opt, @{ $optimization_map{$i} }
-                  if exists $optimization_map{$i};
-            }
-            unshift @options, @opt;
-            verbose( "options :", @opt );
+            die "Invalid option -O";
         }
         elsif ( $opt eq "e" ) {
             push @eval_at_startup, $arg;
@@ -1791,18 +1668,6 @@ sub compile {
         elsif ( $opt eq "l" ) {
             set_max_string_len($arg);
         }
-    }
-    if ( !$B::C::Flags::have_independent_comalloc ) {
-        if ($B::C::av_init2) {
-            $B::C::av_init  = 1;
-            $B::C::av_init2 = 0;
-        }
-        elsif ($B::C::av_init) {
-            $B::C::av_init2 = 0;
-        }
-    }
-    elsif ( $B::C::av_init2 and $B::C::av_init ) {
-        $B::C::av_init = 0;
     }
 
     B::C::File::new($output_file);    # Singleton.

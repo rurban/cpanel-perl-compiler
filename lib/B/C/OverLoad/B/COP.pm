@@ -45,13 +45,11 @@ sub save {
         # XXX No idea how a &sv_list[] came up here, a re-used object. Anyway.
         $warn_sv = substr( $warn_sv, 1 ) if substr( $warn_sv, 0, 3 ) eq '&sv';
         $warn_sv = $warnsvcast . '&' . $warn_sv;
-        free()->sadd( "    cop_list[%d].cop_warnings = NULL;", $ix )
-          if !$B::C::optimize_warn_sv;
 
         #push @B::C::static_free, sprintf("cop_list[%d]", $ix);
     }
 
-    my $dynamic_copwarn = !$is_special ? 1 : !$B::C::optimize_warn_sv;
+    my $dynamic_copwarn = !$is_special ? 1 : 0;
 
     # Trim the .pl extension, to print the executable name only.
     my $file = $op->file;
@@ -60,8 +58,6 @@ sub save {
     my $add_label = $op->label ? 1 : 0;
 
     copsect()->debug( $op->name, $op );
-    init()->sadd( "cop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr )
-      unless $B::C::optimize_ppaddr;
 
     my $i = 0;
     if ( $op->hints_hash ) {
@@ -128,10 +124,6 @@ sub save {
             # lexwarn<n> might be also be STRLEN* 0
             init()->sadd( "%s = (STRLEN*)savesharedpvn((const char*)%s, sizeof(%s));", $dest, $copw, $copw );
         }
-    }
-    else {
-        init()->sadd( "cop_list[%d].cop_warnings = %s;", $ix, $warn_sv )
-          unless $B::C::optimize_warn_sv;
     }
 
     my $stash = savestashpv( $op->stashpv );

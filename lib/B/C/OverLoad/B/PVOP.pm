@@ -20,8 +20,6 @@ sub save {
     pvopsect()->add( sprintf( "%s, NULL", $op->_save_common ) );
     pvopsect()->debug( $op->name, $op );
     my $ix = pvopsect()->index;
-    init()->add( sprintf( "pvop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
-      unless $B::C::optimize_ppaddr;
 
     my ( $cstring, $cur, $utf8 ) = strlen_flags( $op->pv );    # utf8 in op_private as OPpPV_IS_UTF8 (0x80)
 

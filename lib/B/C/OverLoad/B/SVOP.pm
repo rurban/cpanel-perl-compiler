@@ -61,8 +61,6 @@ sub save {
     svopsect()->add( sprintf( "%s, %s", $op->_save_common, ( $is_const_addr ? $svsym : "Nullsv /* $svsym */" ) ) );
     svopsect()->debug( $op->name, $op );
     my $ix = svopsect()->index;
-    init()->add( sprintf( "svop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
-      unless $B::C::optimize_ppaddr;
     init()->add("svop_list[$ix].op_sv = (SV*) $svsym;")
       unless $is_const_addr;
     savesym( $op, "(OP*)&svop_list[$ix]" );

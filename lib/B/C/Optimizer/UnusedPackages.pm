@@ -76,10 +76,6 @@ sub optimize {
     @dumped = grep { $B::C::dumped_package{$_} and $_ ne 'main' } sort keys %B::C::dumped_package;
     verbose( "old unused: %d, new: %d, dumped: %d", scalar @init_unused, scalar @unused, scalar @dumped );
 
-    if ( !$B::C::walkall ) {
-        @unused = @init_unused = ();
-    }
-    else {
         my $done;
 
         do {
@@ -88,7 +84,6 @@ sub optimize {
             @dumped = grep { $B::C::dumped_package{$_} and $_ ne 'main' } sort keys %B::C::dumped_package;
         } while @unused > @dumped and $done;
         last if $walkall_cnt++ > 3;
-    }
 
     #} while @unused > @init_unused;
 
@@ -104,21 +99,11 @@ sub optimize {
            exists( $INC{'unicore/To/Title.pl'} )
         or exists( $INC{'unicore/To/Tc.pl'} )    #242
         or exists( $INC{'unicore/Heavy.pl'} )    #242
-        or ( $B::C::savINC{'utf8_heavy.pl'} and ( $B::C::fold or exists( $B::C::savINC{'utf8.pm'} ) ) )
+        or ( $B::C::savINC{'utf8_heavy.pl'} and exists( $B::C::savINC{'utf8.pm'} ) )
       ) {
         require "utf8.pm" unless $B::C::savINC{"utf8.pm"};
         mark_package('utf8');
         B::C::load_utf8_heavy();
-    }
-
-    # run-time Carp
-    # With -fno-warnings we don't insist on initializing warnings::register_categories and Carp.
-    # Until it is compile-time required.
-    # 68KB exe size 32-bit
-    if ( $B::C::warnings and exists $B::C::dumped_package{Carp} ) {
-        svref_2object( \&{"warnings\::register_categories"} )->save;    # 68Kb 32bit
-        add_hashINC("warnings");
-        add_hashINC("warnings::register");
     }
 
     #196 missing INIT

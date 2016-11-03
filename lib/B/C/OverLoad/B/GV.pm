@@ -231,8 +231,6 @@ sub save_egv {
 sub save_gv_file {
     my ( $gv, $fullname, $sym ) = @_;
 
-    return if $B::C::optimize_cop;
-
     # XXX Maybe better leave it NULL or asis, than fighting broken
     my $file = save_shared_he( $gv->FILE );
     return if ( !$file or $file eq 'NULL' );
@@ -591,16 +589,12 @@ sub save_gv_io {
     return unless $$gvio;
 
     my $is_data;
-    if ( $fullname eq 'main::DATA' or ( $fullname =~ m/::DATA$/ and $B::C::save_data_fh ) ) {
+    if ( $fullname eq 'main::DATA' or ( $fullname =~ m/::DATA$/ ) ) {
         no strict 'refs';
         my $fh = *{$fullname}{IO};
         use strict 'refs';
         $is_data = 'is_DATA';
         $gvio->save_data( $sym, $fullname, <$fh> ) if $fh->opened;
-    }
-    elsif ( $fullname =~ m/::DATA$/ && !$B::C::save_data_fh ) {
-        $is_data = 'is_DATA';
-        WARN("Warning: __DATA__ handle $fullname not stored. Need -O2 or -fsave-data.");
     }
 
     $gvio->save( $fullname, $is_data );
@@ -746,7 +740,7 @@ sub get_savefields {
         $savefields &= ~Save_IO;
     }
 
-    $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym && ( !$B::C::stash or $fullname !~ /::$/ ) );
+    $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym );
 
     $savefields &= Save_SV if $gvname eq '\\';
 
@@ -764,7 +758,7 @@ sub normalize_filter {
     if ( $fullname =~ /^DynaLoader::dl_(require_symbols|resolve_using|librefs)/ ) {
         $filter = Save_SV | Save_AV | Save_HV;
     }
-    if ( $B::C::ro_inc and $fullname =~ /^main::([1-9])$/ ) {    # ignore PV regexp captures with -O2
+    if ( $fullname =~ /^main::([1-9])$/ ) {    # ignore PV regexp captures with -O2
         $filter = Save_SV;
     }
 
