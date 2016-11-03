@@ -467,32 +467,6 @@ sub mark_skip {
     }
 }
 
-# mark threads::shared to be xs-loaded
-sub mark_threads {
-    if ( $INC{'threads.pm'} ) {
-        my $stash = 'threads';
-        mark_package($stash);
-        $use_xsloader = 1;
-        $xsub{$stash} = 'Dynamic-' . $INC{'threads.pm'};
-        debug( mg => "mark threads for 'P' magic" );
-    }
-    else {
-        debug( mg => "ignore to mark threads for 'P' magic" );
-    }
-    if ( $INC{'threads/shared.pm'} ) {
-        my $stash = 'threads::shared';
-        mark_package($stash);
-
-        # XXX why is this needed? threads::shared should be initialized automatically
-        $use_xsloader = 1;                                        # ensure threads::shared is initialized
-        $xsub{$stash} = 'Dynamic-' . $INC{'threads/shared.pm'};
-        debug( mg => "mark threads::shared for 'P' magic" );
-    }
-    else {
-        debug( mg => "ignore to mark threads::shared for 'P' magic" );
-    }
-}
-
 sub get_isa ($) {
     no strict 'refs';
 

@@ -205,7 +205,6 @@ sub save_magic {
                                            # 5.11 'P' fix in B::IV::save, IV => RV
             $obj = $mg->OBJ;
             $obj->save($fullname) if ( ref $obj ne 'SCALAR' );
-            B::C::mark_threads()  if $type eq 'P';
         }
 
         if ( $len == HEf_SVKEY ) {
@@ -266,7 +265,6 @@ CODE1
         }
         elsif ( $type eq 'n' ) {    # shared_scalar is from XS dist/threads-shared
                                     # XXX check if threads is loaded also? otherwise it is only stubbed
-            B::C::mark_threads();
             init()->add(
                 sprintf(
                     "sv_magic((SV*)s\\_%x, Nullsv, %s, %s, %d);",
