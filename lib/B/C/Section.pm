@@ -6,12 +6,6 @@ use strict;
 use B::C::Config::Debug ();
 my %sections;
 
-# This isn't really a method. It's used to find another section if you don't know it.
-sub get {
-    my ( $class, $section ) = @_;
-    return $sections{$section};
-}
-
 sub new {
     my ( $class, $section, $symtable, $default ) = @_;
 
