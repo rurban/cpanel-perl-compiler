@@ -295,9 +295,6 @@ sub IsCOW_hek {
 
 }
 
-# dummy for B::C, only needed for B::CC
-sub label { }
-
 # save alternate ops if defined, and also add labels (needed for B::CC)
 sub do_labels ($$@) {
     my $op    = shift;
@@ -307,7 +304,7 @@ sub do_labels ($$@) {
         no strict 'refs';
         my $mo = $op->$m if $m;
         if ( $mo and $$mo ) {
-            label($mo);
+            $mo;
             $mo->save($level)
               if $m ne 'first'
               or ( $op->flags & 4

@@ -101,8 +101,9 @@ sub save {
     if ($add_label) {
 
         # test 29 and 15,16,21. 44,45
-        my ( $cstring, $cur, $utf8 ) = strlen_flags( $op->label );
-        WARN("utf8 label $cstring");
+        my $label = $op->label;
+        my ( $cstring, $cur, $utf8 ) = strlen_flags($label);
+        $utf8 = 'SVf_UTF8' if $cstring =~ qr{\\[0-9]};    # help a little utf8, maybe move it to strlen_flags
         init()->sadd(
             "Perl_cop_store_label(aTHX_ &cop_list[%d], %s, %u, %s);",
             $ix, $cstring, $cur, $utf8

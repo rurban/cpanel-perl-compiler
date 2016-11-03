@@ -403,26 +403,6 @@ U32
 RX_EXTFLAGS(rx)
 	  B::REGEXP rx
 
-MODULE = B	PACKAGE = B::COP	PREFIX = COP_
-
-#ifdef CopLABEL_len_flags
-
-SV*
-COP_label(o)
-    B::OP  o
-PPCODE:
-    {
-      STRLEN len;
-      U32 flags;
-      const char *pv = CopLABEL_len_flags(cCOPo, &len, &flags);
-      PERL_UNUSED_VAR(RETVAL);
-      ST(0) = pv ? sv_2mortal(newSVpvn_flags(pv, len, flags))
-                 : &PL_sv_undef;
-    }
-    XSRETURN(1);
-
-#endif
-
 MODULE = B__CC	PACKAGE = B::CC
 
 PROTOTYPES: DISABLE
