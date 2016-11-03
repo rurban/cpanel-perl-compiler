@@ -304,7 +304,6 @@ sub do_labels ($$@) {
         no strict 'refs';
         my $mo = $op->$m if $m;
         if ( $mo and $$mo ) {
-            $mo;
             $mo->save($level)
               if $m ne 'first'
               or ( $op->flags & 4
