@@ -11,7 +11,7 @@ use B::C::Save::Hek qw/save_shared_he/;
 use Exporter ();
 our @ISA = qw(Exporter);
 
-our @EXPORT_OK = qw/savepvn constpv savepv savecowpv inc_pv_index set_max_string_len get_max_string_len savestash_flags savestashpv/;
+our @EXPORT_OK = qw/savepvn constpv savepv savecowpv inc_pv_index savestash_flags savestashpv/;
 
 my %strtable;
 my %cowtable;
@@ -34,7 +34,7 @@ sub savecowpv {
     my $ix = const()->add('FAKE_CONST');
     my $pvsym = sprintf( "cowpv%d", $ix );
 
-    my $max_len = B::C::Save::get_max_string_len();
+    my $max_len = 0;
     if ( $max_len && $cur > $max_len ) {
         my $chars = join ', ', map { cchar $_ } split //, pack( "a*", $pv );
         const()->update( $ix, sprintf( "Static const char %s[] = { %s };", $pvsym, $chars ) );
@@ -51,18 +51,6 @@ sub constpv {                         # could also safely use a cowpv
     return savepv( shift, 1 );
 }
 
-{
-    my $_MAX_STR_LEN;
-
-    sub set_max_string_len {
-        $_MAX_STR_LEN = shift;
-    }
-
-    sub get_max_string_len {
-        return $_MAX_STR_LEN || 0;
-    }
-}
-
 sub savepv {
     my $pv    = shift;
     my $const = shift;
@@ -71,7 +59,7 @@ sub savepv {
     return $strtable{$cstring} if defined $strtable{$cstring};
     my $pvsym = sprintf( "pv%d", inc_pv_index() );
     $const = $const ? " const" : "";
-    my $maxlen = get_max_string_len;
+    my $maxlen = 0;
     if ( $maxlen && $len > $maxlen ) {
         my $chars = join ', ', map { cchar $_ } split //, pack( "a*", $pv );
         decl()->add( sprintf( "Static%s char %s[] = { %s };", $const, $pvsym, $chars ) );
@@ -90,7 +78,7 @@ sub savepvn {
     my ( $dest, $pv, $sv, $cur ) = @_;
     my @init;
 
-    my $maxlen = get_max_string_len();
+    my $maxlen = 0;
 
     $pv = pack "a*", $pv if defined $pv;
     if ( $maxlen && length($pv) > $maxlen ) {

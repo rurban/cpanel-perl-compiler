@@ -14,18 +14,6 @@ sub get_symtable_ref {
     return \%SYMTABLE;
 }
 
-{
-    my $warn_undefined_syms;
-
-    sub enable_warnings {
-        $warn_undefined_syms = 1;
-    }
-
-    sub use_warnings {
-        return $warn_undefined_syms;
-    }
-}
-
 # todo move all the sym to helper
 sub savesym {
     my ( $obj, $value ) = @_;
@@ -51,7 +39,7 @@ sub getsym {
         return $value;
     }
     else {
-        warn "warning: undefined symbol $sym\n" if use_warnings();
+        warn "warning: undefined symbol $sym\n" if $B::C::settings->{'warn_undefined_syms'};
         return "UNUSED";
     }
 }

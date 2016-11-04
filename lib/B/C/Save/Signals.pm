@@ -6,14 +6,12 @@ use B::C::Helpers qw/strlen_flags/;
 use B::C::File qw( init );
 use B::C::Config;    # import everything
 
-my $status = 0;
-
 sub is_enabled {
-    return $status;
+    return $B::C::settings->{'signals'};
 }
 
 sub set {
-    return $status = shift;
+    return $B::C::settings->{'signals'} = shift;
 }
 
 sub enable {

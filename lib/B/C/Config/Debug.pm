@@ -194,4 +194,41 @@ sub debug {
     return $debug_on;
 }
 
+# maint entry points
+sub setup_debug {
+    my ( $level, $verbose ) = @_;
+
+    enable_verbose() if $verbose;
+    return unless defined $level && length $level;
+
+    if ( enable_debug_level($level) ) {
+        WARN("Enable debug mode: $level");
+    }
+    foreach my $level ( split( //, $level ) ) {
+        next if enable_debug_level($level);
+        if ( $level eq "o" ) {
+            enabe_verbose();
+            B->debug(1);
+        }
+        elsif ( $level eq "F" ) {
+            enable_debug_level('flags');
+            $B::C::all_bc_deps{'B::Flags'}++;
+        }
+        elsif ( $level eq "r" ) {
+            enable_debug_level('runtime');
+            $SIG{__WARN__} = sub {
+                WARN(@_);
+                my $s = join( " ", @_ );
+                chomp $s;
+                B::C::File::init()->add( "/* " . $s . " */" ) if init();
+            };
+        }
+        else {
+            WARN("ignoring unknown debug option: $level");
+        }
+    }
+
+    return;
+}
+
 1;

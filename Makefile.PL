@@ -39,7 +39,7 @@ my ( $extra_cflags, $extra_libs ) = ( "", "" );
 
 sub b_c_deps {
     my $X = $^X =~ m/\s/ ? qq{"$^X"} : $^X;
-    return `$X -Ilib -mB::C -mO -MB -e'B::C::collect_deps()'`;
+    return `$X -Ilib -mB::C -mO -MB -e'B::C::load_heavy(); B::C::collect_deps()'`;
 }
 
 sub write_b_c_flags {
