@@ -34,7 +34,7 @@ sub save {
     svsect()->debug( $fullname, $sv );
 
     my $i = svsect()->add( sprintf( "NULL, %lu, 0x%x, {.svu_iv=%s}", $refcnt, $svflags, $ivx ) );
-    my $sym = savesym( $sv, sprintf( "&sv_list[%d]", $i ) );
+    $sym = savesym( $sv, sprintf( "&sv_list[%d]", $i ) );
 
 =pod
     Since 5.24 we can access the IV/NV/UV value from either the union from the main SV body
