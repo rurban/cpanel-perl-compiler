@@ -478,8 +478,7 @@ sub save_gv_format {
 }
 
 sub save_gv_sv {
-
-    my ( $gv, $fullname, $sym, $package, $gvname ) = @_;
+    my ( $gv, $fullname, $sym, $package ) = @_;
 
     my $gvsv = $gv->SV;
     return unless $$gvsv;
@@ -492,7 +491,7 @@ sub save_gv_sv {
         savesym( $gvsv, $pl_core_sv );
     }
 
-    if ( $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
+    if ( $gvname && $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
         debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
         my $rv     = $gvsv->object_2svref();
         my $origsv = $$rv;
