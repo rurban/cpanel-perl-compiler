@@ -300,7 +300,7 @@ CODE1
                 (
                     $pmop
                     ? ( sprintf( "\t((OP**)mg->mg_ptr) [elements++] = (OP*)%s;", $pmsym ) )
-                    : ( defined $pmop_ptr ? sprintf( "\t((OP**)mg->mg_ptr) [elements++] = (OP*)\s\\_%x;", $pmop_ptr ) : '' )
+                    : ( defined $pmop_ptr ? sprintf( "\t((OP**)mg->mg_ptr) [elements++] = (OP*)s\\_%x;", $pmop_ptr ) : '' )
                 ),
                 "\tmg->mg_len = elements * sizeof(PMOP**);",
                 "}"
