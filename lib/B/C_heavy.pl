@@ -451,15 +451,6 @@ sub nextcop {
     return ( $op and ref($op) eq 'B::COP' ) ? $op : undef;
 }
 
-# Maybe move to the unused optimizer
-sub mark_skip {
-    for (@_) {
-        delete_unsaved_hashINC($_);
-
-        $skip_package{$_} = 1 unless is_package_used($_);
-    }
-}
-
 sub get_isa ($) {
     no strict 'refs';
 
