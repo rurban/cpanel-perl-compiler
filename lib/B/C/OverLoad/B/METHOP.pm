@@ -7,6 +7,7 @@ use B::C::File qw( methopsect init );
 use B::C::Config;
 use B::C::Helpers::Symtable qw/objsym savesym/;
 use B::C::Helpers qw/do_labels/;
+use B::C::Save qw/savestashpv/;
 
 sub save {
     my ( $op, $level ) = @_;
@@ -28,7 +29,9 @@ sub save {
         # Put this simple PV into the PL_stashcache, it has no STASH,
         # and initialize the method cache.
         # TODO: backref magic for next, init the next::method cache
-        init()->add( sprintf( "Perl_mro_method_changed_in(aTHX_ gv_stashsv(%s, GV_ADD));", $rclass ) );
+        my $name =  $op->rclass()->PV();
+        my $sym = savestashpv( $name );
+        init()->add( sprintf( "Perl_mro_method_changed_in(%s);  /* %s */", $sym, $name) );
     }
     my $first = $op->name eq 'method' ? $op->first->save : $op->meth_sv->save;
     if ( $first =~ /^&sv_list/ ) {

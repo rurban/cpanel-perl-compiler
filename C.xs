@@ -186,6 +186,13 @@ PPCODE:
     else
       PUSHi(0);
 
+void
+RECALC_SVf_AMAGIC(hv)
+    B::HV hv
+PPCODE:
+    Gv_AMG(hv);
+    XSRETURN_UNDEF;
+
 MODULE = B	PACKAGE = B::UNOP_AUX
 
 SV*

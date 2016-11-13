@@ -56,6 +56,13 @@ sub save {
         $sym = savestashpv( $name, $no_gvadd );    # inc hv_index
         savesym( $hv, $sym );
 
+        # SVf_AMAGIC is set on almost every stash until it is
+        # used.  This forces a transversal of the stash to remove
+        # the flag if its not actually needed.
+        if ( $hv->FLAGS & SVf_AMAGIC and length($name) ) {
+          $hv->RECALC_SVf_AMAGIC();
+        }
+
         # fix overload stringify
         if ( $hv->FLAGS & SVf_AMAGIC and length($name) ) {
             init2()->add( sprintf( "mro_isa_changed_in(%s);  /* %s */", $sym, $name ) );
