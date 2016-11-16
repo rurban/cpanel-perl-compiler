@@ -31,6 +31,7 @@ if ( $0 =~ m{/template\.pl$} ) {
 my $optimization = '';
 $optimization .= '-v,'     if ( $ENV{VERBOSE} );
 $optimization .= '-Dwalk,' if ( $ENV{BC_WALK} );
+$optimization .= '-staticxs,';
 
 # Setup file_to_test to be the file we actually want to test.
 my ( $file_to_test, $path ) = fileparse($0);
