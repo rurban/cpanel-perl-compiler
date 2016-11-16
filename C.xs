@@ -186,12 +186,12 @@ PPCODE:
     else
       PUSHi(0);
 
-void
-RECALC_SVf_AMAGIC(hv)
-    B::HV hv
-PPCODE:
-    Gv_AMG(hv);
-    XSRETURN_UNDEF;
+IV
+Gv_AMG(stash)
+    B::HV stash
+CODE:
+    XSRETURN_IV((!SvREADONLY(stash) && Gv_AMG(stash)) ? 1 : 0);
+
 
 MODULE = B	PACKAGE = B::UNOP_AUX
 
