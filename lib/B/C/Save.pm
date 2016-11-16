@@ -119,18 +119,29 @@ sub savepvn {
 
 sub _caller_comment {
     return '' unless debug('stack');
+    my $s = stack_flat(+1);
+    return qq{/* $s */};
+}
 
-    my $s = '';
+sub stack {
+    my @stack;
     foreach my $level ( 0 .. 20 ) {
         my @caller = grep { defined } caller($level);
         @caller = map { $_ =~ s{/usr/local/cpanel/3rdparty/perl/5[0-9]+/lib64/perl5/cpanel_lib/x86_64-linux-64int/}{lib/}; $_ } @caller;
 
         last if !scalar @caller or !defined $caller[0];
-        $s .= join ' ', @caller;
-        $s .= "\n";
+        push @stack, join( ' ', @caller );
     }
 
-    return qq{/* $s */};
+    return \@stack;
+}
+
+sub stack_flat {
+    my $remove = shift || 0;    # number of stack levels to remove
+    $remove += 2;
+    my @stack = @{ stack() };
+    splice( @stack, 0, $remove );    # shift the first X elements
+    return join "\n", @stack;
 }
 
 # performance optimization:
