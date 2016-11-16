@@ -131,10 +131,10 @@ xtestc/0309.t                TESTS     Output is: ""
 xtestc/0317.t                TESTS     Output is: ""
 xtestc/0319.t                TESTS     Output is: "Wide character in print at ..."
 xtestc/0329.t                TESTS     Output is: "axxxx \n"
-xtestc/0350.t                BC        xtestc/0350.c is generated (-v,)
+xtestc/0350.t                TESTS     Output is: ""
 xtestc/0368.t                TESTS     Output is: ""
 xtestc/0369.t                TESTS     Output is: ""
-xtestc/0371.t                BC        xtestc/0371.c is generated (-v,)
+xtestc/0371.t                TESTS     Output is: ""
 xtestc/0374.t                BC        xtestc/0374.c is generated (-O3,-fno-fold)
 xtestc/1960.t                TESTS     Output is: ""
 xtestc/2052.t                TESTS     Output is: ""
