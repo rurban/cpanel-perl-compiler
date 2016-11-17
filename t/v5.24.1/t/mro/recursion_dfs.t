@@ -38,10 +38,10 @@ into an infinite loop
     package E;
     our @ISA = qw/D/;
     package D;
-    our @ISA = qw/A B C/;
+    our @ISA = qw/A BB C/;
     package C;
     our @ISA = qw//;
-    package B;
+    package BB;
     our @ISA = qw//;
     package A;
     our @ISA = qw//;
@@ -55,9 +55,9 @@ my @loopies = (
     sub { @C::ISA = qw//; @A::ISA = qw/K/ },
     sub { @A::ISA = qw//; @J::ISA = qw/F K/ },
     sub { @J::ISA = qw/F/; @H::ISA = qw/K G/ },
-    sub { @H::ISA = qw/G/; @B::ISA = qw/B/ },
+    sub { @H::ISA = qw/G/; @BB::ISA = qw/BB/ },
     sub { @B::ISA = qw//; @K::ISA = qw/K J I/ },
-    sub { @K::ISA = qw/J I/; @D::ISA = qw/A H B C/ },
+    sub { @K::ISA = qw/J I/; @D::ISA = qw/A H BB C/ },
 );
 
 foreach my $loopy (@loopies) {
