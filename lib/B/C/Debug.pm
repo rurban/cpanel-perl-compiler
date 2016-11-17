@@ -196,40 +196,45 @@ sub debug {
 
 # maint entry points
 sub setup_debug {
-    my ( $level, $verbose ) = @_;
+    my ( $levels_str, $verbose ) = @_;
 
     enable_verbose() if $verbose;
-    return unless defined $level && length $level;
+    return unless defined $levels_str && length $levels_str;
 
-    if ( enable_debug_level($level) ) {
-        WARN("Enable debug mode: $level");
-        return 1;
-    }
-    foreach my $level ( split( //, $level ) ) {
-        next if enable_debug_level($level);
-        if ( $level eq "o" ) {
-            enabe_verbose();
-            B->debug(1);
+    my @levels = split( /\./, $levels_str );
+    my $use_a_valid_level;
+    foreach my $level (@levels) {
+        if ( enable_debug_level($level) ) {
+            WARN("Enable debug mode: $level");
+            $use_a_valid_level = 1;
+            next;
         }
-        elsif ( $level eq "F" ) {
-            enable_debug_level('flags');
-            $B::C::all_bc_deps{'B::Flags'}++;
-        }
-        elsif ( $level eq "r" ) {
-            enable_debug_level('runtime');
-            $SIG{__WARN__} = sub {
-                WARN(@_);
-                my $s = join( " ", @_ );
-                chomp $s;
-                B::C::File::init()->add( "/* " . $s . " */" ) if init();
-            };
-        }
-        else {
-            WARN("ignoring unknown debug option: $level");
+        foreach my $level ( split( //, $level ) ) {
+            next if enable_debug_level($level);
+            if ( $level eq "o" ) {
+                enabe_verbose();
+                B->debug(1);
+            }
+            elsif ( $level eq "F" ) {
+                enable_debug_level('flags');
+                $B::C::all_bc_deps{'B::Flags'}++;
+            }
+            elsif ( $level eq "r" ) {
+                enable_debug_level('runtime');
+                $SIG{__WARN__} = sub {
+                    WARN(@_);
+                    my $s = join( " ", @_ );
+                    chomp $s;
+                    B::C::File::init()->add( "/* " . $s . " */" ) if init();
+                };
+            }
+            else {
+                WARN("ignoring unknown debug option: $level");
+            }
         }
     }
 
-    return;
+    return $use_a_valid_level;
 }
 
 1;

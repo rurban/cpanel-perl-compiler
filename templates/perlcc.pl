@@ -251,6 +251,7 @@ sub parse_argv {
     if ( defined $Options->{debug} ) {
         $Options->{debug} =~ s{^=+}{};
         $Options->{debug} = 'full' if !length $Options->{debug};
+        $Options->{debug} =~ s{,}{.}g; # comma is already used
         $Options->{Wb} = $Options->{Wb} ? $Options->{Wb} . ',' : '';
         $Options->{Wb} .= '-D' . $Options->{debug};
         $Options->{S} = 1;
