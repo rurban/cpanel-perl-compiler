@@ -270,7 +270,7 @@ sub save_gv_with_gp {
     my $was_emptied;
 
     if ( !$gv->isGV_with_GP ) {
-        init()->sadd( "$sym = " . gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) . ";" );
+        init()->sadd( "%s = %s;", $sym, gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) );
         return;
     }
 
