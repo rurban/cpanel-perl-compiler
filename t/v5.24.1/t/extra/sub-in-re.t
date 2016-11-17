@@ -10,6 +10,6 @@ sub kt {
 my $re;
 our $grabit = qr/ ([0-6][0-9]{7}) (??{ kt $1 }) [890] /x;
 $re = qr/^ ( (??{ $grabit }) ) $ /x;
-        
+
 my @res = '0902862349' =~ $re;
-print "ok 1 - PL_curpm is set properly on nested eval\n" if join ("-", @res) eq "0902862349";
+print "ok 1 - PL_curpm is set properly on nested eval\n" if join( "-", @res ) eq "0902862349";
