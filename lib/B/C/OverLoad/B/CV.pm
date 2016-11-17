@@ -78,7 +78,7 @@ sub save {
 
         # XXX not needed, we already loaded utf8_heavy
         #return if $fullname eq 'utf8::AUTOLOAD';
-        return '0' if $B::C::all_bc_subs{$fullname} or B::C::skip_pkg($cvstashname);
+        return '0' if B::C::skip_pkg($cvstashname);
         $CvFLAGS &= ~0x400;    # no CVf_CVGV_RC otherwise we cannot set the GV
         B::C::mark_package( $cvstashname, 1 ) unless is_package_used($cvstashname);
     }
