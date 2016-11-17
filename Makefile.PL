@@ -49,7 +49,7 @@ sub write_b_c_flags {
     open PH, ">", "lib/B/C/Flags.pm";
     print PH "# written by B::C Makefile.PL. \$extra_{cflags,libs} need a leading space if used.\n";
     print PH "package B::C::Flags;\n\n";
-    print PH "\$VERSION = '$version';\n";
+    print PH "our \$VERSION = '$version';\n";
     my $REV = '';
 
     if ( my $sha1 = `git rev-list HEAD -1 --abbrev=7 --abbrev-commit 2>$devnull` ) {
@@ -66,9 +66,9 @@ sub write_b_c_flags {
     print PH "# -fav-init optimization\n";
 
     print PH "# use extra compiler flags, after ccopts, resp. ldopts\n";
-    print PH "\$extra_cflags = \"$extra_cflags\";\n";
-    print PH "\$extra_libs = \"$extra_libs\";\n";
-    print PH "\@deps = qw( ", $b_c_deps, " );\n\n";
+    print PH "our \$extra_cflags = \"$extra_cflags\";\n";
+    print PH "our \$extra_libs = \"$extra_libs\";\n";
+    print PH "our \@deps = qw( ", $b_c_deps, " );\n\n";
 
     $Data::Dumper::Terse    = 1;
     $Data::Dumper::Sortkeys = 1;

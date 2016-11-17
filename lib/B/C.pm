@@ -18,8 +18,6 @@ our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(mark_skip set_callback save_context svop_or_padop_pv inc_cleanup opsect_common fixup_ppaddr);
 
-our $caller = caller;        # So we know how we were invoked.
-
 # can be improved
 our $nullop_count     = 0;
 our $unresolved_count = 0;
