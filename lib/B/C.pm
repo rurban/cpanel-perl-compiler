@@ -45,59 +45,58 @@ sub load_heavy {
 # This is the sub called once the BEGIN state completes.
 # We want to capture stash and %INC information before we go and corrupt it!
 sub build_c_file {
-    parse_options();    # Parses command line options and populates $settings where necessary
+    my (@opts) = @_;
+    parse_options(@opts); # Parses command line options and populates $settings where necessary
     load_heavy();       # Loads B::C_heavy.pl
     start_heavy();      # Invokes into B::C_heavy.pl
 }
 
-
-my @compile_options; # holds args passed to compile for use in build_c_file()
-
 # This is what is called when you do perl -MO=C,....
 # It tells O.pm what to invoke once the program completes the BEGIN state.
 sub compile {
-    @compile_options = @_;
+    my ( @argv ) = @_;
     $DB::single = 1 if defined &DB::DB;
-    return \&build_c_file;
+    return sub { build_c_file(@argv) };
 }
 
 # This parses the options passed to sub compile but not until build_c_file is invoked at the end of BEGIN.
 # It is NOT SAFE to mess with anything outside of the %B::C:: stash
 
 sub parse_options {
+    my ( @opts ) = @_;
     my ( $option, $opt, $arg );
 
-    while ( $option = shift @compile_options ) {
+    while ( $option = shift @opts ) {
         next unless length $option;    # fixes -O=C,,-v,...
         if ( $option =~ /^-(.)(.*)/ ) {
             $opt = $1;
             $arg = $2 || '';
         }
         else {
-            die( "Unexpected options passed to O=C: " . join( ",", @compile_options ) );
+            die( "Unexpected options passed to O=C: " . join( ",", @opts ) );
         }
 
         if ( $opt eq "-" && $arg eq "-" ) {
-            die( "Unexpected options passed to O=C: --" . join( ",", @compile_options ) );
+            die( "Unexpected options passed to O=C: --" . join( ",", @opts ) );
         }
 
         if ( $opt eq "w" ) {
             $settings->{'warn_undefined_syms'} = 1;
         }
         elsif ( $opt eq "D" ) {
-            $arg ||= shift @compile_options;
+            $arg ||= shift @opts;
             $arg =~ s{^=+}{};
             $settings->{'debug_options'} .= $arg;
         }
         elsif ( $opt eq "o" ) {
-            $arg ||= shift @compile_options;
+            $arg ||= shift @opts;
             $settings->{'output_file'} = $arg;
         }
         elsif ( $opt eq "s" and $arg eq "taticxs" ) {
             $settings->{'staticxs'} = 1;
         }
         elsif ( $opt eq "n" ) {
-            $arg ||= shift @compile_options;
+            $arg ||= shift @opts;
             $settings->{'init_name'} = $arg;
         }
         elsif ( $opt eq "m" ) {
@@ -107,7 +106,7 @@ sub parse_options {
             $settings->{'enable_verbose'} = 1;
         }
         elsif ( $opt eq "u" ) {
-            $arg ||= shift @compile_options;
+            $arg ||= shift @opts;
             if ( $arg =~ /\.p[lm]$/ ) {
                 eval "require(\"$arg\");";    # path as string
             }
@@ -117,7 +116,7 @@ sub parse_options {
             $settings->{'used_packages'}->{$arg} = 1;
         }
         elsif ( $opt eq "U" ) {
-            $arg ||= shift @compile_options;
+            $arg ||= shift @opts;
             $settings->{'skip_packages'}->{$arg} = 1;
         }
         else {
@@ -125,7 +124,7 @@ sub parse_options {
         }
     }
 
-    @compile_options and die("Used to call B::C::File::output_all but this sub has been gone for a while!");
+    @opts and die("Used to call B::C::File::output_all but this sub has been gone for a while!");
 
     return;
 }

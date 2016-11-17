@@ -203,6 +203,7 @@ sub setup_debug {
 
     if ( enable_debug_level($level) ) {
         WARN("Enable debug mode: $level");
+        return 1;
     }
     foreach my $level ( split( //, $level ) ) {
         next if enable_debug_level($level);
