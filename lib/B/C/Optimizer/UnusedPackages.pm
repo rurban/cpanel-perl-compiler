@@ -49,8 +49,8 @@ sub optimize {
 
     my $sav_debug;
     if ( debug('unused') ) {
-        $sav_debug = B::C::Config::Debug::save();
-        B::C::Config::Debug::init();
+        $sav_debug = B::C::Debug::save();
+        B::C::Debug::init();
     }
 
     my $main = "main::";
@@ -88,7 +88,7 @@ sub optimize {
     #} while @unused > @init_unused;
 
     if ( $sav_debug->{unused} ) {
-        B::C::Config::Debug::restore($sav_debug);
+        B::C::Debug::restore($sav_debug);
     }
 
     # todo: move B::C:savINC

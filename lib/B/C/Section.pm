@@ -3,7 +3,7 @@ use strict;
 
 # use warnings
 
-use B::C::Config::Debug ();
+use B::C::Debug ();
 my %sections;
 
 sub new {
@@ -122,7 +122,7 @@ sub debug {
 
     # disable the sub when unused
     if ( !defined $debug_flags ) {
-        $debug_flags = B::C::Config::Debug::debug('flags') ? 1 : 0;
+        $debug_flags = B::C::Debug::debug('flags') ? 1 : 0;
         if ( !$debug_flags ) {
 
             # Scoped no warnings without loading the module.
@@ -149,7 +149,7 @@ sub output {
     my $default = $self->default;
 
     my $i = 0;
-    my $dodbg = 1 if B::C::Config::Debug::debug('flags') and $self->{'dbg'};
+    my $dodbg = 1 if B::C::Debug::debug('flags') and $self->{'dbg'};
     if ( $self->name eq 'sv' ) {      #fixup arenaroot refcnt
         my $len = scalar @{ $self->{'values'} };
         $self->{'values'}->[0] =~ s/^NULL, 0/NULL, $len/;
@@ -165,7 +165,7 @@ sub output {
             if ( !exists( $sym->{$1} ) and $1 ne 's\_0' ) {
                 $ref = $1;
                 $B::C::unresolved_count++;
-                B::C::Config::Debug::verbose( "Warning: unresolved " . $self->name . " symbol $ref" );
+                B::C::Debug::verbose( "Warning: unresolved " . $self->name . " symbol $ref" );
             }
         }
         $val =~ s{(s\\_[0-9a-f]+)}{ exists($sym->{$1}) ? $sym->{$1} : $default; }ge;

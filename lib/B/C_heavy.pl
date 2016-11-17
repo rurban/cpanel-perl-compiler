@@ -26,7 +26,7 @@ BEGIN {
 
 use B::Flags;
 use B::C::Config;    # import everything
-use B::C::Config::Debug ();    # used for setting debug levels from cmdline
+use B::C::Debug ();    # used for setting debug levels from cmdline
 
 use B::C::File qw( init2 init0 init decl free
   heksect binopsect condopsect copsect padopsect listopsect logopsect
@@ -106,7 +106,7 @@ sub start_heavy {
     B::C::File::new( $settings->{'output_file'} );    # Singleton.
     B::C::Packages::new();                            # Singleton.
 
-    B::C::Config::Debug::setup_debug( $settings->{'debug_options'}, $settings->{'enable_verbose'} );
+    B::C::Debug::setup_debug( $settings->{'debug_options'}, $settings->{'enable_verbose'} );
 
     save_main();
 
@@ -1336,7 +1336,7 @@ sub build_template_stash {
 
     my $c_file_stash = {
         'verbose'               => verbose(),
-        'debug'                 => B::C::Config::Debug::save(),
+        'debug'                 => B::C::Debug::save(),
         'creator'               => "created at " . scalar localtime() . " with B::C $VERSION for $^X",
         'DEBUG_LEAKING_SCALARS' => DEBUG_LEAKING_SCALARS(),
         'static_ext'            => $static_ext,
