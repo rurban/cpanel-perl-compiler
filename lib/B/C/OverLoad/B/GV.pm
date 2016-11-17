@@ -27,6 +27,21 @@ sub Save_FORM() { 16 }
 sub Save_IO()   { 32 }
 sub Save_FILE() { 64 }
 
+sub _savefields_to_str {
+    my $i = shift;
+    return '' unless debug('gv') && $i;
+    my $s = qq{$i: };
+    $s .= 'HV '   if $i & Save_HV();
+    $s .= 'AV '   if $i & Save_AV();
+    $s .= 'SV '   if $i & Save_SV();
+    $s .= 'CV '   if $i & Save_CV();
+    $s .= 'FORM ' if $i & Save_FORM();
+    $s .= 'IO '   if $i & Save_IO();
+    $s .= 'FILE ' if $i & Save_FILE();
+
+    return $s;
+}
+
 my $CORE_SYMS = {
     'main::ENV'    => 'PL_envgv',
     'main::ARGV'   => 'PL_argvgv',
@@ -164,7 +179,7 @@ sub save {
     return $sym unless $savefields;
 
     # Don't save subfields of special GVs (*_, *1, *# and so on)
-    debug( gv => "GV::save saving subfields $savefields" );
+    debug( gv => "GV::save '%s' saving subfields %s", $fullname, _savefields_to_str($savefields) );
 
     $gv->save_gv_sv( $fullname, $sym, $package ) if $savefields & Save_SV;
 
