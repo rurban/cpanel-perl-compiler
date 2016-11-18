@@ -5,7 +5,6 @@ use B::C::OverLoad::B::BM          ();    # special case
 use B::C::OverLoad::B::CV          ();
 use B::C::OverLoad::B::HV          ();
 use B::C::OverLoad::B::IO          ();
-use B::C::OverLoad::B::IV          ();
 use B::C::OverLoad::B::LEXWARN     ();
 use B::C::OverLoad::B::LISTOP      ();
 use B::C::OverLoad::B::LOGOP       ();
@@ -38,7 +37,7 @@ use B::C::OverLoad::B::UV          ();
 BEGIN {
     require B::C::OP;    # needs to be loaded first: provide common helper for all OPs
 
-    my @OPs = qw{COP BINOP GV};
+    my @OPs = qw{COP BINOP GV IV};
 
     # do not use @ISA, just plug what we need
     foreach my $op (@OPs) {

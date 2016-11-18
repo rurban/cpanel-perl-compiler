@@ -6,13 +6,9 @@ use B qw/SVf_ROK SVf_IOK SVp_IOK SVf_IVisUV/;
 use B::C::Config;
 use B::C::File qw/init svsect/;
 use B::C::Decimal qw/get_integer_value/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 
-sub save {
+sub do_save {
     my ( $sv, $fullname, $custom ) = @_;
-
-    my $sym = objsym($sv);
-    return $sym if defined $sym;
 
     # Since 5.11 the RV is no special SV object anymore, just a IV (test 16)
     my $svflags = $sv->FLAGS;
@@ -34,7 +30,7 @@ sub save {
     svsect()->debug( $fullname, $sv );
 
     my $i = svsect()->add( sprintf( "NULL, %lu, 0x%x, {.svu_iv=%s}", $refcnt, $svflags, $ivx ) );
-    $sym = savesym( $sv, sprintf( "&sv_list[%d]", $i ) );
+    my $sym = sprintf( "&sv_list[%d]", $i );
 
 =pod
     Since 5.24 we can access the IV/NV/UV value from either the union from the main SV body
