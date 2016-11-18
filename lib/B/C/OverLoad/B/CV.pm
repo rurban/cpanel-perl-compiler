@@ -33,13 +33,9 @@ sub is_phase_name {
 
 sub Dummy_initxs { }
 
-sub save {
+sub do_save {
     my ( $cv, $origname ) = @_;
-    my $sym = objsym($cv);
-    if ( defined($sym) ) {
-        debug( cv => "CV 0x%x already saved as $sym\n", $$cv ) if $$cv;
-        return $sym;
-    }
+    my $sym;
     my $gv = $cv->GV;
     my ( $cvname, $cvstashname, $fullname, $isutf8 );
     $fullname = '';
@@ -231,14 +227,14 @@ sub save {
             my $cvi  = "cv" . $cv_index++;
             decl()->add("Static CV* $cvi;");
             init()->add("$cvi = newCONSTSUB( $stsym, $name, (SV*)$vsym );");
-            return savesym( $cv, $cvi );
+            return $cvi;
         }
         elsif ( $sv and ref($sv) =~ /^B::[NRPI]/ ) {
             my $vsym = $sv->save;
             my $cvi  = "cv" . $cv_index++;
             decl()->add("Static CV* $cvi;");
             init()->add("$cvi = newCONSTSUB( $stsym, $name, (SV*)$vsym );");
-            return savesym( $cv, $cvi );
+            return $cvi;
         }
         else {
             verbose("Warning: Undefined const sub $cvstashname::$cvname -> $sv");
