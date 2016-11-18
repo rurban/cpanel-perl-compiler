@@ -6,9 +6,7 @@ use B qw/cstring cchar svref_2object/;
 use B::C::Config;
 use B::C::Save qw(savepv);
 use B::C::File qw/init init2 svsect xpviosect/;
-
 use B::C::Helpers qw/mark_package/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 
 sub save_data {
     my ( $io, $sym, $globname, @data ) = @_;
@@ -36,11 +34,9 @@ sub save_data {
     $B::C::xsub{'PerlIO::scalar'}     = 'Dynamic-' . $INC{'PerlIO/scalar.pm'};    # force dl_init boot
 }
 
-sub save {
+sub do_save {
     my ( $io, $fullname, $is_DATA ) = @_;
 
-    my $sym = objsym($io);
-    return $sym if defined $sym;
     my $pv = $io->PV;
     $pv = '' unless defined $pv;
     my ( $pvsym, $len, $cur );
@@ -88,7 +84,7 @@ sub save {
     );
 
     svsect()->debug( $fullname, $io );
-    $sym = savesym( $io, sprintf( "(IO*)&sv_list[%d]", svsect()->index ) );
+    my $sym = sprintf( "(IO*)&sv_list[%d]", svsect()->index );
 
     if ($cur) {
         init()->add( sprintf( "SvPVX(sv_list[%d]) = %s;", svsect()->index, $pvsym ) );
