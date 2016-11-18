@@ -61,7 +61,7 @@ sub save {
         # the flag if its not actually needed.
         # fix overload stringify
         # Gv_AMG: potentially removes the AMG flag
-        if ( $hv->FLAGS & SVf_AMAGIC and length($name) and $hv->Gv_AMG) {
+        if ( $hv->FLAGS & SVf_AMAGIC and length($name) and $hv->Gv_AMG ) {
             init2()->add( sprintf( "mro_isa_changed_in(%s);  /* %s */", $sym, $name ) );
         }
 

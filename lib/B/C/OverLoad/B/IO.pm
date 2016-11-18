@@ -90,7 +90,7 @@ sub save {
     svsect()->debug( $fullname, $io );
     $sym = savesym( $io, sprintf( "(IO*)&sv_list[%d]", svsect()->index ) );
 
-    if ( $cur ) {
+    if ($cur) {
         init()->add( sprintf( "SvPVX(sv_list[%d]) = %s;", svsect()->index, $pvsym ) );
     }
     my ($field);

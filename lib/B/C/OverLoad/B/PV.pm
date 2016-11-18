@@ -79,15 +79,15 @@ sub save_pv_or_rv {
 
     my ( $static, $shared_hek ) = ( 1, is_shared_hek($sv) );
 
-    $static = 0 if ( ( $sv->FLAGS & ( SVp_SCREAM | SVpbm_VALID ) )== ( SVp_SCREAM | SVpbm_VALID ) );    # ??
+    $static = 0 if ( ( $sv->FLAGS & ( SVp_SCREAM | SVpbm_VALID ) ) == ( SVp_SCREAM | SVpbm_VALID ) );    # ??
     $static = 0 if !( $flags & SVf_ROK ) and $sv->PV and $sv->PV =~ /::bootstrap$/;
 
     if ( $shared_hek && !$static ) {
         my $savesym = 'NULL';
         my ( $is_utf8, $cur ) = read_utf8_string( $sv->PV );
-        my $len = 0;                                                                                 # hek should have len 0
+        my $len = 0;                                                                                     # hek should have len 0
 
-        my $pv = $sv->PV;                                                                            # we know that a shared_hek as POK
+        my $pv = $sv->PV;                                                                                # we know that a shared_hek as POK
 
         return ( $savesym, $cur, $len, $pv, $static, $flags );
     }

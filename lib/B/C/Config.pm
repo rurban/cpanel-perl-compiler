@@ -2,7 +2,7 @@ package B::C::Config;
 
 use strict;
 
-use B::C::Flags         ();
+use B::C::Flags ();
 use B::C::Debug ();
 
 use Exporter ();

@@ -29,9 +29,9 @@ sub save {
         # Put this simple PV into the PL_stashcache, it has no STASH,
         # and initialize the method cache.
         # TODO: backref magic for next, init the next::method cache
-        my $name =  $op->rclass()->PV();
-        my $sym = savestashpv( $name );
-        init()->add( sprintf( "Perl_mro_method_changed_in(%s);  /* %s */", $sym, $name) );
+        my $name = $op->rclass()->PV();
+        my $sym  = savestashpv($name);
+        init()->add( sprintf( "Perl_mro_method_changed_in(%s);  /* %s */", $sym, $name ) );
     }
     my $first = $op->name eq 'method' ? $op->first->save : $op->meth_sv->save;
     if ( $first =~ /^&sv_list/ ) {

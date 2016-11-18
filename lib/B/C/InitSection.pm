@@ -82,7 +82,7 @@ sub add {
     if ( grep { $_ =~ m/\S/ } @_ ) {
 
         my $caller = "@{[(caller(1))[3]]}";
-        if ( $caller =~  m/Section/ ) { # Special handler for sadd calls.
+        if ( $caller =~ m/Section/ ) {    # Special handler for sadd calls.
             $caller = "@{[(caller(2))[3]]}";
         }
 

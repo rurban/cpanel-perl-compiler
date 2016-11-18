@@ -14,10 +14,9 @@ use strict;
 
 # From C.pm
 our %Config;
-our ($VERSION, $caller, $nullop_count, $unresolved_count, $gv_index, $settings );
-our (@ISA, @EXPORT_OK);
-our $const_strings = 1;      # TODO: This var needs to go away.
-
+our ( $VERSION, $caller, $nullop_count, $unresolved_count, $gv_index, $settings );
+our ( @ISA, @EXPORT_OK );
+our $const_strings = 1;    # TODO: This var needs to go away.
 
 BEGIN {
     use B::C::Flags ();
@@ -25,8 +24,8 @@ BEGIN {
 }
 
 use B::Flags;
-use B::C::Config;    # import everything
-use B::C::Debug ();    # used for setting debug levels from cmdline
+use B::C::Config;          # import everything
+use B::C::Debug ();        # used for setting debug levels from cmdline
 
 use B::C::File qw( init2 init0 init decl free
   heksect binopsect condopsect copsect padopsect listopsect logopsect
@@ -37,7 +36,7 @@ use B::C::Helpers qw/set_curcv is_using_mro/;
 use B::C::Helpers::Symtable qw(objsym savesym);
 
 use Exporter ();
-use Errno    ();               #needed since 5.14
+use Errno    ();           #needed since 5.14
 our %Regexp;
 
 # Caller was populated in C.pm
@@ -85,8 +84,8 @@ BEGIN {
     %all_bc_deps = map { $_ => 1 } @B::C::Flags::deps;
 }
 
-our ( $package_pv, @package_pv );    # global stash for methods since 5.13
-our ( %xsub,       %init2_remap );
+our ( $package_pv,     @package_pv );                 # global stash for methods since 5.13
+our ( %xsub,           %init2_remap );
 our ( %dumped_package, %skip_package, %isa_cache );
 
 # fixme move to config

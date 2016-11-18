@@ -31,7 +31,7 @@ sub compile_script {
     my $c_file       = $opts->{c_file}       // die;
     my $bin_file     = $opts->{bin_file}     // die,
 
-    my $cflags = $ENV{'BC_CFLAGS'} // DEFAULT_CCFLAGS;
+      my $cflags = $ENV{'BC_CFLAGS'} // DEFAULT_CCFLAGS;
 
     my $cmd = "$PERL $blib $extra -MO=-qq,C,$optimization-o$c_file $file_to_test 2>&1";
 
@@ -48,7 +48,7 @@ sub compile_script {
     my $harness_opts = '';
     $harness_opts = '-Wall' if $ENV{VERBOSE} && $ENV{WARNINGS};
     $harness_opts .= $ENV{VERBOSE} ? '' : ' -q';
-    $harness_opts .= ' '.$cflags if $cflags;
+    $harness_opts .= ' ' . $cflags if $cflags;
     $cmd = "$PERL $FindBin::Bin/../../../../script/cc_harness $harness_opts $c_file -o $bin_file 2>&1";
     diag $cmd if $ENV{VERBOSE};
     my $compile_output = `$cmd`;
