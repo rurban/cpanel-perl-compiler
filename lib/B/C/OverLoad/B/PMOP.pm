@@ -6,7 +6,6 @@ use B qw/cstring svref_2object RXf_EVAL_SEEN PMf_EVAL/;
 use B::C::Config;
 use B::C::File qw/pmopsect init init1/;
 use B::C::Helpers qw/read_utf8_string strlen_flags/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 
 # Global to this space?
 my ($swash_init);
@@ -14,11 +13,9 @@ my ($swash_init);
 # FIXME really required ?
 sub PMf_ONCE() { 0x10000 };    # PMf_ONCE also not exported
 
-sub save {
+sub do_save {
     my ( $op, $level, $fullname ) = @_;
     my ( $replrootfield, $replstartfield, $gvsym ) = ( 'NULL', 'NULL' );
-    my $sym = objsym($op);
-    return $sym if defined $sym;
 
     $level    ||= 0;
     $fullname ||= '????';
@@ -52,7 +49,7 @@ sub save {
     # segfault when trying to dereference it to find op->op_pmnext->op_type
 
     pmopsect()->comment_common("first, last, pmoffset, pmflags, pmreplroot, pmreplstart");
-    pmopsect()->add(
+    my $ix = pmopsect()->add(
         sprintf(
             "%s, s\\_%x, s\\_%x, %u, 0x%x, {%s}, {%s}",
             $op->_save_common, ${ $op->first },
@@ -63,18 +60,18 @@ sub save {
 
     my $code_list = $op->code_list;
     if ( $code_list and $$code_list ) {
-        debug( gv => "saving pmop_list[%d] code_list $code_list (?{})", pmopsect()->index );
+        debug( gv => "saving pmop_list[%d] code_list $code_list (?{})", $ix );
         my $code_op = $code_list->save;
         if ($code_op) {
 
             # (?{}) code blocks
-            init()->add( sprintf( 'pmop_list[%d].op_code_list = %s;', pmopsect()->index, $code_op ) );
+            init()->sadd( 'pmop_list[%d].op_code_list = %s;', $ix, $code_op );
         }
-        debug( gv => "done saving pmop_list[%d] code_list $code_list (?{})", pmopsect()->index );
+        debug( gv => "done saving pmop_list[%d] code_list $code_list (?{})", $ix );
     }
 
     pmopsect()->debug( $op->name, $op );
-    my $pm = sprintf( "pmop_list[%d]", pmopsect()->index );
+    my $pm = sprintf( "pmop_list[%d]", $ix );
     my $re = $op->precomp;
 
     if ( defined($re) ) {
@@ -145,7 +142,7 @@ sub save {
         init()->add("$pm.op_pmreplrootu.op_pmreplroot = (OP*)$gvsym;");
     }
 
-    return savesym( $op, "(OP*)&$pm" );
+    return "(OP*)&$pm";
 }
 
 1;
