@@ -7,17 +7,13 @@ use B::C::Config;
 use B::C::File qw/init copsect decl/;
 use B::C::Save qw/constpv savestashpv/;
 use B::C::Decimal qw/get_integer_value/;
-use B::C::Helpers::Symtable qw/savesym objsym/;
 use B::C::Helpers qw/read_utf8_string strlen_flags/;
 
 my %cophhtable;
 my %copgvtable;
 
-sub save {
+sub do_save {
     my ( $op, $level ) = @_;
-
-    my $sym = objsym($op);
-    return $sym if defined $sym;
 
     # TODO: if it is a nullified COP we must save it with all cop fields!
     debug( cops => "COP: line %d file %s\n", $op->line, $op->file );
@@ -167,7 +163,7 @@ sub save {
         $op->hints, get_integer_value( $op->cop_seq ), !$dynamic_copwarn ? $warn_sv : 'NULL'
     );
 
-    return savesym( $op, "(OP*)&cop_list[$ix]" );
+    return "(OP*)&cop_list[$ix]";
 }
 
 1;

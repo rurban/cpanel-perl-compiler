@@ -1,9 +1,10 @@
 package B::C::OverLoad;
 
-use B::C::OverLoad::B::AV          ();
-use B::C::OverLoad::B::BINOP       ();
-use B::C::OverLoad::B::BM          ();
-use B::C::OverLoad::B::COP         ();
+use B::C::OverLoad::B::AV    ();
+use B::C::OverLoad::B::BINOP ();
+use B::C::OverLoad::B::BM    ();
+
+#use B::C::OverLoad::B::COP         ();
 use B::C::OverLoad::B::CV          ();
 use B::C::OverLoad::B::GV          ();
 use B::C::OverLoad::B::HV          ();
@@ -37,5 +38,21 @@ use B::C::OverLoad::B::SVOP        ();
 use B::C::OverLoad::B::UNOP        ();
 use B::C::OverLoad::B::UNOP_AUX    ();
 use B::C::OverLoad::B::UV          ();
+
+BEGIN {
+    require B::C::OP;    # needs to be loaded first: provide common helper for all OPs
+
+    my @OPs = qw{COP};
+
+    # do not use @ISA, just plug what we need
+    foreach my $op (@OPs) {
+        no strict 'refs';
+        my $pkg      = qq{B::$op};
+        my $overload = "B::C::OverLoad::$pkg";
+        eval qq{require $overload} or die $@;
+        my $save = $pkg . q{::save};
+        *$save = \&B::C::OP::save;
+    }
+}
 
 1;
