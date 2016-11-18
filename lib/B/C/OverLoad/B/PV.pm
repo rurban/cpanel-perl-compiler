@@ -43,12 +43,11 @@ sub save {
     }
 
     xpvsect()->comment("stash, magic, cur, len");
-    xpvsect()->add( sprintf( "Nullhv, {0}, %u, {%u}", $cur, $len ) );
+    xpvsect()->sadd( "Nullhv, {0}, %u, {%u}", $cur, $len );
 
     svsect()->comment("any, refcnt, flags, sv_u");
     $savesym = $savesym eq 'NULL' ? '0' : ".svu_pv=(char*) $savesym";
-    svsect()->add( sprintf( '&xpv_list[%d], %Lu, 0x%x, {%s}', xpvsect()->index, $refcnt, $flags, $savesym ) );
-    my $sv_ix = svsect()->index;
+    my $sv_ix = svsect()->sadd( '&xpv_list[%d], %Lu, 0x%x, {%s}', xpvsect()->index, $refcnt, $flags, $savesym );
 
     if ( $shared_hek and !$static ) {
         my $hek = save_shared_he( $pv, $fullname );
