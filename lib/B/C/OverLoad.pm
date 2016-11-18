@@ -1,10 +1,7 @@
 package B::C::OverLoad;
 
-use B::C::OverLoad::B::AV    ();
-use B::C::OverLoad::B::BINOP ();
-use B::C::OverLoad::B::BM    ();
-
-#use B::C::OverLoad::B::COP         ();
+use B::C::OverLoad::B::AV          ();
+use B::C::OverLoad::B::BM          ();
 use B::C::OverLoad::B::CV          ();
 use B::C::OverLoad::B::GV          ();
 use B::C::OverLoad::B::HV          ();
@@ -42,7 +39,7 @@ use B::C::OverLoad::B::UV          ();
 BEGIN {
     require B::C::OP;    # needs to be loaded first: provide common helper for all OPs
 
-    my @OPs = qw{COP};
+    my @OPs = qw{COP BINOP};
 
     # do not use @ISA, just plug what we need
     foreach my $op (@OPs) {
