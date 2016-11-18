@@ -4,7 +4,7 @@ use strict;
 our @ISA = qw(B::AV);
 
 use B::C::File qw/init padnamelistsect/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
+use B::C::Helpers::Symtable qw/savesym/;
 
 sub add_to_section {
     my ( $self, $cv ) = @_;
@@ -16,10 +16,9 @@ sub add_to_section {
     my $fill     = $self->fill;
     my $maxnamed = $self->MAXNAMED;
 
-    padnamelistsect->add("$fill, NULL, $fill, $maxnamed, $refcnt /* +1 */");
+    my $ix = padnamelistsect->add("$fill, NULL, $fill, $maxnamed, $refcnt /* +1 */");
 
-    my $padnamelist_index = padnamelistsect()->index;
-    my $sym = savesym( $self, "&padnamelist_list[$padnamelist_index]" );
+    my $sym = savesym( $self, "&padnamelist_list[$ix]" );
 
     return $sym;
 }
@@ -32,7 +31,7 @@ sub add_to_init {
     init()->no_split;
     init()->add("{");
     init()->add("\tregister int gcount;") if $acc =~ qr{\bgcount\b};
-    init()->add( sprintf( "\tPADNAME **svp = INITPADNAME($sym, %d);", $fill1 ) );
+    init()->sadd( "\tPADNAME **svp = INITPADNAME($sym, %d);", $fill1 );
     init()->add( substr( $acc, 0, -2 ) );
     init()->add("}");
     init()->split;
