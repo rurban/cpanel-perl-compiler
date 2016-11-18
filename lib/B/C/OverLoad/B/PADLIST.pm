@@ -4,7 +4,7 @@ use strict;
 our @ISA = qw(B::AV);
 
 use B::C::File qw/init padlistsect/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
+use B::C::Helpers::Symtable qw/savesym/;
 
 sub add_to_section {    # id+outid as U32 (PL_padlist_generation++)
     my ( $self, $cv ) = @_;
@@ -13,8 +13,7 @@ sub add_to_section {    # id+outid as U32 (PL_padlist_generation++)
 
     padlistsect()->comment("xpadl_max, xpadl_alloc, xpadl_id, xpadl_outid");
     my ( $id, $outid ) = ( $self->ID, $self->OUTID );
-    padlistsect()->add("$fill, {NULL}, $id, $outid");
-    my $padlist_index = padlistsect()->index;
+    my $padlist_index = padlistsect()->add("$fill, {NULL}, $id, $outid");
 
     return savesym( $self, "&padlist_list[$padlist_index]" );
 }
@@ -27,7 +26,7 @@ sub add_to_init {
     init()->no_split;
     init()->add("{");
     init()->add("\tregister int gcount;") if $acc =~ qr{\bgcount\b};    # only if gcount is used
-    init()->add( sprintf( "\tPAD **svp = INITPADLIST($sym, %d);", $fill1 ) );
+    init()->sadd( "\tPAD **svp = INITPADLIST($sym, %d);", $fill1 );
     init()->add( substr( $acc, 0, -2 ) );
     init()->add("}");
     init()->split;

@@ -3,7 +3,7 @@ package B::C::OverLoad;
 use B::C::OverLoad::B::BM          ();    # special case
 use B::C::OverLoad::B::LEXWARN     ();    # not using objsym or savesym
 use B::C::OverLoad::B::OBJECT      ();    # nothing to save here
-use B::C::OverLoad::B::PADLIST     ();
+use B::C::OverLoad::B::PADLIST     ();    # uses B::AV::save logic
 use B::C::OverLoad::B::PADNAME     ();
 use B::C::OverLoad::B::PADNAMELIST ();
 use B::C::OverLoad::B::PADOP       ();
