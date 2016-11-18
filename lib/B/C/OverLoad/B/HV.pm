@@ -30,15 +30,14 @@ sub swash_ToCf_value {    # NO idea what it s ??
     return $swash_ToCf;
 }
 
-sub save {
+sub do_save {
     my ( $hv, $fullname ) = @_;
 
     $fullname = '' unless $fullname;
-    my $sym = objsym($hv);
-    return $sym if defined $sym;
     my $name     = $hv->NAME;
     my $is_stash = $name;
     my $magic;
+    my $sym;
 
     if ($name) {
 
@@ -233,6 +232,7 @@ sub save {
     if ( $name and is_using_mro() and mro::get_mro($name) eq 'c3' ) {
         B::C::make_c3($name);
     }
+
     return $sym;
 }
 
