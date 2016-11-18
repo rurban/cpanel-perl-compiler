@@ -8,7 +8,7 @@ use B qw/cstring SVf_IOK SVf_POK SVs_OBJECT/;
 use B::C::Config;
 use B::C::File qw/init init2 xpvavsect svsect/;
 use B::C::Helpers qw/strlen_flags/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
+use B::C::Helpers::Symtable qw/savesym/;
 use B::C::Save qw/savestashpv/;
 
 # maybe need to move to setup/config
@@ -28,11 +28,10 @@ sub cast_sv {
     return "(SV*)";
 }
 
-sub save {
+sub do_save {
     my ( $av, $fullname, $cv ) = @_;
-    my $sym = objsym($av);
-    return $sym if defined $sym;
 
+    my $sym;
     $fullname = '' unless $fullname;
 
     my $fill    = $av->fill();
