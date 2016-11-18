@@ -45,8 +45,6 @@ sub save {
         # XXX No idea how a &sv_list[] came up here, a re-used object. Anyway.
         $warn_sv = substr( $warn_sv, 1 ) if substr( $warn_sv, 0, 3 ) eq '&sv';
         $warn_sv = $warnsvcast . '&' . $warn_sv;
-
-        #push @B::C::static_free, sprintf("cop_list[%d]", $ix);
     }
 
     my $dynamic_copwarn = !$is_special ? 1 : 0;

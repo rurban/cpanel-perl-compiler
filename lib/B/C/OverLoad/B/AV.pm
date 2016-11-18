@@ -63,7 +63,6 @@ sub save {
         # protect against recursive self-references (Getopt::Long)
         $sym = savesym( $av, "(AV*)&sv_list[$sv_ix]" );
         $magic = $av->save_magic($fullname);
-        push @B::C::static_free, $sym if $av->FLAGS & SVs_OBJECT;
     }
 
     debug( av => "saving AV %s 0x%x [%s] FILL=%d", $fullname, $$av, ref($av), $fill );

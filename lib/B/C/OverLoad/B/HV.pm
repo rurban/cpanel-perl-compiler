@@ -187,8 +187,6 @@ sub save {
         )
     );
 
-    push @B::C::static_free, $sym if $hv->FLAGS & SVs_OBJECT;
-
     {    # add hash content even if the hash is empty [ maybe only for %INC ??? ]
         init()->no_split;
         init()->add(

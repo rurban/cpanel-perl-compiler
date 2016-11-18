@@ -92,7 +92,7 @@ our ( %dumped_package, %skip_package, %isa_cache );
 our ( $use_xsloader, $devel_peek_needed );
 
 # options and optimizations shared with B::CC
-our ( %savINC, %curINC, $mainfile, @static_free );
+our ( %savINC, %curINC, $mainfile );
 
 our @xpvav_sizes;
 our $in_endav;
@@ -1346,7 +1346,6 @@ sub build_template_stash {
         'HAVE_DLFCN_DLOPEN'     => HAVE_DLFCN_DLOPEN(),
         'compile_stats'         => compile_stats(),
         'nullop_count'          => $nullop_count,
-        'static_free'           => \@static_free,
         'xsub'                  => \%xsub,
         'curINC'                => \%curINC,
         'staticxs'              => $settings->{'staticxs'},

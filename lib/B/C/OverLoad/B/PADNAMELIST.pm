@@ -20,7 +20,6 @@ sub add_to_section {
 
     my $padnamelist_index = padnamelistsect()->index;
     my $sym = savesym( $self, "&padnamelist_list[$padnamelist_index]" );
-    push @B::C::static_free, $sym;
 
     return $sym;
 }

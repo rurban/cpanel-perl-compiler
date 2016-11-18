@@ -13,10 +13,6 @@ sub save {
     my $sym = objsym($pn);
 
     if ( defined $sym ) {
-        if ($B::C::in_endav) {
-            debug( av => "in_endav: static_free without $sym" );
-            @B::C::static_free = grep { $_ ne $sym } @B::C::static_free;
-        }
         return $sym;
     }
 
@@ -68,8 +64,6 @@ sub save {
 
     init()->add("SvOURSTASH_set($s, $sn);")     unless $sn eq 'Nullsv';
     init()->add("PadnameTYPE($s) = (HV*) $tn;") unless $tn eq 'Nullsv';
-
-    push @B::C::static_free, $s;
 
     return savesym( $pn, $s );
 }

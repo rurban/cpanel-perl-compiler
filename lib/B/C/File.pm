@@ -163,12 +163,6 @@ sub write {
     }
 
     # Used to be buried in output_main_rest();
-    my @possible_static_free_errors = grep { $_ !~ m/^(cop_list|&sv_list|sv_list|&padname_list|&padnamelist_list)|^ptr_undef$/ } @{ $c_file_stash->{'static_free'} };
-    if (@possible_static_free_errors) {
-        WARN("unknown $_ found in \@static_free") foreach @possible_static_free_errors;
-    }
-
-    # Used to be buried in output_main_rest();
     if ( verbose() ) {
         foreach my $stashname ( sort keys %static_ext ) {
             verbose("bootstrapping static $stashname added to xs_init");

@@ -98,9 +98,6 @@ sub savepvn {
             debug( sv => "Saving shared HEK %s to %s\n", cstring($pv), $dest );
             my $shared_he = save_shared_he($pv);
             push @init, sprintf( "%s = %s->shared_he_hek.hek_key;", $dest, $shared_he ) unless $shared_he eq 'NULL';
-            if ( DEBUGGING() ) {    # we have to bypass a wrong HE->HEK assert in hv.c
-                push @B::C::static_free, $dest;
-            }
         }
         else {
             my $cstr = cstring($pv);
