@@ -8,7 +8,6 @@ use B::C::Config;
 use B::C::Debug::Walker qw/walkoptree_debug/;
 use B::C::File qw/svsect init copsect opsect/;
 use B::C::Helpers qw/do_labels mark_package/;
-use B::C::Helpers::Symtable qw/savesym objsym/;
 
 my $OP_CUSTOM = opnumber('custom');
 
@@ -22,17 +21,15 @@ BEGIN {
 my %OP_COP = ( opnumber('nextstate') => 1 );
 debug( cops => %OP_COP );
 
-sub save {
+sub do_save {
     my ( $op, $level ) = @_;
 
-    my $sym = objsym($op);
-    return $sym if defined $sym;
     my $type = $op->type;
     $B::C::nullop_count++ unless $type;
     if ( $type == $B::C::OP_THREADSV ) {
 
         # saves looking up ppaddr but it's a bit naughty to hard code this
-        init()->add( sprintf( "(void)find_threadsv(%s);", cstring( $threadsv_names[ $op->targ ] ) ) );
+        init()->sadd( "(void)find_threadsv(%s);", cstring( $threadsv_names[ $op->targ ] ) );
     }
     if ( $type == $B::C::OP_UCFIRST ) {
         verbose("enabling -ffold with ucfirst");
@@ -58,27 +55,23 @@ sub save {
         debug( cops => "Null COP: %d\n", $op->targ );
 
         copsect()->comment_common("line, stash, file, hints, seq, warnings, hints_hash");
-        copsect()->add(
-            sprintf(
-                "%s, 0, %s, NULL, 0, 0, NULL, NULL",
-                $op->_save_common, "Nullhv"
-            )
+        my $ix = copsect()->sadd(
+            "%s, 0, %s, NULL, 0, 0, NULL, NULL",
+            $op->_save_common, "Nullhv"
         );
 
-        my $ix = copsect()->index;
-        savesym( $op, "(OP*)&cop_list[$ix]" );
+        return "(OP*)&cop_list[$ix]";
     }
     else {
         opsect()->comment( B::C::opsect_common() );
-        opsect()->add( $op->_save_common );
-
+        my $ix = opsect()->add( $op->_save_common );
         opsect()->debug( $op->name, $op );
-        my $ix = opsect()->index;
+
         debug(
             op => "  OP=%s targ=%d flags=0x%x private=0x%x\n",
             peekop($op), $op->targ, $op->flags, $op->private
         );
-        savesym( $op, "&op_list[$ix]" );
+        return "&op_list[$ix]";
     }
 }
 

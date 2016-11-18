@@ -2,8 +2,7 @@ package B::C::OverLoad;
 
 use B::C::OverLoad::B::BM          ();    # special case
 use B::C::OverLoad::B::LEXWARN     ();    # not using objsym or savesym
-use B::C::OverLoad::B::OBJECT      ();
-use B::C::OverLoad::B::OP          ();
+use B::C::OverLoad::B::OBJECT      ();    # nothing to save here
 use B::C::OverLoad::B::PADLIST     ();
 use B::C::OverLoad::B::PADNAME     ();
 use B::C::OverLoad::B::PADNAMELIST ();
@@ -25,10 +24,12 @@ use B::C::OverLoad::B::UNOP_AUX    ();
 use B::C::OverLoad::B::UV          ();
 
 BEGIN {
-    require B::C::OP;    # needs to be loaded first: provide common helper for all OPs
+    # needs to be loaded first: provide common helper for all OPs
+    # 	::save provides the cache mechanism for free, and avoid boilerplates/errors in OPs
+    require B::C::OP;
 
     my @OPs = qw{AV BINOP COP CV GV IV HV IO LISTOP LOGOP LOOP
-      METHOP NULL NV
+      METHOP NULL NV OP
     };
 
     # do not use @ISA, just plug what we need
