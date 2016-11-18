@@ -7,17 +7,14 @@ use B qw/comppadlist/;
 use B::C::Config;
 use B::C::File qw/padopsect init/;
 use B::C::Helpers qw/curcv/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 
-sub save {
+sub do_save {
     my ( $op, $level ) = @_;
 
-    # QUESTION: is it really used now ???
-    # not triggered by the core test suite
+    # QUESTION: is it really used now ??? not triggered by the core test suite
+    #   does not seem to be triggered by cpanel binaries neither
     die "QUESTION: This looks like dead code ?";
 
-    my $sym = objsym($op);
-    return $sym if defined $sym;
     my $skip_defined;
     if ( $op->name eq 'method_named' ) {
         my $cv = B::C::method_named( B::C::svop_or_padop_pv($op), B::C::nextcop($op) );
@@ -50,11 +47,11 @@ sub save {
         }
     }
     padopsect()->comment_common("padix");
-    padopsect()->add( sprintf( "%s, %d", $op->_save_common, $op->padix ) );
+    padopsect()->sadd( "%s, %d", $op->_save_common, $op->padix );
     padopsect()->debug( $op->name, $op );
     my $ix = padopsect()->index;
 
-    return savesym( $op, "(OP*)&padop_list[$ix]" );
+    return "(OP*)&padop_list[$ix]";
 }
 
 1;
