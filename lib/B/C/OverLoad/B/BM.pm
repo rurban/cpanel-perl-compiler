@@ -5,13 +5,13 @@ use strict;
 use B qw/cstring/;
 use B::C::Config;
 use B::C::File qw/init/;
-use B::C::Helpers::Symtable qw/savesym objsym/;
+use B::C::Helpers::Symtable qw/objsym/;
 
 sub save {
     my ( $sv, $fullname ) = @_;
     my $sym = objsym($sv);
 
-    $sv = bless $sv, "B::BM";
+    $sv = bless $sv, "B::BM";    # this is called from B::GV
     my $pv  = pack "a*", ( $sv->PV . "\0" . $sv->TABLE );
     my $cur = $sv->CUR;
     my $len = $cur + length( $sv->TABLE ) + 1;

@@ -82,23 +82,20 @@ sub get_fullname {
 
 sub set_dynamic_gv {
     my $gv = shift;
+
+    # need to savesym earlier
     return savesym( $gv, sprintf( "dynamic_gv_list[%s]", inc_index() ) );
 }
 
-sub save {
+sub do_save {
     my ( $gv, $filter ) = @_;
-
-    {    # cache lookup
-        my $cached_sym = objsym($gv);
-        return $cached_sym if defined $cached_sym;
-    }
 
     # return earlier for special cases
     return B::BM::save($gv)       if $gv->FLAGS & 0x40000000;                # SVpbm_VALID # GV $sym isa FBM
     return q/(SV*)&PL_sv_undef/   if B::C::skip_pkg( $gv->get_package() );
     return $gv->save_special_gv() if $gv->is_special_gv();
 
-    my $sym = set_dynamic_gv($gv);
+    my $sym = $gv->set_dynamic_gv;
 
     my $package = $gv->get_package();
     my $gvname  = $gv->NAME();
@@ -122,11 +119,10 @@ sub save {
 
     if ( my $newgv = force_heavy( $package, $fullname ) ) {
         $gv = $newgv;                          # defer to run-time autoload, or compile it in?
-        $sym = savesym( $gv, $sym );           # override new gv ptr to sym
     }
 
     # Core syms are initialized by perl so we don't need to other than tracking the symbol itself see init_main_stash()
-    $sym = savesym( $gv, $CORE_SYMS->{$fullname} ) if $gv->is_coresym();
+    $sym = $CORE_SYMS->{$fullname} if $gv->is_coresym();
 
     my $notqual = $package eq 'main' ? 'GV_NOTQUAL' : '0';
     my $was_emptied = save_gv_with_gp( $gv, $sym, $name, $notqual, $is_empty );
