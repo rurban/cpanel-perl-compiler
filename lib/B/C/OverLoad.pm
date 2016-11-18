@@ -2,7 +2,6 @@ package B::C::OverLoad;
 
 use B::C::OverLoad::B::BM          ();    # special case
 use B::C::OverLoad::B::LEXWARN     ();    # not using objsym or savesym
-use B::C::OverLoad::B::LOGOP       ();
 use B::C::OverLoad::B::LOOP        ();
 use B::C::OverLoad::B::METHOP      ();
 use B::C::OverLoad::B::NULL        ();
@@ -32,7 +31,7 @@ use B::C::OverLoad::B::UV          ();
 BEGIN {
     require B::C::OP;    # needs to be loaded first: provide common helper for all OPs
 
-    my @OPs = qw{AV BINOP COP CV GV IV HV IO LISTOP};
+    my @OPs = qw{AV BINOP COP CV GV IV HV IO LISTOP LOGOP};
 
     # do not use @ISA, just plug what we need
     foreach my $op (@OPs) {
