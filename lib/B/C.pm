@@ -44,19 +44,20 @@ sub load_heavy {
 
 # This is the sub called once the BEGIN state completes.
 # We want to capture stash and %INC information before we go and corrupt it!
+my @configure_options;
+
 sub build_c_file {
-    my (@opts) = @_;
-    parse_options(@opts);    # Parses command line options and populates $settings where necessary
-    load_heavy();            # Loads B::C_heavy.pl
-    start_heavy();           # Invokes into B::C_heavy.pl
+    parse_options(@configure_options);    # Parses command line options and populates $settings where necessary
+    load_heavy();                         # Loads B::C_heavy.pl
+    start_heavy();                        # Invokes into B::C_heavy.pl
 }
 
 # This is what is called when you do perl -MO=C,....
 # It tells O.pm what to invoke once the program completes the BEGIN state.
 sub compile {
-    my (@argv) = @_;
-    $DB::single = 1 if defined &DB::DB;
-    return sub { build_c_file(@argv) };
+    @configure_options = @_;
+    do { $DB::single = $DB::single = 1 } if defined &DB::DB;
+    return \&build_c_file;
 }
 
 # This parses the options passed to sub compile but not until build_c_file is invoked at the end of BEGIN.
