@@ -45,8 +45,8 @@ while (@R && @G && $G[0] eq 'op/'.$R[0]) {
 	shift(@R);
 	shift(@G);
 }
-is(scalar @R, 0, 'readdir results all accounted for');
-is(scalar @G, 0, 'glob results all accounted for');
+is( scalar @R, 0, 'readdir results all accounted for' ) or do { print "# '$_'\n" for @R };
+is( scalar @G, 0, 'glob results all accounted for' )    or do { print "# '$_'\n" for @G };
 
 is(opendir($fh, "op"), 1);
 is(ref $fh, 'GLOB');
@@ -57,7 +57,7 @@ is(ref $fh{abc}, 'GLOB');
 isnt("$fh", "$fh[0]");
 isnt("$fh", "$fh{abc}");
 
-# See that perl does not segfault upon readdir($x="."); 
+# See that perl does not segfault upon readdir($x=".");
 # http://rt.perl.org/rt3/Ticket/Display.html?id=68182
 fresh_perl_like(<<'EOP', qr/^no crash/, {}, 'RT #68182');
   eval {
