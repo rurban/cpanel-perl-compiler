@@ -5,7 +5,6 @@ use B::C::OverLoad::B::LEXWARN     ();    # not using objsym or savesym
 use B::C::OverLoad::B::OBJECT      ();    # nothing to save here
 use B::C::OverLoad::B::PADLIST     ();    # uses B::AV::save logic
 use B::C::OverLoad::B::PADNAMELIST ();    # uses B::AV::save logic
-use B::C::OverLoad::B::PV          ();    # uses a special logic on the second call: @B::C::static_free
 use B::C::OverLoad::B::PVIV        ();
 use B::C::OverLoad::B::PVLV        ();
 use B::C::OverLoad::B::PVMG        ();
@@ -26,7 +25,7 @@ BEGIN {
     require B::C::OP;
 
     my @OPs = qw{AV BINOP COP CV GV IV HV IO LISTOP LOGOP LOOP
-      METHOP NULL NV OP PADNAME PADOP PMOP
+      METHOP NULL NV OP PADNAME PADOP PMOP PV
     };
 
     # do not use @ISA, just plug what we need

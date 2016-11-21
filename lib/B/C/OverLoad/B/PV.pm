@@ -7,19 +7,13 @@ use B::C::Config;
 use B::C::Save qw/savepvn savecowpv/;
 use B::C::Save::Hek qw/save_shared_he/;
 use B::C::File qw/xpvsect svsect free assign_hekkey2pv/;
-use B::C::Helpers::Symtable qw/savesym objsym/;
 use B::C::Helpers qw/is_shared_hek read_utf8_string get_index/;
 
 sub SVpbm_VALID { 0x40000000 }
 sub SVp_SCREAM  { 0x00008000 }    # method name is DOES
 
-sub save {
+sub do_save {
     my ( $sv, $fullname, $custom ) = @_;
-    my $sym = objsym($sv);
-
-    if ( defined $sym ) {
-        return $sym;
-    }
 
     my $shared_hek = is_shared_hek($sv);
 
@@ -39,7 +33,7 @@ sub save {
     # static pv, do not destruct. test 13 with pv0 "3".
     if ( $B::C::const_strings and !$shared_hek and $flags & SVf_READONLY and !$len ) {
         $flags &= ~0x01000000;
-        debug( pv => "constpv turn off SVf_FAKE %s %s %s\n", $sym, cstring($pv), $fullname );
+        debug( pv => "constpv turn off SVf_FAKE %s %s\n", cstring($pv), $fullname );
     }
 
     xpvsect()->comment("stash, magic, cur, len");
@@ -59,7 +53,7 @@ sub save {
     my $s = "sv_list[$sv_ix]";
     svsect()->debug( $fullname, $sv );
 
-    return savesym( $sv, "&" . $s );
+    return "&" . $s;
 }
 
 sub save_pv_or_rv {
