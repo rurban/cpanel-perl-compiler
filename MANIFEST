@@ -48,7 +48,6 @@ lib/B/C/OverLoad/B/OP.pm
 lib/B/C/OverLoad/B/PADLIST.pm
 lib/B/C/OverLoad/B/PADNAME.pm
 lib/B/C/OverLoad/B/PADNAMELIST.pm
-lib/B/C/OverLoad/B/PADOP.pm
 lib/B/C/OverLoad/B/PMOP.pm
 lib/B/C/OverLoad/B/PV.pm
 lib/B/C/OverLoad/B/PVIV.pm
