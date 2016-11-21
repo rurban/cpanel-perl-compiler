@@ -8,18 +8,12 @@ use B::C::Config;
 use B::C::Save qw/savepvn/;
 use B::C::File qw/xpvlvsect svsect init/;
 use B::C::Decimal qw/ get_double_value/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 
 # Warning not covered by the (cpanel)core test suite...
 # FIXME... add some test coverage for PVLV
 
-sub save {
+sub do_save {
     my ( $sv, $fullname ) = @_;
-
-    my $sym = objsym($sv);
-    if ( defined $sym ) {
-        return $sym;
-    }
 
     my ( $pvsym, $cur, $len, $pv, $static, $flags ) = B::PV::save_pv_or_rv( $sv, $fullname );
     my ( $lvtarg, $lvtarg_sym );    # XXX missing
@@ -32,7 +26,7 @@ sub save {
             $sv->TARGOFF, $sv->TARGLEN, cchar( $sv->TYPE )
         )
     );
-    svsect()->add(
+    my $ix = svsect()->add(
         sprintf(
             "&xpvlv_list[%d], %Lu, 0x%x, {(char*)%s}",
             xpvlvsect()->index, $sv->REFCNT, $flags, $pvsym
@@ -40,10 +34,9 @@ sub save {
     );
 
     svsect()->debug( $fullname, $sv );
-    my $s = "sv_list[" . svsect()->index . "]";
     $sv->save_magic($fullname);
 
-    return savesym( $sv, "&" . $s );
+    return "&sv_list[" . $ix . "]";
 }
 
 1;
