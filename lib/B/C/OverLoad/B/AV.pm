@@ -47,12 +47,10 @@ sub do_save {
         # 5.13.3: STASH, MAGIC, fill max ALLOC
         my $line = "Nullhv, {0}, $fill, $fill, 0";
         xpvavsect()->add($line);
-        svsect()->add(
-            sprintf(
-                "&xpvav_list[%d], %Lu, 0x%x, {%s}",
-                xpvavsect()->index, $av->REFCNT, $av->FLAGS,
-                '0'
-            )
+        svsect()->sadd(
+            "&xpvav_list[%d], %Lu, 0x%x, {%s}",
+            xpvavsect()->index, $av->REFCNT, $av->FLAGS,
+            '0'
         );
 
         svsect()->debug( $fullname, $av );
@@ -110,7 +108,7 @@ sub do_save {
         $count = 0;
         for ( my $i = 0; $i <= $#array; $i++ ) {
             if ( $fullname =~ m/^(INIT|END)$/ and $values[$i] and ref $array[$i] eq 'B::CV' ) {
-                init()->add( sprintf( 'SvREFCNT_inc(%s); /* bump $fullname */', $values[$i] ) );
+                init()->sadd( 'SvREFCNT_inc(%s); /* bump $fullname */', $values[$i] );
             }
             if (   $use_svpop_speedup
                 && defined $values[$i]
@@ -160,7 +158,7 @@ sub do_save {
             init()->add( "{ /* Slow array init mode. */", );
             init()->add("\tregister int gcount;") if $count;
             my $fill1 = $fill < 3 ? 3 : $fill + 1;
-            init()->add( sprintf( "\tSV **svp = INITAv($sym, %d);", $fill1 ) ) if $fill1 > -1;
+            init()->sadd( "\tSV **svp = INITAv($sym, %d);", $fill1 ) if $fill1 > -1;
             init()->add( substr( $acc, 0, -2 ) );    # AvFILLp already in XPVAV
             init()->add("}");
         }

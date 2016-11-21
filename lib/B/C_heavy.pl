@@ -1016,7 +1016,7 @@ sub make_c3 {
     # meta = HvMROMETA(class_stash);
     # Perl_mro_set_mro(aTHX_ meta, ST(1));
 
-    init2()->add( sprintf( 'Perl_mro_set_mro(aTHX_ HvMROMETA(%s), newSVpvs("c3"));', savestashpv($package) ) );
+    return init2()->sadd( 'Perl_mro_set_mro(aTHX_ HvMROMETA(%s), newSVpvs("c3"));', savestashpv($package) );
 }
 
 # global state only, unneeded for modules
@@ -1028,7 +1028,8 @@ sub save_context {
     my $warner = $SIG{__WARN__};
     B::C::Save::Signals::save($warner);    # FIXME ? $warner seems useless arg to save_sig call
                                            # honour -w and %^H
-    init()->add( "/* honor -w */", sprintf "PL_dowarn = ( %s ) ? G_WARN_ON : G_WARN_OFF;", $^W );
+    init()->add("/* honor -w */");
+    init()->sadd( "PL_dowarn = ( %s ) ? G_WARN_ON : G_WARN_OFF;", $^W );
     if ( $^{TAINT} ) {
         init()->add(
             "/* honor -Tt */",
@@ -1246,7 +1247,7 @@ sub save_main_rest {
                 if ( HAVE_DLFCN_DLOPEN() ) {
                     my $ldopt = 'RTLD_NOW|RTLD_NOLOAD';
                     $ldopt = 'RTLD_NOW' if $^O =~ /bsd/i;    # 351 (only on solaris and linux, not any bsd)
-                    init2()->add( "", sprintf( "  handle = dlopen(%s, %s);", cstring( $init2_remap{$pkg}{FILE} ), $ldopt ) );
+                    init2()->sadd( "\n  handle = dlopen(%s, %s);", cstring( $init2_remap{$pkg}{FILE} ), $ldopt );
                 }
                 else {
                     init2()->add(
@@ -1262,7 +1263,7 @@ sub save_main_rest {
                 for my $mg ( @{ $init2_remap{$pkg}{MG} } ) {
                     verbose("init2 remap xpvmg_list[$mg->{ID}].xiv_iv to dlsym of $pkg\: $mg->{NAME}");
                     if ( HAVE_DLFCN_DLOPEN() ) {
-                        init2()->add( sprintf( "  xpvmg_list[%d].xiv_iv = PTR2IV( dlsym(handle, %s) );", $mg->{ID}, cstring( $mg->{NAME} ) ) );
+                        init2()->sadd( "  xpvmg_list[%d].xiv_iv = PTR2IV( dlsym(handle, %s) );", $mg->{ID}, cstring( $mg->{NAME} ) );
                     }
                     else {
                         init2()->add(

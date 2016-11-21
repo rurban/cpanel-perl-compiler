@@ -15,10 +15,10 @@ sub do_save {
     $level ||= 0;
 
     listopsect()->comment_common("first, last");
-    listopsect()->add( sprintf( "%s, s\\_%x, s\\_%x", $op->_save_common, ${ $op->first }, ${ $op->last } ) );
+    listopsect()->sadd( "%s, s\\_%x, s\\_%x", $op->_save_common, ${ $op->first }, ${ $op->last } );
     listopsect()->debug( $op->name, $op );
     my $ix = listopsect()->index;
-    my $sym = savesym( $op, "(OP*)&listop_list[$ix]" ); # protection if saved later
+    my $sym = savesym( $op, "(OP*)&listop_list[$ix]" );    # protection if saved later
 
     if ( $op->type == $B::C::OP_DBMOPEN ) {
 

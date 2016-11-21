@@ -47,8 +47,8 @@ sub save {
         my ( $k, $cvref ) = @$x;
         my $sv = $cvref->save;
         my ( $cstring, $cur, $utf8 ) = strlen_flags($k);
-        init()->add( '{', sprintf "\t" . 'SV* sv = (SV*)%s;', $sv );
-        init()->add( sprintf( "\thv_store(hv, %s, %u, %s, %s);", $cstring, $cur, 'sv', 0 ) );
+        init()->sadd( qq[{\n] . "\t" . 'SV* sv = (SV*)%s;', $sv );
+        init()->sadd( "\thv_store(hv, %s, %u, %s, %s);", $cstring, $cur, 'sv', 0 );
 
         # XXX randomized hash keys!
         init()->add( "\t" . 'mg_set(sv);', '}' );

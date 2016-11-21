@@ -65,42 +65,38 @@ sub do_save {
       "Nullhv, /*STASH later*/\n\t{0}, /*MAGIC later*/\n\t%u, /*cur*/\n\t{%u}, /*len*/\n\t{%d}, /*LINES*/\n\t0, /*OFP later*/\n\t{0}, /*dirp_u later*/\n\t%d, /*PAGE*/\n\t%d, /*PAGE_LEN*/\n\t%d, /*LINES_LEFT*/\n\t%s, /*TOP_NAME*/\n\tNullgv, /*top_gv later*/\n\t%s, /*fmt_name*/\n\tNullgv, /*fmt_gv later*/\n\t%s, /*bottom_name*/\n\tNullgv, /*bottom_gv later*/\n\t%s, /*type*/\n\t0x%x /*flags*/";
     $tmpl =~ s{ /\*.+?\*/\n\t}{}g unless verbose();
     $tmpl =~ s{ /\*flags\*/$}{}   unless verbose();
-    xpviosect()->add(
-        sprintf(
-            $tmpl,
-            $cur, $len,
-            $io->LINES,    # moved to IVX with 5.11.1
-            $io->PAGE,            $io->PAGE_LEN,
-            $io->LINES_LEFT,      "NULL",
-            "NULL",               "NULL",
-            cchar( $io->IoTYPE ), $io->IoFLAGS
-        )
+    xpviosect()->sadd(
+        $tmpl,
+        $cur, $len,
+        $io->LINES,    # moved to IVX with 5.11.1
+        $io->PAGE,            $io->PAGE_LEN,
+        $io->LINES_LEFT,      "NULL",
+        "NULL",               "NULL",
+        cchar( $io->IoTYPE ), $io->IoFLAGS
     );
-    svsect()->add(
-        sprintf(
-            "&xpvio_list[%d], %Lu, 0x%x, {%s}",
-            xpviosect()->index, $io->REFCNT, $io->FLAGS, 0
-        )
+    svsect()->sadd(
+        "&xpvio_list[%d], %Lu, 0x%x, {%s}",
+        xpviosect()->index, $io->REFCNT, $io->FLAGS, 0
     );
 
     svsect()->debug( $fullname, $io );
     my $sym = sprintf( "(IO*)&sv_list[%d]", svsect()->index );
 
     if ($cur) {
-        init()->add( sprintf( "SvPVX(sv_list[%d]) = %s;", svsect()->index, $pvsym ) );
+        init()->sadd( "SvPVX(sv_list[%d]) = %s;", svsect()->index, $pvsym );
     }
     my ($field);
     foreach $field (qw(TOP_GV FMT_GV BOTTOM_GV)) {
         my $fsym = $io->$field();
         if ($$fsym) {
-            init()->add( sprintf( "Io%s(%s) = (GV*)s\\_%x;", $field, $sym, $$fsym ) );
+            init()->sadd( "Io%s(%s) = (GV*)s\\_%x;", $field, $sym, $$fsym );
             $fsym->save;
         }
     }
     foreach $field (qw(TOP_NAME FMT_NAME BOTTOM_NAME)) {
         my $fsym = $io->$field;
         if ($fsym) {
-            init()->add( sprintf( "Io%s(%s) = savepvn(%s, %u);", $field, $sym, cstring($fsym), length $fsym ) );
+            init()->sadd( "Io%s(%s) = savepvn(%s, %u);", $field, $sym, cstring($fsym), length $fsym );
         }
     }
     $io->save_magic($fullname);    # This handle the stash also (we need to inc the refcnt)
@@ -158,11 +154,9 @@ sub do_save {
                   if $fd >= 3 or verbose();
                 my $mode = $iotype eq '>' ? 'w' : 'a';
 
-                init()->add(
-                    sprintf(
-                        "%sIoIFP(%s) = IoOFP(%s) = PerlIO_fdopen(%d, %s);%s",
-                        $fd < 3 ? '' : '/*', $sym, $sym, $fd, cstring($mode), $fd < 3 ? '' : '*/'
-                    )
+                init()->sadd(
+                    "%sIoIFP(%s) = IoOFP(%s) = PerlIO_fdopen(%d, %s);%s",
+                    $fd < 3 ? '' : '/*', $sym, $sym, $fd, cstring($mode), $fd < 3 ? '' : '*/'
                 );
             }
             elsif ( $iotype =~ /[<#\+]/ ) {
@@ -197,10 +191,8 @@ sub do_save {
     my $stash = $io->SvSTASH;
     if ( $stash and $$stash ) {
         my $stsym = $stash->save( "%" . $stash->NAME );
-        init()->add(
-            sprintf( "SvREFCNT(%s) += 1;", $stsym ),
-            sprintf( "SvSTASH_set(%s, %s);", $sym, $stsym )
-        );
+        init()->sadd( "SvREFCNT(%s) += 1;", $stsym );
+        init()->sadd( "SvSTASH_set(%s, %s);", $sym, $stsym );
         debug( gv => "done saving STASH %s %s for IO %s", $stash->NAME, $stsym, $sym );
     }
 

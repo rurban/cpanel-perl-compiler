@@ -61,7 +61,7 @@ sub do_save {
         # fix overload stringify
         # Gv_AMG: potentially removes the AMG flag
         if ( $hv->FLAGS & SVf_AMAGIC and length($name) and $hv->Gv_AMG ) {
-            init2()->add( sprintf( "mro_isa_changed_in(%s);  /* %s */", $sym, $name ) );
+            init2()->sadd( "mro_isa_changed_in(%s);  /* %s */", $sym, $name );
         }
 
         # Add aliases if namecount > 1 (GH #331)
@@ -92,11 +92,9 @@ sub do_save {
             my $i = 0;
             while (@enames) {
                 my ( $cstring, $cur, $utf8 ) = strlen_flags( shift @enames );
-                init()->add(
-                    sprintf(
-                        "  aux->xhv_name_u.xhvnameu_names[%u] = share_hek(%s, %d, 0);",
-                        $i++, $cstring, $utf8 ? -$cur : $cur
-                    )
+                init()->sadd(
+                    "  aux->xhv_name_u.xhvnameu_names[%u] = share_hek(%s, %d, 0);",
+                    $i++, $cstring, $utf8 ? -$cur : $cur
                 );
             }
             init()->add("}");
@@ -173,7 +171,7 @@ sub do_save {
     my $hv_total_keys = scalar(@hash_content_to_save);
     my $max           = get_max_hash_from_keys($hv_total_keys);
     xpvhvsect()->comment("HV* xmg_stash, union _xmgu mgu, STRLEN xhv_keys, STRLEN xhv_max");
-    xpvhvsect()->add( sprintf( "Nullhv, {0}, %d, %d", $hv_total_keys, $max ) );
+    xpvhvsect()->sadd( "Nullhv, {0}, %d, %d", $hv_total_keys, $max );
 
     my $flags = $hv->FLAGS & ~SVf_READONLY & ~SVf_PROTECT;
 
@@ -188,10 +186,7 @@ sub do_save {
 
     {    # add hash content even if the hash is empty [ maybe only for %INC ??? ]
         init()->no_split;
-        init()->add(
-            "{",
-            sprintf( q{HvSETUP(%s, %d);}, $sym, $max + 1 ),
-        );
+        init()->sadd( qq[{\n] . q{HvSETUP(%s, %d);}, $sym, $max + 1 );
 
         my @hash_elements;
         {
@@ -208,13 +203,13 @@ sub do_save {
 
             # Insert each key into the hash.
             my $shared_he = save_shared_he($key);
-            init()->add( sprintf( q{HvAddEntry(%s, %s, %s, %d);}, $sym, $value, $shared_he, $max ) );
+            init()->sadd( q{HvAddEntry(%s, %s, %s, %d);}, $sym, $value, $shared_he, $max );
 
             #debug( hv => q{ HV key "%s" = %s}, $key, $value );
         }
 
         # save the iterator in hv_aux (and malloc it)
-        init()->add( sprintf( "HvRITER_set(%s, %d);", $sym, -1 ) );    # saved $hv->RITER
+        init()->sadd( "HvRITER_set(%s, %d);", $sym, -1 );    # saved $hv->RITER
 
         init()->add("}");
         init()->split;

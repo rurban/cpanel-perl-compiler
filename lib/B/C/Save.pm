@@ -62,12 +62,12 @@ sub savepv {
     my $maxlen = 0;
     if ( $maxlen && $len > $maxlen ) {
         my $chars = join ', ', map { cchar $_ } split //, pack( "a*", $pv );
-        decl()->add( sprintf( "Static%s char %s[] = { %s };", $const, $pvsym, $chars ) );
+        decl()->sadd( "Static%s char %s[] = { %s };", $const, $pvsym, $chars );
         $strtable{$cstring} = $pvsym;
     }
     else {
         if ( $cstring ne "0" ) {    # sic
-            decl()->add( sprintf( "Static%s char %s[] = %s;", $const, $pvsym, $cstring ) );
+            decl()->sadd( "Static%s char %s[] = %s;", $const, $pvsym, $cstring );
             $strtable{$cstring} = $pvsym;
         }
     }
@@ -165,11 +165,9 @@ sub savestash_flags {
     }
     my $pvsym = $len ? constpv($name) : '""';
     $stashtable{$name} = $sym;
-    init()->add(
-        sprintf(
-            "%s = gv_stashpvn(%s, %u, %s); /* $name */",
-            $sym, $pvsym, $len, $flags
-        )
+    init()->sadd(
+        "%s = gv_stashpvn(%s, %u, %s); /* $name */",
+        $sym, $pvsym, $len, $flags
     );
 
     return $sym;

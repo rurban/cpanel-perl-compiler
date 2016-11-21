@@ -488,11 +488,9 @@ sub do_save {
         }
         $CvFLAGS &= ~0x1000;                   # CVf_DYNFILE
         $CvFLAGS &= ~0x400 if $gv and $$gv;    #CVf_CVGV_RC
-        symsect()->add(
-            sprintf(
-                "CVIX%d\t(XPVCV*)&xpvcv_list[%u], %Lu, 0x%x, {0}",
-                $sv_ix, $xpvcv_ix, $cv->REFCNT, $CvFLAGS
-            )
+        symsect()->sadd(
+            "CVIX%d\t(XPVCV*)&xpvcv_list[%u], %Lu, 0x%x, {0}",
+            $sv_ix, $xpvcv_ix, $cv->REFCNT, $CvFLAGS
         );
         return get_cv_string( $fullname, $flags );
     }
@@ -500,8 +498,8 @@ sub do_save {
     # Now it is time to record the CV
     if ($new_cv_fw) {
         $sv_ix = svsect()->index + 1;
-        if ( !$cvforward{$sym} ) {    # avoid duplicates
-            symsect()->add( sprintf( "%s\t&sv_list[%d]", $sym, $sv_ix ) );    # forward the old CVIX to the new CV
+        if ( !$cvforward{$sym} ) {             # avoid duplicates
+            symsect()->sadd( "%s\t&sv_list[%d]", $sym, $sv_ix );    # forward the old CVIX to the new CV
             $cvforward{$sym}++;
         }
         $sym = savesym( $cv, "&sv_list[$sv_ix]" );
@@ -560,20 +558,13 @@ sub do_save {
     WARN("lexwarnsym in XPVCV OUTSIDE: $xpvc") if $xpvc =~ /, \(CV\*\)iv\d/;    # t/testc.sh -q -O3 227
     if ( !$new_cv_fw ) {
         symsect()->add("XPVCVIX$xpvcv_ix\t$xpvc");
-
-        #symsect()->add
-        #  (sprintf("CVIX%d\t(XPVCV*)&xpvcv_list[%u], %Lu, 0x%x, {0}"),
-        #	   $sv_ix, $xpvcv_ix, $cv->REFCNT, $cv->FLAGS
-        #	  ));
     }
     else {
         xpvcvsect()->comment('STASH mg_u cur len CV_STASH START_U ROOT_U GV file PADLIST OUTSIDE outside_seq flags depth');
         xpvcvsect()->add($xpvc);
-        svsect()->add(
-            sprintf(
-                "&xpvcv_list[%d], %Lu, 0x%x, {0}",
-                xpvcvsect()->index, $cv->REFCNT, $cv->FLAGS
-            )
+        svsect()->sadd(
+            "&xpvcv_list[%d], %Lu, 0x%x, {0}",
+            xpvcvsect()->index, $cv->REFCNT, $cv->FLAGS
         );
         svsect()->debug( $fullname, $cv );
     }
@@ -604,11 +595,9 @@ sub do_save {
             # defer GvSTASH because with DEBUGGING it checks for GP but
             # there's no GP yet.
             # But with -fstash the gvstash is set later
-            init()->add(
-                sprintf(
-                    "GvXPVGV(s\\_%x)->xnv_u.xgv_stash = s\\_%x;",
-                    $$cv, $$gvstash
-                )
+            init()->sadd(
+                "GvXPVGV(s\\_%x)->xnv_u.xgv_stash = s\\_%x;",
+                $$cv, $$gvstash
             ) if $gvstash;
             debug( gv => "done saving GvSTASH 0x%x for CV 0x%x\n", $$gvstash, $$cv )
               if $gvstash and debug('cv');
@@ -617,7 +606,7 @@ sub do_save {
     }
     if ( $cv->OUTSIDE_SEQ ) {
         my $cop = $B::C::File::symtable{ sprintf( "s\\_%x", $cv->OUTSIDE_SEQ ) };
-        init()->add( sprintf( "CvOUTSIDE_SEQ(%s) = %s;", $sym, $cop ) ) if $cop;
+        init()->sadd( "CvOUTSIDE_SEQ(%s) = %s;", $sym, $cop ) if $cop;
     }
 
     $xcv_outside = ${ $cv->OUTSIDE };
@@ -634,12 +623,12 @@ sub do_save {
             }
         }
         else {
-            init()->add( sprintf( "CvOUTSIDE(%s) = (CV*)s\\_%x;", $sym, $xcv_outside ) );
+            init()->sadd( "CvOUTSIDE(%s) = (CV*)s\\_%x;", $sym, $xcv_outside );
         }
     }
     elsif ( $xcv_outside && ref( $cv->OUTSIDE ) ) {
         my $padl = $cv->OUTSIDE->PADLIST->save;
-        init()->add( sprintf( "CvPADLIST(%s)->xpadl_outid = CvPADLIST(s\\_%x)->xpadl_id;", $sym, $xcv_outside ) );
+        init()->sadd( "CvPADLIST(%s)->xpadl_outid = CvPADLIST(s\\_%x)->xpadl_id;", $sym, $xcv_outside );
     }
 
     if ( $gv and $$gv ) {
@@ -648,7 +637,7 @@ sub do_save {
         debug( gv => "Saving GV 0x%x for CV 0x%x\n", $$gv, $$cv ) if debug('cv');
         $gv->save;
 
-        init()->add( sprintf( "CvGV_set((CV*)%s, (GV*)%s);", $sym, objsym($gv) ) );
+        init()->sadd( "CvGV_set((CV*)%s, (GV*)%s);", $sym, objsym($gv) );
 
         # Since 5.13.3 and CvGV_set there are checks that the CV is not RC (refcounted).
         # Assertion "!CvCVGV_RC(cv)" failed: file "gv.c", line 219, function: Perl_cvgv_set
@@ -658,11 +647,9 @@ sub do_save {
                 cv => "CvCVGV_RC turned off. CV flags=0x%x %s CvFLAGS=0x%x \n",
                 $cv->FLAGS, debug('flags') ? $cv->flagspv : "", $CvFLAGS & ~0x400
             );
-            init()->add(
-                sprintf(
-                    "CvFLAGS((CV*)%s) = 0x%x; %s", $sym, $CvFLAGS,
-                    debug('flags') ? "/* " . $cv->flagspv . " */" : ""
-                )
+            init()->sadd(
+                "CvFLAGS((CV*)%s) = 0x%x; %s", $sym, $CvFLAGS,
+                debug('flags') ? "/* " . $cv->flagspv . " */" : ""
             );
         }
         init()->add("CvSTART($sym) = $startfield;");    # XXX TODO someone is overwriting CvSTART also
@@ -675,10 +662,10 @@ sub do_save {
 
     my $file = $cv->FILE();
     if ( $B::C::const_strings && length $file ) {
-        init()->add( sprintf( "CvFILE(%s) = (char *) %s;", $sym, constpv($file) ) );
+        init()->sadd( "CvFILE(%s) = (char *) %s;", $sym, constpv($file) );
     }
     else {
-        init()->add( sprintf( "CvFILE(%s) = %s;", $sym, cstring( $cv->FILE ) ) );
+        init()->sadd( "CvFILE(%s) = %s;", $sym, cstring( $cv->FILE ) );
     }
 
     my $stash = $cv->STASH;
@@ -688,9 +675,9 @@ sub do_save {
         $stash->save($fullname);
 
         # $sym fixed test 27
-        init()->add( sprintf( "CvSTASH_set((CV*)%s, s\\_%x);", $sym, $$stash ) );
+        init()->sadd( "CvSTASH_set((CV*)%s, s\\_%x);", $sym, $$stash );
 
-        #init()->add( sprintf( "SvREFCNT_inc(%s);", $sym) ); # fixes mro/basic.t and more
+        #init()->sadd( "SvREFCNT_inc(%s);", $sym ); # fixes mro/basic.t and more
 
         # 5.18 bless does not inc sv_objcount anymore. broken by ddf23d4a1ae (#208)
         # We workaround this 5.18 de-optimization by adding it if at least a DESTROY
@@ -704,11 +691,9 @@ sub do_save {
         $cv->save_magic($fullname);    # XXX will this work?
     }
     if ( !$new_cv_fw ) {
-        symsect()->add(
-            sprintf(
-                "CVIX%d\t(XPVCV*)&xpvcv_list[%u], %Lu, 0x%x, {0}",
-                $sv_ix, $xpvcv_ix, $cv->REFCNT, $cv->FLAGS
-            )
+        symsect()->sadd(
+            "CVIX%d\t(XPVCV*)&xpvcv_list[%u], %Lu, 0x%x, {0}",
+            $sv_ix, $xpvcv_ix, $cv->REFCNT, $cv->FLAGS
         );
     }
     if ($cur) {
@@ -719,24 +704,20 @@ sub do_save {
     if ( defined $pv ) {
         $pvsym = save_shared_he($pv);
         if ($cur) {
-            init()->add( sprintf( "SvPVX(&sv_list[%d]) = %s->shared_he_hek.hek_key;", $sv_ix, $pvsym ) );
+            init()->sadd( "SvPVX(&sv_list[%d]) = %s->shared_he_hek.hek_key;", $sv_ix, $pvsym );
 
             #define HEK_BASESIZE               STRUCT_OFFSET(HEK, hek_key[0])
         }
         elsif ( !$B::C::const_strings ) {    # not static, they are freed when redefined
-            init()->add(
-                sprintf(
-                    "SvPVX(&sv_list[%d]) = savepvn(%s, %u);",
-                    $sv_ix, $proto, $cur
-                )
+            init()->sadd(
+                "SvPVX(&sv_list[%d]) = savepvn(%s, %u);",
+                $sv_ix, $proto, $cur
             );
         }
         else {
-            init()->add(
-                sprintf(
-                    "SvPVX(&sv_list[%d]) = %s;",
-                    $sv_ix, $proto
-                )
+            init()->sadd(
+                "SvPVX(&sv_list[%d]) = %s;",
+                $sv_ix, $proto
             );
         }
     }
