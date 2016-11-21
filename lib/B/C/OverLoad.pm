@@ -11,7 +11,6 @@ use B::C::OverLoad::B::SV          ();
 use B::C::OverLoad::B::SVOP        ();
 use B::C::OverLoad::B::UNOP        ();
 use B::C::OverLoad::B::UNOP_AUX    ();
-use B::C::OverLoad::B::UV          ();
 
 BEGIN {
     # needs to be loaded first: provide common helper for all OPs
@@ -21,6 +20,7 @@ BEGIN {
     my @OPs = qw{AV BINOP COP CV GV IV HV IO LISTOP LOGOP LOOP
       METHOP NULL NV OP PADNAME PADOP PMOP PV PVIV PVLV PVMG
       PVNV PVOP REGEXP
+      UV
     };
 
     # do not use @ISA, just plug what we need
