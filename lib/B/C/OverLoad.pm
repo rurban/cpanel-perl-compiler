@@ -8,7 +8,6 @@ use B::C::OverLoad::B::PADNAMELIST ();    # uses B::AV::save logic
 use B::C::OverLoad::B::SPECIAL     ();
 use B::C::OverLoad::B::SV          ();
 use B::C::OverLoad::B::SVOP        ();
-use B::C::OverLoad::B::UNOP_AUX    ();
 
 BEGIN {
     # needs to be loaded first: provide common helper for all OPs
@@ -18,7 +17,7 @@ BEGIN {
     my @OPs = qw{AV BINOP COP CV GV IV HV IO LISTOP LOGOP LOOP
       METHOP NULL NV OP PADNAME PADOP PMOP PV PVIV PVLV PVMG
       PVNV PVOP REGEXP RV
-      UNOP UV
+      UNOP UNOP_AUX UV
     };
 
     # do not use @ISA, just plug what we need

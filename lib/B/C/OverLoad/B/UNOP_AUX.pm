@@ -5,7 +5,6 @@ use strict;
 use B::C::Config;
 use B::C::File qw/unopauxsect init decl free/;
 use B::C::Helpers qw/do_labels is_constant curcv/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 use B::C::Save qw(constpv);
 
 sub _clear_stack {
@@ -14,10 +13,8 @@ sub _clear_stack {
     return join '', ( 1 .. 42 );    # large enough to do stuff & clear
 }
 
-sub save {
+sub do_save {
     my ( $op, $level ) = @_;
-    my $sym = objsym($op);
-    return $sym if defined $sym;
 
     $level ||= 0;
 
@@ -28,7 +25,7 @@ sub save {
     unopauxsect()->comment_common("first, aux");
 
     my $ix = unopauxsect()->index + 1;
-    unopauxsect()->add( sprintf( "%s, s\\_%x, unopaux_item$ix + 1", $op->_save_common, ${ $op->first } ) );
+    unopauxsect()->sadd( "%s, s\\_%x, unopaux_item$ix + 1", $op->_save_common, ${ $op->first } );
     unopauxsect()->debug( $op->name, $op->flagspv ) if debug('flags');
 
     # This cannot be a section, as the number of elements is variable
@@ -126,7 +123,7 @@ sub save {
 
     decl()->add("$s\n};");
 
-    $sym = savesym( $op, "(OP*)&unopaux_list[$ix]" );
+    my $sym = "(OP*)&unopaux_list[$ix]";
     free()->add("    ($sym)->op_type = OP_NULL;");
     do_labels( $op, $level + 1, 'first' );
 
