@@ -30,7 +30,8 @@ BEGIN {
         my $overload = "B::C::OverLoad::$pkg";
         eval qq{require $overload} or die $@;
         my $save = $pkg . q{::save};
-        *$save = \&B::C::OP::save;
+        *$save = B::C::OP::save_constructor($pkg);
+
     }
 }
 
