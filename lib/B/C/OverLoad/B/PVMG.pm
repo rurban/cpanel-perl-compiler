@@ -8,16 +8,12 @@ use B qw/SVf_ROK SVf_READONLY HEf_SVKEY SVf_READONLY SVf_AMAGIC SVf_IsCOW cstrin
 use B::C::Save qw/savepvn savepv savestashpv/;
 use B::C::Decimal qw/get_integer_value get_double_value/;
 use B::C::File qw/init init1 init2 svsect xpvmgsect xpvsect pmopsect assign_hekkey2pv/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 use B::C::Helpers qw/mark_package read_utf8_string is_shared_hek get_index/;
 use B::C::Save::Hek qw/save_shared_he/;
 
-sub save {
+sub do_save {
     my ( $sv, $fullname ) = @_;
-    my $sym = objsym($sv);
-    if ( defined $sym ) {
-        return $sym;
-    }
+
     my ( $savesym, $cur, $len, $pv, $static, $flags ) = B::PV::save_pv_or_rv( $sv, $fullname );
     if ($static) {    # 242: e.g. $1
         $static = 0;
@@ -82,9 +78,8 @@ sub save {
         }
     }
 
-    $sym = savesym( $sv, sprintf( q{&sv_list[%d]}, $sv_ix ) );
     $sv->save_magic($fullname);
-    return $sym;
+    return sprintf( q{&sv_list[%d]}, $sv_ix );
 }
 
 sub save_magic {
