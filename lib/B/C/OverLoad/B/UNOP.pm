@@ -5,21 +5,15 @@ use strict;
 use B::C::Config;
 use B::C::File qw/unopsect init/;
 use B::C::Helpers qw/do_labels mark_package padop_name svop_name curcv/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 
-sub save {
+sub do_save {
     my ( $op, $level ) = @_;
-
-    my $sym = objsym($op);
-    return $sym if defined $sym;
 
     $level ||= 0;
 
     unopsect()->comment_common("first");
-    unopsect()->add( sprintf( "%s, s\\_%x", $op->_save_common, ${ $op->first } ) );
+    my $ix = unopsect()->sadd( "%s, s\\_%x", $op->_save_common, ${ $op->first } );
     unopsect()->debug( $op->name, $op );
-    my $ix = unopsect()->index;
-    $sym = savesym( $op, "(OP*)&unop_list[$ix]" );
 
     if ( $op->name eq 'method' and $op->first and $op->first->name eq 'const' ) {
         my $method = svop_name( $op->first );
@@ -37,7 +31,8 @@ sub save {
         }
     }
     do_labels( $op, $level + 1, 'first' );
-    $sym;
+
+    return "(OP*)&unop_list[$ix]";
 }
 
 1;
