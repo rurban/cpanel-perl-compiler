@@ -5,7 +5,6 @@ use B::C::OverLoad::B::LEXWARN     ();    # not using objsym or savesym
 use B::C::OverLoad::B::OBJECT      ();    # nothing to save here
 use B::C::OverLoad::B::PADLIST     ();    # uses B::AV::save logic
 use B::C::OverLoad::B::PADNAMELIST ();    # uses B::AV::save logic
-use B::C::OverLoad::B::RV          ();
 use B::C::OverLoad::B::SPECIAL     ();
 use B::C::OverLoad::B::SV          ();
 use B::C::OverLoad::B::SVOP        ();
@@ -19,7 +18,7 @@ BEGIN {
 
     my @OPs = qw{AV BINOP COP CV GV IV HV IO LISTOP LOGOP LOOP
       METHOP NULL NV OP PADNAME PADOP PMOP PV PVIV PVLV PVMG
-      PVNV PVOP REGEXP
+      PVNV PVOP REGEXP RV
       UV
     };
 

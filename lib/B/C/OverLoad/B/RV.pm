@@ -5,14 +5,13 @@ use strict;
 use B::C::Config;
 use B::C::File qw/svsect init init2/;
 use B::C::Helpers qw/is_constant/;
+
 use B::C::Helpers::Symtable qw/objsym savesym/;
 
 # Since 5.11 also called by IV::save (SV -> IV)
-sub save {
+sub do_save {
     my ( $sv, $fullname ) = @_;
 
-    my $sym = objsym($sv);
-    return $sym if defined $sym;
     debug(
         sv => "Saving RV %s (0x%x) - called from %s:%s\n",
         ref($sv), $$sv, @{ [ ( caller(1) )[3] ] }, @{ [ ( caller(1) )[2] ] }
@@ -29,31 +28,29 @@ sub save {
 
     # 5.10 has no struct xrv anymore, just sv_u.svu_rv. static or dynamic?
     # initializer element is computable at load time
-    svsect()->add(
-        sprintf(
-            "ptr_undef, %Lu, 0x%x, {%s}", $sv->REFCNT, $flags,
-            ( is_constant($rv) ? ".svu_rv=$rv" : "0 /* $rv */" )
-        )
+    my $ix = svsect()->sadd(
+        "ptr_undef, %Lu, 0x%x, {%s}", $sv->REFCNT, $flags,
+        ( is_constant($rv) ? ".svu_rv=$rv" : "0 /* $rv */" )
     );
 
     svsect()->debug( $fullname, $sv );
-    my $s = "sv_list[" . svsect()->index . "]";
+    my $s = "sv_list[" . $ix . "]";
 
-    init()->add( sprintf( "%s.sv_any = (void*)&%s - sizeof(void*);", $s, $s ) );    # 354 defined needs SvANY
+    init()->sadd( "%s.sv_any = (void*)&%s - sizeof(void*);", $s, $s );    # 354 defined needs SvANY
     if ( !is_constant($rv) ) {
-        if ( $rv =~ /get_cv/ ) {                                                    # ref($rv) ne 'B::GV' && ref($rv) ne 'B::HV'
-            init2()->add( sprintf( "%s.sv_u.svu_rv = (SV*)%s;", $s, $rv ) );
+        if ( $rv =~ /get_cv/ ) {                                          # ref($rv) ne 'B::GV' && ref($rv) ne 'B::HV'
+            init2()->sadd( "%s.sv_u.svu_rv = (SV*)%s;", $s, $rv );
         }
         else {
-            init()->add( sprintf( "%s.sv_u.svu_rv = (SV*)%s;", $s, $rv ) );
+            init()->sadd( "%s.sv_u.svu_rv = (SV*)%s;", $s, $rv );
         }
     }
 
-    return savesym( $sv, "&" . $s );
+    return "&" . $s;
 }
 
 # the save methods should probably be renamed visit
-sub save_op {                                                                       # previously known as 'sub save_rv'
+sub save_op {                                                             # previously known as 'sub save_rv'
     my ( $sv, $fullname ) = @_;
 
     $fullname ||= '(unknown)';
