@@ -806,7 +806,7 @@ sub skip_pkg {
         or index( $package, " " ) != -1    # XXX skip invalid package names
         or index( $package, "(" ) != -1    # XXX this causes the compiler to abort
         or index( $package, ")" ) != -1    # XXX this causes the compiler to abort
-        or exists $skip_package{$package} or ( $DB::deep and $package =~ /^(DB|Term::ReadLine)/ )
+        or exists $B::C::settings->{'skip_packages'}->{$package} or exists $skip_package{$package} or ( $DB::deep and $package =~ /^(DB|Term::ReadLine)/ )
       ) {
         return 1;
     }
