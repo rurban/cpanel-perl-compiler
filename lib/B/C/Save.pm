@@ -122,7 +122,7 @@ sub _caller_comment {
 
 sub stack {
     my @stack;
-    foreach my $level ( 0 .. 20 ) {
+    foreach my $level ( 0 .. 100 ) {
         my @caller = grep { defined } caller($level);
         @caller = map { $_ =~ s{/usr/local/cpanel/3rdparty/perl/5[0-9]+/lib64/perl5/cpanel_lib/x86_64-linux-64int/}{lib/}; $_ } @caller;
 
