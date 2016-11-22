@@ -33,7 +33,6 @@ my $expect;
 
 my ($min, $max) = ($expect - 10, $expect + 10);
 within(scalar @D, $expect, 10, 'counting op/*.t');
-
 my @R = sort @D;
 my @G = sort <op/*.t>;
 if ($G[0] =~ m#.*\](\w+\.t)#i) {
@@ -41,6 +40,11 @@ if ($G[0] =~ m#.*\](\w+\.t)#i) {
     # identical to that returned by readdir
     @G = grep(s#.*\](\w+\.t).*#op/$1#i,<op/*.t>);
 }
+# subtest files can be created between the @D and @G read, as we are running test in parallel
+# remove them from both list
+@R = grep { $_ !~ qr{\.subtest\.[0-9]+\.t$} } @R;
+@G = grep { $_ !~ qr{\.subtest\.[0-9]+\.t$} } @G;
+
 while (@R && @G && $G[0] eq 'op/'.$R[0]) {
 	shift(@R);
 	shift(@G);
