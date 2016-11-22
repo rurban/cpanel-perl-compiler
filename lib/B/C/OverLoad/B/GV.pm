@@ -120,8 +120,8 @@ sub savegp_from_gv {
     die("gp_flags seems used now ???") if $gp_flags;
 
     my $gp_file_hek = q{NULL};
-    if ( ( !$B::C::stash or $fullname !~ /::$/ ) and $gv->FILEGV ne 'NULL' ) {    # and !$B::C::optimize_cop
-        $gp_file_hek = save_shared_he( $gv->FILEGV );                             # Reini was using FILE instead of FILEGV ?
+    if ( ( !$B::C::stash or $fullname !~ /::$/ ) and $gv->FILE ne 'NULL' ) {    # and !$B::C::optimize_cop
+        $gp_file_hek = save_shared_he( $gv->FILE );                             # use FILE instead of FILEGV or we will save the B::GV stash
     }
 
     # .... TODO save stuff there
@@ -132,9 +132,9 @@ sub savegp_from_gv {
     gpsect()->comment('SV, gp_io, CV, cvgen, gp_refcount, HV, AV, CV, GV, line, flags, HEK* file');
 
     gpsect()->sadd(
-        "%s, %s, %s, %d, %u, %s, %s, %s, %s, %u, %d, (HEK*) (&%s + sizeof(HE)) ",
-        $gp_sv,   $gp_io,    $gp_cv, $gp_cvgen, $gp_refcount, $gp_hv, $gp_av, $gp_form, $gp_egv,
-        $gp_line, $gp_flags, $gp_file_hek
+        "%s, %s, %s, %d, %u, %s, %s, %s, %s, %u, %d, %s ",
+        $gp_sv, $gp_io, $gp_cv, $gp_cvgen, $gp_refcount, $gp_hv, $gp_av, $gp_form, $gp_egv,
+        $gp_line, $gp_flags, $gp_file_hek eq 'NULL' ? 'NULL' : qq{(HEK*) (&$gp_file_hek + sizeof(HE))}
     );
 
     $saved_gps{$gp} = sprintf( "&gp_list[%d]", gpsect()->index );
