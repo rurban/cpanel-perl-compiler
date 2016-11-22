@@ -28,13 +28,13 @@ sub save {
     my $t = ( $B::C::Flags::Config{longsize} == 8 ) ? "J" : "L";
     my ($iv) = unpack( $t, $pv );    # unsigned longsize
     if ( $iv >= 0 and $iv <= 2 ) {   # specialWARN: single STRLEN
-        decl()->add( sprintf( "Static const STRLEN* %s = %d;", $sym, $iv ) );
+        decl()->sadd( "Static const STRLEN* %s = %d;", $sym, $iv );
         $isint = 1;
     }
     else {                           # sizeof(STRLEN) + (WARNsize)
                                      # FIXME: should not we use the strlen_flags helper for length and cstring ?
         my $packedpv = pack( "$t a*", length($pv), $pv );
-        decl()->add( sprintf( "Static const char %s[] = %s;", $sym, cstring($packedpv) ) );
+        decl()->sadd( "Static const char %s[] = %s;", $sym, cstring($packedpv) );
     }
 
     # set cache

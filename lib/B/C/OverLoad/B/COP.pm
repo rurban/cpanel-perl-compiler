@@ -7,17 +7,13 @@ use B::C::Config;
 use B::C::File qw/init copsect decl/;
 use B::C::Save qw/constpv savestashpv/;
 use B::C::Decimal qw/get_integer_value/;
-use B::C::Helpers::Symtable qw/savesym objsym/;
 use B::C::Helpers qw/read_utf8_string strlen_flags/;
 
 my %cophhtable;
 my %copgvtable;
 
-sub save {
+sub do_save {
     my ( $op, $level ) = @_;
-
-    my $sym = objsym($op);
-    return $sym if defined $sym;
 
     # TODO: if it is a nullified COP we must save it with all cop fields!
     debug( cops => "COP: line %d file %s\n", $op->line, $op->file );
@@ -45,13 +41,9 @@ sub save {
         # XXX No idea how a &sv_list[] came up here, a re-used object. Anyway.
         $warn_sv = substr( $warn_sv, 1 ) if substr( $warn_sv, 0, 3 ) eq '&sv';
         $warn_sv = $warnsvcast . '&' . $warn_sv;
-        free()->sadd( "    cop_list[%d].cop_warnings = NULL;", $ix )
-          if !$B::C::optimize_warn_sv;
-
-        #push @B::C::static_free, sprintf("cop_list[%d]", $ix);
     }
 
-    my $dynamic_copwarn = !$is_special ? 1 : !$B::C::optimize_warn_sv;
+    my $dynamic_copwarn = !$is_special ? 1 : 0;
 
     # Trim the .pl extension, to print the executable name only.
     my $file = $op->file;
@@ -60,8 +52,6 @@ sub save {
     my $add_label = $op->label ? 1 : 0;
 
     copsect()->debug( $op->name, $op );
-    init()->sadd( "cop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr )
-      unless $B::C::optimize_ppaddr;
 
     my $i = 0;
     if ( $op->hints_hash ) {
@@ -105,8 +95,9 @@ sub save {
     if ($add_label) {
 
         # test 29 and 15,16,21. 44,45
-        my ( $cstring, $cur, $utf8 ) = strlen_flags( $op->label );
-        WARN("utf8 label $cstring");
+        my $label = $op->label;
+        my ( $cstring, $cur, $utf8 ) = strlen_flags($label);
+        $utf8 = 'SVf_UTF8' if $cstring =~ qr{\\[0-9]};    # help a little utf8, maybe move it to strlen_flags
         init()->sadd(
             "Perl_cop_store_label(aTHX_ &cop_list[%d], %s, %u, %s);",
             $ix, $cstring, $cur, $utf8
@@ -128,10 +119,6 @@ sub save {
             # lexwarn<n> might be also be STRLEN* 0
             init()->sadd( "%s = (STRLEN*)savesharedpvn((const char*)%s, sizeof(%s));", $dest, $copw, $copw );
         }
-    }
-    else {
-        init()->sadd( "cop_list[%d].cop_warnings = %s;", $ix, $warn_sv )
-          unless $B::C::optimize_warn_sv;
     }
 
     my $stash = savestashpv( $op->stashpv );
@@ -176,7 +163,7 @@ sub save {
         $op->hints, get_integer_value( $op->cop_seq ), !$dynamic_copwarn ? $warn_sv : 'NULL'
     );
 
-    return savesym( $op, "(OP*)&cop_list[$ix]" );
+    return "(OP*)&cop_list[$ix]";
 }
 
 1;

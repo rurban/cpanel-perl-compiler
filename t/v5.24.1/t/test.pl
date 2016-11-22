@@ -1127,7 +1127,7 @@ sub runperl_binary {
     my %filter = map { $_ => 1 } qw/-T -w/; # filter perl switches
     my $switches = join( ' ', grep { $filter{$_} } @{ $opts->{switches} || [] });
     my $perlcc_bin = whichperlcc();
-    my $perlcc = "${stdin_prefix} $^X $perlcc_bin $switches -O3 -o $bin $test $error";
+    my $perlcc = "${stdin_prefix} $^X $perlcc_bin $switches -o $bin $test $error";
     print STDERR "# Compiling: > $perlcc\n";
     ( $perlcc ) = $perlcc =~ m/(.*)/; # untaint
     my $make = qx{$perlcc};

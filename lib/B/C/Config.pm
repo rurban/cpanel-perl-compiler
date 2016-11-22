@@ -2,21 +2,21 @@ package B::C::Config;
 
 use strict;
 
-use B::C::Flags         ();
-use B::C::Config::Debug ();
+use B::C::Flags ();
+use B::C::Debug ();
 
 use Exporter ();
 our @ISA = qw(Exporter);
 
 # alias
-*debug           = \&B::C::Config::Debug::debug;
-*debug_all       = \&B::C::Config::Debug::enable_all;
-*verbose         = \&B::C::Config::Debug::verbose;
-*display_message = \&B::C::Config::Debug::display_message;
+*debug           = \&B::C::Debug::debug;
+*debug_all       = \&B::C::Debug::enable_all;
+*verbose         = \&B::C::Debug::verbose;
+*display_message = \&B::C::Debug::display_message;
 
-*WARN  = \&B::C::Config::Debug::WARN;
-*INFO  = \&B::C::Config::Debug::INFO;
-*FATAL = \&B::C::Config::Debug::FATAL;
+*WARN  = \&B::C::Debug::WARN;
+*INFO  = \&B::C::Debug::INFO;
+*FATAL = \&B::C::Debug::FATAL;
 
 # usually 0x400000, but can be as low as 0x10000
 # http://docs.embarcadero.com/products/rad_studio/delphiAndcpp2009/HelpUpdate2/EN/html/devcommon/compdirsimagebaseaddress_xml.html
@@ -26,9 +26,7 @@ sub LOWEST_IMAGEBASE() { 0x10000 }
 sub _autoload_map {
 
     my $map = {
-        USE_ITHREADS     => $B::C::Flags::Config{useithreads},
-        USE_MULTIPLICITY => $B::C::Flags::Config{usemultiplicity},
-        MAD              => $B::C::Flags::Config{mad},
+        MAD => $B::C::Flags::Config{mad},
     };
     $map->{HAVE_DLFCN_DLOPEN} = $B::C::Flags::Config{i_dlfcn} && $B::C::Flags::Config{d_dlopen};
 

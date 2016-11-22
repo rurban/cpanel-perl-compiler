@@ -7,23 +7,13 @@ use B::C::Config;
 use B::C::Save qw/savepvn savecowpv/;
 use B::C::Save::Hek qw/save_shared_he/;
 use B::C::File qw/xpvsect svsect free assign_hekkey2pv/;
-use B::C::Helpers::Symtable qw/savesym objsym/;
 use B::C::Helpers qw/is_shared_hek read_utf8_string get_index/;
 
 sub SVpbm_VALID { 0x40000000 }
 sub SVp_SCREAM  { 0x00008000 }    # method name is DOES
 
-sub save {
+sub do_save {
     my ( $sv, $fullname, $custom ) = @_;
-    my $sym = objsym($sv);
-
-    if ( defined $sym ) {
-        if ($B::C::in_endav) {
-            debug( av => "in_endav: static_free without $sym" );
-            @B::C::static_free = grep { !/$sym/ } @B::C::static_free;
-        }
-        return $sym;
-    }
 
     my $shared_hek = is_shared_hek($sv);
 
@@ -43,16 +33,15 @@ sub save {
     # static pv, do not destruct. test 13 with pv0 "3".
     if ( $B::C::const_strings and !$shared_hek and $flags & SVf_READONLY and !$len ) {
         $flags &= ~0x01000000;
-        debug( pv => "constpv turn off SVf_FAKE %s %s %s\n", $sym, cstring($pv), $fullname );
+        debug( pv => "constpv turn off SVf_FAKE %s %s\n", cstring($pv), $fullname );
     }
 
     xpvsect()->comment("stash, magic, cur, len");
-    xpvsect()->add( sprintf( "Nullhv, {0}, %u, {%u}", $cur, $len ) );
+    xpvsect()->sadd( "Nullhv, {0}, %u, {%u}", $cur, $len );
 
     svsect()->comment("any, refcnt, flags, sv_u");
     $savesym = $savesym eq 'NULL' ? '0' : ".svu_pv=(char*) $savesym";
-    svsect()->add( sprintf( '&xpv_list[%d], %Lu, 0x%x, {%s}', xpvsect()->index, $refcnt, $flags, $savesym ) );
-    my $sv_ix = svsect()->index;
+    my $sv_ix = svsect()->sadd( '&xpv_list[%d], %Lu, 0x%x, {%s}', xpvsect()->index, $refcnt, $flags, $savesym );
 
     if ( $shared_hek and !$static ) {
         my $hek = save_shared_he( $pv, $fullname );
@@ -64,8 +53,7 @@ sub save {
     my $s = "sv_list[$sv_ix]";
     svsect()->debug( $fullname, $sv );
 
-    push @B::C::static_free, "&" . $s if $flags & SVs_OBJECT;
-    return savesym( $sv, "&" . $s );
+    return "&" . $s;
 }
 
 sub save_pv_or_rv {
@@ -79,15 +67,15 @@ sub save_pv_or_rv {
 
     my ( $static, $shared_hek ) = ( 1, is_shared_hek($sv) );
 
-    $static = 0 if ( $sv->FLAGS & ( SVp_SCREAM | SVpbm_VALID ) == ( SVp_SCREAM | SVpbm_VALID ) );    # ??
+    $static = 0 if ( ( $sv->FLAGS & ( SVp_SCREAM | SVpbm_VALID ) ) == ( SVp_SCREAM | SVpbm_VALID ) );    # ??
     $static = 0 if !( $flags & SVf_ROK ) and $sv->PV and $sv->PV =~ /::bootstrap$/;
 
     if ( $shared_hek && !$static ) {
         my $savesym = 'NULL';
         my ( $is_utf8, $cur ) = read_utf8_string( $sv->PV );
-        my $len = 0;                                                                                 # hek should have len 0
+        my $len = 0;                                                                                     # hek should have len 0
 
-        my $pv = $sv->PV;                                                                            # we know that a shared_hek as POK
+        my $pv = $sv->PV;                                                                                # we know that a shared_hek as POK
 
         return ( $savesym, $cur, $len, $pv, $static, $flags );
     }

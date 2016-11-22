@@ -48,6 +48,7 @@ sub get_integer_value ($) {
 }
 
 my $u32fmt = $B::C::Flags::Config{ivsize} == 4 ? "%lu" : "%u";
+
 sub u32fmt {
     return $u32fmt;
 }
@@ -70,6 +71,7 @@ sub get_double_value ($) {
             return '-INFINITY' if $nvx =~ /^-Inf/i;
         }
         return 'NAN' if $nvx =~ /^NaN/i and $B::C::Flags::Config{d_isnan};
+
         # TODO NANL for long double
     }
 
@@ -106,7 +108,7 @@ sub _nvgformat {
     $format =~ s/"//g;    #" poor editor
     if ( $format eq 'g' ) {    # a very poor choice to keep precision
                                # on intel 17-18, on ppc 31, on sparc64/s390 34
-        # add one extra decimal for floating point precision ( uselongdouble should be larger than 17 but cannot check )
+                               # add one extra decimal for floating point precision ( uselongdouble should be larger than 17 but cannot check )
         $format = $B::C::Flags::Config{uselongdouble} ? '.18Lg' : '.17g';
     }
     return $format;

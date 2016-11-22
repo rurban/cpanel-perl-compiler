@@ -28,6 +28,7 @@ t/CORE*/*/*.c
 t/CORE*/*/*.subtest.*
 t/test-*.sh
 t/*.c
+*.c.lst
 script/perlcc
 ramblings/How-perl-compiles-subs-and-methods.md
 ramblings/cp_light.pod

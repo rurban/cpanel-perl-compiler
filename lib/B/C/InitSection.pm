@@ -5,7 +5,7 @@ use warnings;
 # avoid use vars
 use parent 'B::C::Section';
 
-use B::C::Config::Debug ();
+use B::C::Debug ();
 
 # All objects inject into this shared variable.
 our @all_eval_pvs;
@@ -42,7 +42,7 @@ sub new {
         }
 
         return 0 if $blacklist{ $self->{name} };
-        $status = B::C::Config::Debug::debug('benchmark') || 0 unless defined $status;
+        $status = B::C::Debug::debug('benchmark') || 0 unless defined $status;
         return $status;
     }
 }
@@ -82,7 +82,7 @@ sub add {
     if ( grep { $_ =~ m/\S/ } @_ ) {
 
         my $caller = "@{[(caller(1))[3]]}";
-        if ( $caller =~  m/Section/ ) { # Special handler for sadd calls.
+        if ( $caller =~ m/Section/ ) {    # Special handler for sadd calls.
             $caller = "@{[(caller(2))[3]]}";
         }
 
@@ -104,7 +104,7 @@ sub add {
     push @$current, @_;
     $self->{'count'} += scalar(@_);
 
-    if ( B::C::Config::Debug::debug('stack') ) {
+    if ( B::C::Debug::debug('stack') ) {
         my $add_stack = 'B::C::Save'->can('_caller_comment');
         my $stack     = $add_stack->();
         push @$current, $stack if length $stack;

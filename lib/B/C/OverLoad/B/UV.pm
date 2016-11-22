@@ -6,14 +6,10 @@ use B::C::Flags ();
 
 use B::C::Config;
 use B::C::File qw/svsect init/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 use B::C::Decimal qw/u32fmt/;
 
-sub save {
+sub do_save {
     my ( $sv, $fullname ) = @_;
-
-    my $sym = objsym($sv);
-    return $sym if defined $sym;
 
     my $uvuformat = $B::C::Flags::Config{uvuformat};
     $uvuformat =~ s/"//g;    #" poor editor
@@ -23,14 +19,12 @@ sub save {
     $suff .= 'L' if $uvx > 2147483647;
 
     my $u32fmt = u32fmt();
-    my $i      = svsect()->add(
-        sprintf(
-            "NULL, $u32fmt, 0x%x, {.svu_uv=${uvx}${suff}}",
-            $sv->REFCNT, $sv->FLAGS
-        )
+    my $ix     = svsect()->sadd(
+        "NULL, $u32fmt, 0x%x, {.svu_uv=${uvx}${suff}}",
+        $sv->REFCNT, $sv->FLAGS
     );
 
-    $sym = savesym( $sv, sprintf( "&sv_list[%d]", $i ) );
+    my $sym = sprintf( "&sv_list[%d]", $ix );
 
 =pod
     Since 5.24 we can access the IV/NV/UV value from either the union from the main SV body
@@ -41,7 +35,7 @@ sub save {
 =cut
 
     # the bc_SET_SVANY_FOR_BODYLESS_UV version just uses extra parens to be able to use a pointer [need to add patch to perl]
-    init()->add( sprintf( "bc_SET_SVANY_FOR_BODYLESS_UV(%s);", $sym ) );
+    init()->sadd( "bc_SET_SVANY_FOR_BODYLESS_UV(%s);", $sym );
 
     svsect()->debug( $fullname, $sv );
 

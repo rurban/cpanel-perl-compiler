@@ -5,23 +5,27 @@ use strict;
 use B::C::Config;
 use B::C::File qw/unopauxsect init decl free/;
 use B::C::Helpers qw/do_labels is_constant curcv/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 use B::C::Save qw(constpv);
 
-sub save {
+sub _clear_stack {
+
+    #'B::C::Save'->can('stack_flat')->();
+    return join '', ( 1 .. 42 );    # large enough to do stuff & clear
+}
+
+sub do_save {
     my ( $op, $level ) = @_;
-    my $sym = objsym($op);
-    return $sym if defined $sym;
 
     $level ||= 0;
 
-    my @aux_list = $op->name eq 'multideref' ? $op->aux_list_thr : $op->aux_list; # GH#283, GH#341
-    my $auxlen   = scalar @aux_list;
+    _clear_stack();                 # avoid a weird B (or B::C) issue when calling aux_list_thr
+    my @aux_list = $op->name eq 'multideref' ? $op->aux_list_thr : $op->aux_list;    # GH#283, GH#341
+    my $auxlen = scalar @aux_list;
 
     unopauxsect()->comment_common("first, aux");
 
     my $ix = unopauxsect()->index + 1;
-    unopauxsect()->add( sprintf( "%s, s\\_%x, unopaux_item$ix + 1", $op->_save_common, ${ $op->first } ) );
+    unopauxsect()->sadd( "%s, s\\_%x, unopaux_item$ix + 1", $op->_save_common, ${ $op->first } );
     unopauxsect()->debug( $op->name, $op->flagspv ) if debug('flags');
 
     # This cannot be a section, as the number of elements is variable
@@ -54,8 +58,8 @@ sub save {
                     $cmt .= ' INDEX_padsv' if $idx == 0x20;
                     $cmt .= ' INDEX_gvsv'  if $idx == 0x30;
                 }
-                elsif ( $op->name eq 'signature' ) { # cperl only for now
-                    my $act = $item & 0xf;     # SIGNATURE_ACTION_MASK
+                elsif ( $op->name eq 'signature' ) {    # cperl only for now
+                    my $act = $item & 0xf;              # SIGNATURE_ACTION_MASK
                     $cmt = 'reload'            if $act == 0;
                     $cmt = 'end'               if $act == 1;
                     $cmt = 'padintro'          if $act == 2;
@@ -119,8 +123,7 @@ sub save {
 
     decl()->add("$s\n};");
 
-    init()->add( sprintf( "unopaux_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) ) unless $B::C::optimize_ppaddr;
-    $sym = savesym( $op, "(OP*)&unopaux_list[$ix]" );
+    my $sym = "(OP*)&unopaux_list[$ix]";
     free()->add("    ($sym)->op_type = OP_NULL;");
     do_labels( $op, $level + 1, 'first' );
 

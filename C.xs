@@ -3,13 +3,6 @@
 #include <perl.h>
 #include <XSUB.h>
 
-#ifndef PM_GETRE
-# if defined(USE_ITHREADS)
-#  define PM_GETRE(o)     (INT2PTR(REGEXP*,SvIVX(PL_regex_pad[(o)->op_pmoffset])))
-# else
-#  define PM_GETRE(o)     ((o)->op_pmregexp)
-# endif
-#endif
 /* hack for 5.6.2: just want to know if PMf_ONCE or 0 */
 #ifndef PmopSTASHPV
 # define PmopSTASHPV(o) ((o)->op_pmflags & PMf_ONCE)
@@ -128,12 +121,7 @@ my_runops(pTHX)
             op->op_sibling = NULL;
             op->op_first = NULL;
             op->op_last = NULL;
-
-#if defined(USE_ITHREADS)
-            op->op_pmoffset = 0;
-#else
             op->op_pmregexp = 0;
-#endif
 
             sv_setiv( key, PTR2IV( rx ) );
             sv_setref_iv( rv, "B::PMOP", PTR2IV( op ) );
@@ -198,6 +186,13 @@ PPCODE:
     else
       PUSHi(0);
 
+IV
+Gv_AMG(stash)
+    B::HV stash
+CODE:
+    XSRETURN_IV((!SvREADONLY(stash) && Gv_AMG(stash)) ? 1 : 0);
+
+
 MODULE = B	PACKAGE = B::UNOP_AUX
 
 SV*
@@ -227,11 +222,7 @@ aux_list_thr(o)
             XSRETURN(0); /* by default, an empty list */
 
         case OP_MULTIDEREF:
-#ifdef USE_ITHREADS
-#  define PUSH_SV(item) mPUSHu((item)->pad_offset)
-#else
 #  define PUSH_SV(item) PUSHs(make_sv_object(aTHX_ (item)->sv))
-#endif
             {
                 UNOP_AUX_item *items = cUNOP_AUXo->op_aux;
                 UV actions = items->uv;
@@ -418,36 +409,6 @@ MODULE = B	PACKAGE = B::REGEXP	PREFIX = RX_
 U32
 RX_EXTFLAGS(rx)
 	  B::REGEXP rx
-
-MODULE = B	PACKAGE = B::COP	PREFIX = COP_
-
-#if defined(USE_ITHREADS) && defined(CopSTASH_flags)
-
-#define COP_stashflags(o)	CopSTASH_flags(o)
-
-U32
-COP_stashflags(o)
-	B::COP	o
-
-#endif
-
-#ifdef CopLABEL_len_flags
-
-SV*
-COP_label(o)
-    B::OP  o
-PPCODE:
-    {
-      STRLEN len;
-      U32 flags;
-      const char *pv = CopLABEL_len_flags(cCOPo, &len, &flags);
-      PERL_UNUSED_VAR(RETVAL);
-      ST(0) = pv ? sv_2mortal(newSVpvn_flags(pv, len, flags))
-                 : &PL_sv_undef;
-    }
-    XSRETURN(1);
-
-#endif
 
 MODULE = B__CC	PACKAGE = B::CC
 

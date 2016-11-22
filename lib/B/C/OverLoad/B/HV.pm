@@ -30,15 +30,14 @@ sub swash_ToCf_value {    # NO idea what it s ??
     return $swash_ToCf;
 }
 
-sub save {
+sub do_save {
     my ( $hv, $fullname ) = @_;
 
     $fullname = '' unless $fullname;
-    my $sym = objsym($hv);
-    return $sym if defined $sym;
     my $name     = $hv->NAME;
     my $is_stash = $name;
     my $magic;
+    my $sym;
 
     if ($name) {
 
@@ -56,9 +55,13 @@ sub save {
         $sym = savestashpv( $name, $no_gvadd );    # inc hv_index
         savesym( $hv, $sym );
 
+        # SVf_AMAGIC is set on almost every stash until it is
+        # used.  This forces a transversal of the stash to remove
+        # the flag if its not actually needed.
         # fix overload stringify
-        if ( $hv->FLAGS & SVf_AMAGIC and length($name) ) {
-            init2()->add( sprintf( "mro_isa_changed_in(%s);  /* %s */", $sym, $name ) );
+        # Gv_AMG: potentially removes the AMG flag
+        if ( $hv->FLAGS & SVf_AMAGIC and length($name) and $hv->Gv_AMG ) {
+            init2()->sadd( "mro_isa_changed_in(%s);  /* %s */", $sym, $name );
         }
 
         # Add aliases if namecount > 1 (GH #331)
@@ -89,11 +92,9 @@ sub save {
             my $i = 0;
             while (@enames) {
                 my ( $cstring, $cur, $utf8 ) = strlen_flags( shift @enames );
-                init()->add(
-                    sprintf(
-                        "  aux->xhv_name_u.xhvnameu_names[%u] = share_hek(%s, %d, 0);",
-                        $i++, $cstring, $utf8 ? -$cur : $cur
-                    )
+                init()->sadd(
+                    "  aux->xhv_name_u.xhvnameu_names[%u] = share_hek(%s, %d, 0);",
+                    $i++, $cstring, $utf8 ? -$cur : $cur
                 );
             }
             init()->add("}");
@@ -105,23 +106,19 @@ sub save {
         # For efficiency we skip most stash symbols unless -fstash.
         # However it should be now safe to save all stash symbols.
         # $fullname !~ /::$/ or
-        if ( !$B::C::stash ) {    # -fno-stash: do not save stashes
-            $magic = $hv->save_magic( '%' . $name . '::' );    #symtab magic set in PMOP #188 (#267)
-            if ( is_using_mro() && mro::get_mro($name) eq 'c3' ) {
-                B::C::make_c3($name);
-            }
 
-            if ( $magic and $magic =~ m/c/ ) {
-                debug( mg => "defer AMT magic of $name" );
-
-                # defer AMT magic of XS loaded hashes.
-                #init1()->add(qq[$sym = gv_stashpvn($cname, $len, GV_ADDWARN|GV_ADDMULTI);]);
-            }
-            return $sym;
+        $magic = $hv->save_magic( '%' . $name . '::' );    #symtab magic set in PMOP #188 (#267)
+        if ( is_using_mro() && mro::get_mro($name) eq 'c3' ) {
+            B::C::make_c3($name);
         }
-        return $sym if B::C::skip_pkg($name) or $name eq 'main';
-        init()->add("SvREFCNT_inc($sym);");
-        debug( hv => "Saving stash keys for HV \"$name\" from \"$fullname\"" );
+
+        if ( $magic and $magic =~ m/c/ ) {
+            debug( mg => "defer AMT magic of $name" );
+
+            # defer AMT magic of XS loaded hashes.
+            #init1()->add(qq[$sym = gv_stashpvn($cname, $len, GV_ADDWARN|GV_ADDMULTI);]);
+        }
+        return $sym;
     }
 
     # protect against recursive self-reference
@@ -174,7 +171,7 @@ sub save {
     my $hv_total_keys = scalar(@hash_content_to_save);
     my $max           = get_max_hash_from_keys($hv_total_keys);
     xpvhvsect()->comment("HV* xmg_stash, union _xmgu mgu, STRLEN xhv_keys, STRLEN xhv_max");
-    xpvhvsect()->add( sprintf( "Nullhv, {0}, %d, %d", $hv_total_keys, $max ) );
+    xpvhvsect()->sadd( "Nullhv, {0}, %d, %d", $hv_total_keys, $max );
 
     my $flags = $hv->FLAGS & ~SVf_READONLY & ~SVf_PROTECT;
 
@@ -187,14 +184,9 @@ sub save {
         )
     );
 
-    push @B::C::static_free, $sym if $hv->FLAGS & SVs_OBJECT;
-
     {    # add hash content even if the hash is empty [ maybe only for %INC ??? ]
         init()->no_split;
-        init()->add(
-            "{",
-            sprintf( q{HvSETUP(%s, %d);}, $sym, $max + 1 ),
-        );
+        init()->sadd( qq[{\n] . q{HvSETUP(%s, %d);}, $sym, $max + 1 );
 
         my @hash_elements;
         {
@@ -211,13 +203,13 @@ sub save {
 
             # Insert each key into the hash.
             my $shared_he = save_shared_he($key);
-            init()->add( sprintf( q{HvAddEntry(%s, %s, %s, %d);}, $sym, $value, $shared_he, $max ) );
+            init()->sadd( q{HvAddEntry(%s, %s, %s, %d);}, $sym, $value, $shared_he, $max );
 
             #debug( hv => q{ HV key "%s" = %s}, $key, $value );
         }
 
         # save the iterator in hv_aux (and malloc it)
-        init()->add( sprintf( "HvRITER_set(%s, %d);", $sym, -1 ) );    # saved $hv->RITER
+        init()->sadd( "HvRITER_set(%s, %d);", $sym, -1 );    # saved $hv->RITER
 
         init()->add("}");
         init()->split;
@@ -235,6 +227,7 @@ sub save {
     if ( $name and is_using_mro() and mro::get_mro($name) eq 'c3' ) {
         B::C::make_c3($name);
     }
+
     return $sym;
 }
 

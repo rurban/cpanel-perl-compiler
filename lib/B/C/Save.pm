@@ -11,7 +11,7 @@ use B::C::Save::Hek qw/save_shared_he/;
 use Exporter ();
 our @ISA = qw(Exporter);
 
-our @EXPORT_OK = qw/savepvn constpv savepv savecowpv inc_pv_index set_max_string_len get_max_string_len savestash_flags savestashpv/;
+our @EXPORT_OK = qw/savepvn constpv savepv savecowpv inc_pv_index savestash_flags savestashpv/;
 
 my %strtable;
 my %cowtable;
@@ -34,7 +34,7 @@ sub savecowpv {
     my $ix = const()->add('FAKE_CONST');
     my $pvsym = sprintf( "cowpv%d", $ix );
 
-    my $max_len = B::C::Save::get_max_string_len();
+    my $max_len = 0;
     if ( $max_len && $cur > $max_len ) {
         my $chars = join ', ', map { cchar $_ } split //, pack( "a*", $pv );
         const()->update( $ix, sprintf( "Static const char %s[] = { %s };", $pvsym, $chars ) );
@@ -51,18 +51,6 @@ sub constpv {                         # could also safely use a cowpv
     return savepv( shift, 1 );
 }
 
-{
-    my $_MAX_STR_LEN;
-
-    sub set_max_string_len {
-        $_MAX_STR_LEN = shift;
-    }
-
-    sub get_max_string_len {
-        return $_MAX_STR_LEN || 0;
-    }
-}
-
 sub savepv {
     my $pv    = shift;
     my $const = shift;
@@ -71,15 +59,15 @@ sub savepv {
     return $strtable{$cstring} if defined $strtable{$cstring};
     my $pvsym = sprintf( "pv%d", inc_pv_index() );
     $const = $const ? " const" : "";
-    my $maxlen = get_max_string_len;
+    my $maxlen = 0;
     if ( $maxlen && $len > $maxlen ) {
         my $chars = join ', ', map { cchar $_ } split //, pack( "a*", $pv );
-        decl()->add( sprintf( "Static%s char %s[] = { %s };", $const, $pvsym, $chars ) );
+        decl()->sadd( "Static%s char %s[] = { %s };", $const, $pvsym, $chars );
         $strtable{$cstring} = $pvsym;
     }
     else {
         if ( $cstring ne "0" ) {    # sic
-            decl()->add( sprintf( "Static%s char %s[] = %s;", $const, $pvsym, $cstring ) );
+            decl()->sadd( "Static%s char %s[] = %s;", $const, $pvsym, $cstring );
             $strtable{$cstring} = $pvsym;
         }
     }
@@ -90,7 +78,7 @@ sub savepvn {
     my ( $dest, $pv, $sv, $cur ) = @_;
     my @init;
 
-    my $maxlen = get_max_string_len();
+    my $maxlen = 0;
 
     $pv = pack "a*", $pv if defined $pv;
     if ( $maxlen && length($pv) > $maxlen ) {
@@ -110,9 +98,6 @@ sub savepvn {
             debug( sv => "Saving shared HEK %s to %s\n", cstring($pv), $dest );
             my $shared_he = save_shared_he($pv);
             push @init, sprintf( "%s = %s->shared_he_hek.hek_key;", $dest, $shared_he ) unless $shared_he eq 'NULL';
-            if ( DEBUGGING() ) {    # we have to bypass a wrong HE->HEK assert in hv.c
-                push @B::C::static_free, $dest;
-            }
         }
         else {
             my $cstr = cstring($pv);
@@ -130,19 +115,30 @@ sub savepvn {
 }
 
 sub _caller_comment {
-    return '' unless debug('pv');
+    return '' unless debug('stack');
+    my $s = stack_flat(+1);
+    return qq{/* $s */};
+}
 
-    my $s = '';
-    foreach my $level ( 0 .. 20 ) {
+sub stack {
+    my @stack;
+    foreach my $level ( 0 .. 100 ) {
         my @caller = grep { defined } caller($level);
         @caller = map { $_ =~ s{/usr/local/cpanel/3rdparty/perl/5[0-9]+/lib64/perl5/cpanel_lib/x86_64-linux-64int/}{lib/}; $_ } @caller;
 
         last if !scalar @caller or !defined $caller[0];
-        $s .= join ' ', @caller;
-        $s .= "\n";
+        push @stack, join( ' ', @caller );
     }
 
-    return qq{/* $s */};
+    return \@stack;
+}
+
+sub stack_flat {
+    my $remove = shift || 0;    # number of stack levels to remove
+    $remove += 2;
+    my @stack = @{ stack() };
+    splice( @stack, 0, $remove );    # shift the first X elements
+    return join "\n", @stack;
 }
 
 # performance optimization:
@@ -169,11 +165,9 @@ sub savestash_flags {
     }
     my $pvsym = $len ? constpv($name) : '""';
     $stashtable{$name} = $sym;
-    init()->add(
-        sprintf(
-            "%s = gv_stashpvn(%s, %u, %s); /* $name */",
-            $sym, $pvsym, $len, $flags
-        )
+    init()->sadd(
+        "%s = gv_stashpvn(%s, %u, %s); /* $name */",
+        $sym, $pvsym, $len, $flags
     );
 
     return $sym;

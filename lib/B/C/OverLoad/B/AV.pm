@@ -8,7 +8,7 @@ use B qw/cstring SVf_IOK SVf_POK SVs_OBJECT/;
 use B::C::Config;
 use B::C::File qw/init init2 xpvavsect svsect/;
 use B::C::Helpers qw/strlen_flags/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
+use B::C::Helpers::Symtable qw/savesym/;
 use B::C::Save qw/savestashpv/;
 
 # maybe need to move to setup/config
@@ -28,11 +28,10 @@ sub cast_sv {
     return "(SV*)";
 }
 
-sub save {
+sub do_save {
     my ( $av, $fullname, $cv ) = @_;
-    my $sym = objsym($av);
-    return $sym if defined $sym;
 
+    my $sym;
     $fullname = '' unless $fullname;
 
     my $fill    = $av->fill();
@@ -46,15 +45,12 @@ sub save {
     else {
         # 5.14
         # 5.13.3: STASH, MAGIC, fill max ALLOC
-        my $line = "Nullhv, {0}, -1, -1, 0";
-        $line = "Nullhv, {0}, $fill, $fill, 0" if $B::C::av_init or $B::C::av_init2;
+        my $line = "Nullhv, {0}, $fill, $fill, 0";
         xpvavsect()->add($line);
-        svsect()->add(
-            sprintf(
-                "&xpvav_list[%d], %Lu, 0x%x, {%s}",
-                xpvavsect()->index, $av->REFCNT, $av->FLAGS,
-                '0'
-            )
+        svsect()->sadd(
+            "&xpvav_list[%d], %Lu, 0x%x, {%s}",
+            xpvavsect()->index, $av->REFCNT, $av->FLAGS,
+            '0'
         );
 
         svsect()->debug( $fullname, $av );
@@ -64,7 +60,6 @@ sub save {
         # protect against recursive self-references (Getopt::Long)
         $sym = savesym( $av, "(AV*)&sv_list[$sv_ix]" );
         $magic = $av->save_magic($fullname);
-        push @B::C::static_free, $sym if $av->FLAGS & SVs_OBJECT;
     }
 
     debug( av => "saving AV %s 0x%x [%s] FILL=%d", $fullname, $$av, ref($av), $fill );
@@ -113,7 +108,7 @@ sub save {
         $count = 0;
         for ( my $i = 0; $i <= $#array; $i++ ) {
             if ( $fullname =~ m/^(INIT|END)$/ and $values[$i] and ref $array[$i] eq 'B::CV' ) {
-                init()->add( sprintf( 'SvREFCNT_inc(%s); /* bump $fullname */', $values[$i] ) );
+                init()->sadd( 'SvREFCNT_inc(%s); /* bump $fullname */', $values[$i] );
             }
             if (   $use_svpop_speedup
                 && defined $values[$i]
@@ -153,46 +148,21 @@ sub save {
             $av->add_to_init( $sym, $acc );
         }
 
-        # With -fav-init2 use independent_comalloc()
-        elsif ($B::C::av_init2) {
-            my $i = $av_index;
-            $B::C::xpvav_sizes[$i] = $fill;
-            my $init_add = "{ SV **svp = avchunks[$i]; AV *av = $sym;\n";
-            $init_add .= "\tregister int gcount;\n" if $count;
-            if ( $fill > -1 ) {
-
-                $init_add .= "\tAvALLOC(av) = svp;\n" . "\tAvARRAY(av) = svp;\n";
-            }
-            $init_add .= substr( $acc, 0, -2 );
-            init()->add( $init_add . "}" );
-        }
-
         # With -fav-init faster initialize the array as the initial av_extend()
         # is very expensive.
         # The problem was calloc, not av_extend.
         # Since we are always initializing every single element we don't need
         # calloc, only malloc. wmemset'ting the pointer to PL_sv_undef
         # might be faster also.
-        elsif ($B::C::av_init) {
-            init()->add("{ /* Slow array init mode. */",);
+        else {
+            init()->add( "{ /* Slow array init mode. */", );
             init()->add("\tregister int gcount;") if $count;
             my $fill1 = $fill < 3 ? 3 : $fill + 1;
-            init()->add(sprintf("\tSV **svp = INITAv($sym, %d);", $fill1 )) if $fill1 > -1;
+            init()->sadd( "\tSV **svp = INITAv($sym, %d);", $fill1 ) if $fill1 > -1;
             init()->add( substr( $acc, 0, -2 ) );    # AvFILLp already in XPVAV
             init()->add("}");
         }
-        else {                                       # unoptimized with the full av_extend()
-            my $fill1 = $fill < 3 ? 3 : $fill + 1;
-            init()->add( "{", "\tSV **svp;" );
-            init()->add("\tregister int gcount;") if $count;
-            init()->add(
-                "\tAV *av = $sym;",
-                "\tav_extend(av, $fill1);",
-                "\tsvp = AvARRAY(av);"
-            );
-            init()->add( substr( $acc, 0, -2 ) );
-            init()->add( "\tAvFILLp(av) = $fill;", "}" );
-        }
+
         init()->split;
 
         # we really added a lot of lines ( B::C::InitSection->add

@@ -6,21 +6,17 @@ use B qw/SVf_ROK SVf_IOK SVp_IOK SVf_IVisUV/;
 use B::C::Config;
 use B::C::File qw/init svsect/;
 use B::C::Decimal qw/get_integer_value/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 
-sub save {
+sub do_save {
     my ( $sv, $fullname, $custom ) = @_;
-
-    my $sym = objsym($sv);
-    return $sym if defined $sym;
 
     # Since 5.11 the RV is no special SV object anymore, just a IV (test 16)
     my $svflags = $sv->FLAGS;
     my $refcnt  = $sv->REFCNT;
 
-    if ( ref $custom ) { # used when downgrading a PVIV / PVNV to IV
-        $svflags = $custom->{flags} if defined $custom->{flags};
-        $refcnt = $custom->{refcnt} if defined $custom->{refcnt};
+    if ( ref $custom ) {    # used when downgrading a PVIV / PVNV to IV
+        $svflags = $custom->{flags}  if defined $custom->{flags};
+        $refcnt  = $custom->{refcnt} if defined $custom->{refcnt};
     }
 
     if ( $svflags & SVf_ROK ) {
@@ -33,8 +29,8 @@ sub save {
 
     svsect()->debug( $fullname, $sv );
 
-    my $i = svsect()->add( sprintf( "NULL, %lu, 0x%x, {.svu_iv=%s}", $refcnt, $svflags, $ivx ) );
-    my $sym = savesym( $sv, sprintf( "&sv_list[%d]", $i ) );
+    my $ix = svsect()->sadd( "NULL, %lu, 0x%x, {.svu_iv=%s}", $refcnt, $svflags, $ivx );
+    my $sym = sprintf( "&sv_list[%d]", $ix );
 
 =pod
     Since 5.24 we can access the IV/NV/UV value from either the union from the main SV body
@@ -50,7 +46,7 @@ sub save {
 =cut
 
     # the bc_SET_SVANY_FOR_BODYLESS_IV version just uses extra parens to be able to use a pointer [need to add patch to perl]
-    init()->add( sprintf( "bc_SET_SVANY_FOR_BODYLESS_IV(%s);", $sym ) );
+    init()->sadd( "bc_SET_SVANY_FOR_BODYLESS_IV(%s);", $sym );
 
     return $sym;
 }

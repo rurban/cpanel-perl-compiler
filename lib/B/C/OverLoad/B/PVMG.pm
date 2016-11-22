@@ -8,20 +8,12 @@ use B qw/SVf_ROK SVf_READONLY HEf_SVKEY SVf_READONLY SVf_AMAGIC SVf_IsCOW cstrin
 use B::C::Save qw/savepvn savepv savestashpv/;
 use B::C::Decimal qw/get_integer_value get_double_value/;
 use B::C::File qw/init init1 init2 svsect xpvmgsect xpvsect pmopsect assign_hekkey2pv/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 use B::C::Helpers qw/mark_package read_utf8_string is_shared_hek get_index/;
 use B::C::Save::Hek qw/save_shared_he/;
 
-sub save {
+sub do_save {
     my ( $sv, $fullname ) = @_;
-    my $sym = objsym($sv);
-    if ( defined $sym ) {
-        if ($B::C::in_endav) {
-            debug( av => "in_endav: static_free without $sym" );
-            @B::C::static_free = grep { !/$sym/ } @B::C::static_free;
-        }
-        return $sym;
-    }
+
     my ( $savesym, $cur, $len, $pv, $static, $flags ) = B::PV::save_pv_or_rv( $sv, $fullname );
     if ($static) {    # 242: e.g. $1
         $static = 0;
@@ -46,7 +38,7 @@ sub save {
         # svop const or pad OBJECT,IOK
         if (
             # fixme simply the or logic
-            ( ( !USE_ITHREADS() and $fullname and $fullname =~ /^svop const|^padop|^Encode::Encoding| :pad\[1\]/ ) or USE_ITHREADS() )
+            ( ( $fullname and $fullname =~ /^svop const|^padop|^Encode::Encoding| :pad\[1\]/ ) )
             and $ivx > LOWEST_IMAGEBASE    # some crazy heuristic for a sharedlibrary ptr in .data (> image_base)
             and ref( $sv->SvSTASH ) ne 'B::SPECIAL'
           ) {
@@ -55,26 +47,22 @@ sub save {
     }
 
     if ( $flags & SVf_ROK ) {              # sv => sv->RV cannot be initialized static.
-        init()->add( sprintf( "SvRV_set(&sv_list[%d], (SV*)%s);", svsect()->index + 1, $savesym ) )
+        init()->sadd( "SvRV_set(&sv_list[%d], (SV*)%s);", svsect()->index + 1, $savesym )
           if $savesym ne '';
         $savesym = 'NULL';
         $static  = 1;
     }
 
     xpvmgsect()->comment("STASH, MAGIC, cur, len, xiv_u, xnv_u");
-    my $xpvmg_ix = xpvmgsect()->add(
-        sprintf(
-            "Nullhv, {0}, %u, {%u}, {%s}, {%s}",
-            $cur, $len, $ivx, $nvx
-        )
+    my $xpvmg_ix = xpvmgsect()->sadd(
+        "Nullhv, {0}, %u, {%u}, {%s}, {%s}",
+        $cur, $len, $ivx, $nvx
     );
 
     my $sv_u = $savesym eq 'NULL' ? 0 : ".svu_pv=(char*) $savesym";
-    my $sv_ix = svsect()->add(
-        sprintf(
-            "&xpvmg_list[%d], %Lu, 0x%x, {%s}",
-            $xpvmg_ix, $sv->REFCNT + 1, $flags, $sv_u
-        )
+    my $sv_ix = svsect()->sadd(
+        "&xpvmg_list[%d], %Lu, 0x%x, {%s}",
+        $xpvmg_ix, $sv->REFCNT + 1, $flags, $sv_u
     );
     svsect()->debug( $fullname, $sv );
 
@@ -86,9 +74,8 @@ sub save {
         }
     }
 
-    $sym = savesym( $sv, sprintf( q{&sv_list[%d]}, $sv_ix ) );
     $sv->save_magic($fullname);
-    return $sym;
+    return sprintf( q{&sv_list[%d]}, $sv_ix );
 }
 
 sub save_magic {
@@ -132,7 +119,7 @@ sub save_magic {
             # core already initialized this stash for us
             if ( $fullname ne 'main::STDOUT' ) {
                 if ( ref $pkg eq 'B::HV' ) {
-                    if ( $fullname !~ /::$/ or $B::C::stash ) {
+                    if ( $fullname !~ /::$/ ) {
                         $pkgsym = $pkg->save($fullname);
                     }
                     else {
@@ -149,8 +136,8 @@ sub save_magic {
                 # A: We only need to init it when we need a CV
                 # defer for XS loaded stashes with AMT magic
                 if ( ref $pkg eq 'B::HV' ) {
-                    init()->add( sprintf( "SvSTASH_set(s\\_%x, (HV*)s\\_%x);", $$sv, $$pkg ) );
-                    init()->add( sprintf( "SvREFCNT((SV*)s\\_%x) += 1;", $$pkg ) );
+                    init()->sadd( "SvSTASH_set(s\\_%x, (HV*)s\\_%x);", $$sv, $$pkg );
+                    init()->sadd( "SvREFCNT((SV*)s\\_%x) += 1;", $$pkg );
                     init()->add("++PL_sv_objcount;") unless ref($sv) eq "B::IO";
 
                     # XXX
@@ -161,7 +148,7 @@ sub save_magic {
         }
     }
 
-    init()->add( sprintf( "SvREADONLY_off((SV*)s\\_%x);", $$sv ) )
+    init()->sadd( "SvREADONLY_off((SV*)s\\_%x);", $$sv )
       if $sv_flags & SVf_READONLY and ref($sv) ne 'B::HV';
 
     # Protect our SVs against non-magic or SvPAD_OUR. Fixes tests 16 and 14 + 23
@@ -179,7 +166,7 @@ sub save_magic {
     #    $name = $pkg->NAME if $pkg and $$pkg;
     #    debug( [qw/mg gv/], "initialize overload cache for %s", $fullname );
     # This is destructive, it removes the magic instead of adding it.
-    #    init1()->add( sprintf( "Gv_AMG(%s); /* init overload cache for %s */", savestashpv($name), $fullname ) );
+    #    init1()->sadd( "Gv_AMG(%s); /* init overload cache for %s */", savestashpv($name), $fullname );
     #}
 
     my @mgchain = $sv->MAGIC;
@@ -205,7 +192,6 @@ sub save_magic {
                                            # 5.11 'P' fix in B::IV::save, IV => RV
             $obj = $mg->OBJ;
             $obj->save($fullname) if ( ref $obj ne 'SCALAR' );
-            B::C::mark_threads()  if $type eq 'P';
         }
 
         if ( $len == HEf_SVKEY ) {
@@ -222,11 +208,9 @@ sub save_magic {
                 $ptrsv = 'NULL';
             }
             debug( mg => "MG->PTR is an SV*" );
-            init()->add(
-                sprintf(
-                    "sv_magic((SV*)s\\_%x, (SV*)s\\_%x, %s, (char *)%s, %d);",
-                    $$sv, $$obj, cchar($type), $ptrsv, $len
-                )
+            init()->sadd(
+                "sv_magic((SV*)s\\_%x, (SV*)s\\_%x, %s, (char *)%s, %d);",
+                $$sv, $$obj, cchar($type), $ptrsv, $len
             );
         }
 
@@ -244,7 +228,6 @@ sub save_magic {
                 ( $resym, $relen ) = _savere( $mg->precomp );
 
                 my $pmsym = $pmop->save( 0, $fullname );
-                push @B::C::static_free, $resym;
                 init()->add(
                     split /\n/,
                     sprintf <<CODE1, $resym, $pmop->pmflags, $$sv, cchar($type), cstring($ptr), $len );
@@ -257,29 +240,22 @@ CODE1
         }
         elsif ( $type eq 'D' ) {    # XXX regdata AV - coverage? i95, 903
                                     # see Perl_mg_copy() in mg.c
-            init()->add(
-                sprintf(
-                    "sv_magic((SV*)s\\_%x, (SV*)s\\_%x, %s, %s, %d);",
-                    $$sv, $fullname eq 'main::-' ? 0 : $$sv, "'D'", cstring($ptr), $len
-                )
+            init()->sadd(
+                "sv_magic((SV*)s\\_%x, (SV*)s\\_%x, %s, %s, %d);",
+                $$sv, $fullname eq 'main::-' ? 0 : $$sv, "'D'", cstring($ptr), $len
             );
         }
         elsif ( $type eq 'n' ) {    # shared_scalar is from XS dist/threads-shared
                                     # XXX check if threads is loaded also? otherwise it is only stubbed
-            B::C::mark_threads();
-            init()->add(
-                sprintf(
-                    "sv_magic((SV*)s\\_%x, Nullsv, %s, %s, %d);",
-                    $$sv, "'n'", cstring($ptr), $len
-                )
+            init()->sadd(
+                "sv_magic((SV*)s\\_%x, Nullsv, %s, %s, %d);",
+                $$sv, "'n'", cstring($ptr), $len
             );
         }
         elsif ( $type eq 'c' ) {
-            init()->add(
-                sprintf(
-                    "/* AMT overload table for the stash %s s\\_%x is generated dynamically */",
-                    $fullname, $$sv
-                )
+            init()->sadd(
+                "/* AMT overload table for the stash %s s\\_%x is generated dynamically */",
+                $fullname, $$sv
             );
         }
         elsif ( $type eq ':' ) {    # symtab magic
@@ -302,22 +278,20 @@ CODE1
                 (
                     $pmop
                     ? ( sprintf( "\t((OP**)mg->mg_ptr) [elements++] = (OP*)%s;", $pmsym ) )
-                    : ( defined $pmop_ptr ? sprintf( "\t((OP**)mg->mg_ptr) [elements++] = (OP*)\s\\_%x;", $pmop_ptr ) : '' )
+                    : ( defined $pmop_ptr ? sprintf( "\t((OP**)mg->mg_ptr) [elements++] = (OP*)s\\_%x;", $pmop_ptr ) : '' )
                 ),
                 "\tmg->mg_len = elements * sizeof(PMOP**);",
                 "}"
             );
         }
         else {
-            init()->add(
-                sprintf(
-                    "sv_magic((SV*)s\\_%x, (SV*)s\\_%x, %s, %s, %d);",
-                    $$sv, $$obj, cchar($type), cstring($ptr), $len
-                )
+            init()->sadd(
+                "sv_magic((SV*)s\\_%x, (SV*)s\\_%x, %s, %s, %d);",
+                $$sv, $$obj, cchar($type), cstring($ptr), $len
             );
         }
     }
-    init()->add( sprintf( "SvREADONLY_on((SV*)s\\_%x);", $$sv ) )
+    init()->sadd( "SvREADONLY_on((SV*)s\\_%x);", $$sv )
       if $sv_flags & SVf_READONLY and ref($sv) ne 'B::HV';
     $magic;
 }
@@ -456,8 +430,8 @@ sub _savere {
 
     my $refcnt = 1;    # ???? WTF
 
-    my $xpv_ix = xpvsect()->add( sprintf( "Nullhv, {0}, %u, {.xpvlenu_len=%u}", $cur, $len ) );    # 0 or $len ?
-    my $sv_ix = svsect()->add( sprintf( "&xpv_list[%d], %d, %x, {.svu_pv=(char*)%s}", $xpv_ix, $refcnt, 0x4405, savepv($pv) ) );
+    my $xpv_ix = xpvsect()->sadd( "Nullhv, {0}, %u, {.xpvlenu_len=%u}", $cur, $len );    # 0 or $len ?
+    my $sv_ix = svsect()->sadd( "&xpv_list[%d], %d, %x, {.svu_pv=(char*)%s}", $xpv_ix, $refcnt, 0x4405, savepv($pv) );
     $sym = sprintf( "&sv_list[%d]", $sv_ix );
 
     return ( $sym, $cur );

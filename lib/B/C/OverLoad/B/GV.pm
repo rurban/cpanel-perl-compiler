@@ -27,6 +27,21 @@ sub Save_FORM() { 16 }
 sub Save_IO()   { 32 }
 sub Save_FILE() { 64 }
 
+sub _savefields_to_str {
+    my $i = shift;
+    return '' unless debug('gv') && $i;
+    my $s = qq{$i: };
+    $s .= 'HV '   if $i & Save_HV();
+    $s .= 'AV '   if $i & Save_AV();
+    $s .= 'SV '   if $i & Save_SV();
+    $s .= 'CV '   if $i & Save_CV();
+    $s .= 'FORM ' if $i & Save_FORM();
+    $s .= 'IO '   if $i & Save_IO();
+    $s .= 'FILE ' if $i & Save_FILE();
+
+    return $s;
+}
+
 my $CORE_SYMS = {
     'main::ENV'    => 'PL_envgv',
     'main::ARGV'   => 'PL_argvgv',
@@ -49,10 +64,7 @@ my $CORE_SVS = {                       # special SV syms to assign to the right 
 sub get_package {
     my $gv = shift;
 
-    if ( ref( $gv->STASH ) eq 'B::SPECIAL' ) {
-        return '__ANON__';
-    }
-
+    return '__ANON__' if ref( $gv->STASH ) eq 'B::SPECIAL';
     return $gv->STASH->NAME;
 }
 
@@ -76,8 +88,9 @@ sub savegp_from_gv {
 
     # no GP to save there...
     return 'NULL' unless $gv->isGV_with_GP and !$gv->is_coresym() and $gv->GP;
+
     # B limitation GP is just a number not a reference so we cannot use objsym / savesym
-    my $gp = $gv->GP;       
+    my $gp = $gv->GP;
     return $saved_gps{$gp} if defined $saved_gps{$gp};
 
     my $gvname   = $gv->NAME;
@@ -94,10 +107,11 @@ sub savegp_from_gv {
     # walksymtable creates an extra reference to the GV (#197)
     my $gp_refcount = $gv->GvREFCNT - 1;    # +1 for immortal ?
 
-    my $gp_line  = $gv->LINE;               # we want to use GvLINE from B.xs
+    my $gp_line = $gv->LINE;                # we want to use GvLINE from B.xs
                                             # present only in perl 5.22.0 and higher. this flag seems unused ( saving 0 for now should be similar )
 
     if ( !$gv->is_empty ) {
+
         # S32 INT_MAX
         $gp_line = $gp_line > 2147483647 ? 4294967294 - $gp_line : $gp_line;
     }
@@ -127,32 +141,35 @@ sub savegp_from_gv {
     return $saved_gps{$gp};
 }
 
-sub save {
+sub set_dynamic_gv {
+    my $gv = shift;
+
+    # need to savesym earlier
+    return savesym( $gv, sprintf( "dynamic_gv_list[%s]", inc_index() ) );
+}
+
+sub do_save {
     my ( $gv, $filter ) = @_;
 
-    {    # cache lookup
-        my $cached_sym = objsym($gv);
-        return $cached_sym if defined $cached_sym;
-    }
+    # return earlier for special cases
+    return B::BM::save($gv)       if $gv->FLAGS & 0x40000000;                # SVpbm_VALID # GV $sym isa FBM
+    return q/(SV*)&PL_sv_undef/   if B::C::skip_pkg( $gv->get_package() );
+    return $gv->save_special_gv() if $gv->is_special_gv();
 
-    # GV $sym isa FBM
-    return B::BM::save($gv) if $gv->FLAGS & 0x40000000;    # SVpbm_VALID
+    my $sym = $gv->set_dynamic_gv;
 
-    my $package = $gv->get_package();
-    return q/(SV*)&PL_sv_undef/ if B::C::skip_pkg($package);
-
-    my $gpsym      = savegp_from_gv( $gv, $filter ); # might be $gp->save( )
+    my $gpsym = savegp_from_gv( $gv, $filter );                              # might be $gp->save( )
 
     xpvgvsect()->comment("stash, magic, cur, len, xiv_u={.xivu_namehek=}, xnv_u={.xgv_stash=}");
     xpvgvsect()->sadd(
-            "Nullhv, {0}, 0, {.xpvlenu_len=0}, {.xivu_namehek=%s}, {.xgv_stash=%s}",
-            'NULL', 'Nullhv'
+        "Nullhv, {0}, 0, {.xpvlenu_len=0}, {.xivu_namehek=%s}, {.xgv_stash=%s}",
+        'NULL', 'Nullhv'
     );
     my $xpvgv = sprintf( 'xpvgv_list[%d]', xpvgvsect()->index );
 
     my $gv_ix;
     {
-        my $gv_refcnt = $gv->REFCNT;    # TODO probably need more love for both refcnt (+1 ? extra flag immortal)
+        my $gv_refcnt = $gv->REFCNT;                                         # TODO probably need more love for both refcnt (+1 ? extra flag immortal)
         my $gv_flags  = $gv->FLAGS;
 
         gvsect()->comment("XPVGV*  sv_any,  U32     sv_refcnt; U32     sv_flags; union   { gp* } sv_u # gp*");
@@ -167,10 +184,10 @@ sub save {
 
 sub legacy_save {
     my ( $gv, $filter, $gvsym ) = @_;
-    
+
     # dynamic / legacy one
     my $sym = savesym( $gv, sprintf( "dynamic_gv_list[%s]", inc_index() ) );
-    init()->add( "$sym = $gvsym; "); # init the sym
+    init()->add("$sym = $gvsym; ");    # init the sym
 
     my $gvname = $gv->NAME();
 
@@ -194,13 +211,10 @@ sub legacy_save {
 
     if ( my $newgv = force_heavy( $package, $fullname ) ) {
         $gv = $newgv;                          # defer to run-time autoload, or compile it in?
-        $sym = savesym( $gv, $sym );           # override new gv ptr to sym
     }
 
     # Core syms are initialized by perl so we don't need to other than tracking the symbol itself see init_main_stash()
-    $sym = savesym( $gv, $CORE_SYMS->{$fullname} ) if $gv->is_coresym();
-
-    return $sym if $gv->save_special_gv($sym);
+    $sym = $CORE_SYMS->{$fullname} if $gv->is_coresym();
 
     my $notqual = $package eq 'main' ? 'GV_NOTQUAL' : '0';
     my $was_emptied = save_gv_with_gp( $gv, $sym, $name, $notqual, $is_empty );
@@ -233,7 +247,7 @@ sub legacy_save {
     return $sym unless $savefields;
 
     # Don't save subfields of special GVs (*_, *1, *# and so on)
-    debug( gv => "GV::save saving subfields $savefields" );
+    debug( gv => "GV::save '%s' saving subfields %s", $fullname, _savefields_to_str($savefields) );
 
     $gv->save_gv_sv( $fullname, $sym, $package ) if $savefields & Save_SV;
 
@@ -255,32 +269,33 @@ sub legacy_save {
     return $sym;
 }
 
-sub save_special_gv {
-    my ( $gv, $sym ) = @_;
+sub is_special_gv {
+    my $gv = shift;
 
-    my $package  = $gv->get_package();
+    my $fullname = $gv->get_fullname();
+    return 1 if $fullname =~ /^main::std(in|out|err)$/;    # same as uppercase above
+    return 1 if $fullname eq 'main::0';                    # dollar_0 already handled before, so don't overwrite it
+    return;
+}
+
+sub save_special_gv {
+    my $gv = shift;
+
     my $gvname   = $gv->NAME();
     my $fullname = $gv->get_fullname();
 
-    my $cname   = $package eq 'main' ? cstring($gvname) : cstring($fullname);
-    my $notqual = $package eq 'main' ? 'GV_NOTQUAL'     : '0';
+    # package is main
+    my $cname   = cstring($gvname);
+    my $notqual = 'GV_NOTQUAL';
 
-    my $type;
-    if ( $fullname =~ /^main::std(in|out|err)$/ ) {    # same as uppercase above
-        $type = 'SVt_PVGV';
-    }
-    elsif ( $fullname eq 'main::0' ) {                 # dollar_0 already handled before, so don't overwrite it
-        $type = 'SVt_PV';
-    }
-    else {
-        return 0;
-    }
+    my $type = 'SVt_PVGV';
+    $type = 'SVt_PV' if $fullname eq 'main::0';
 
+    my $sym = $gv->set_dynamic_gv;    # use a dynamic slot from there + cache
     init()->sadd( '%s = gv_fetchpv(%s, %s, %s);', $sym, $cname, $notqual, $type );
     init()->sadd( "SvREFCNT(%s) = %u;", $sym, $gv->REFCNT );
 
-    return 1;
-
+    return $sym;
 }
 
 sub save_egv {
@@ -299,8 +314,6 @@ sub save_egv {
 sub save_gv_file {
     my ( $gv, $fullname, $sym ) = @_;
 
-    return if $B::C::optimize_cop;
-
     # XXX Maybe better leave it NULL or asis, than fighting broken
     my $file = save_shared_he( $gv->FILE );
     return if ( !$file or $file eq 'NULL' );
@@ -318,14 +331,14 @@ sub save_gv_with_gp {
     my $fullname = $gv->get_fullname();
 
     # Core syms don't have a GP?
-    return if $CORE_SYMS->{$fullname};
+    return if $gv->is_coresym;
 
     my $gvadd = $notqual ? "$notqual|GV_ADD" : "GV_ADD";
 
     my $was_emptied;
 
     if ( !$gv->isGV_with_GP ) {
-        init()->sadd( "$sym = " . gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) . ";" );
+        init()->sadd( "%s = %s;", $sym, gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) );
         return;
     }
 
@@ -362,7 +375,7 @@ sub save_gv_with_gp {
     }
 
     # should be saved with the GV
-    init()->sadd( "SvREFCNT(%s) = %u;", $sym, $gv->REFCNT ) if $gv->REFCNT;    
+    init()->sadd( "SvREFCNT(%s) = %u;",  $sym, $gv->REFCNT )       if $gv->REFCNT;
     init()->sadd( "GvREFCNT(%s) += %u;", $sym, $gv->GvREFCNT - 1 ) if $gv->GvREFCNT > 1;
 
     return $was_emptied;
@@ -552,8 +565,7 @@ sub save_gv_format {
 }
 
 sub save_gv_sv {
-
-    my ( $gv, $fullname, $sym, $package, $gvname ) = @_;
+    my ( $gv, $fullname, $sym, $package ) = @_;
 
     my $gvsv = $gv->SV;
     return unless $$gvsv;
@@ -566,7 +578,7 @@ sub save_gv_sv {
         savesym( $gvsv, $pl_core_sv );
     }
 
-    if ( $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
+    if ( $gvname && $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
         debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
         my $rv     = $gvsv->object_2svref();
         my $origsv = $$rv;
@@ -663,16 +675,12 @@ sub save_gv_io {
     return unless $$gvio;
 
     my $is_data;
-    if ( $fullname eq 'main::DATA' or ( $fullname =~ m/::DATA$/ and $B::C::save_data_fh ) ) {
+    if ( $fullname eq 'main::DATA' or ( $fullname =~ m/::DATA$/ ) ) {
         no strict 'refs';
         my $fh = *{$fullname}{IO};
         use strict 'refs';
         $is_data = 'is_DATA';
         $gvio->save_data( $sym, $fullname, <$fh> ) if $fh->opened;
-    }
-    elsif ( $fullname =~ m/::DATA$/ && !$B::C::save_data_fh ) {
-        $is_data = 'is_DATA';
-        WARN("Warning: __DATA__ handle $fullname not stored. Need -O2 or -fsave-data.");
     }
 
     $gvio->save( $fullname, $is_data );
@@ -818,7 +826,7 @@ sub get_savefields {
         $savefields &= ~Save_IO;
     }
 
-    $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym && ( !$B::C::stash or $fullname !~ /::$/ ) );
+    $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym );
 
     $savefields &= Save_SV if $gvname eq '\\';
 
@@ -836,7 +844,7 @@ sub normalize_filter {
     if ( $fullname =~ /^DynaLoader::dl_(require_symbols|resolve_using|librefs)/ ) {
         $filter = Save_SV | Save_AV | Save_HV;
     }
-    if ( $B::C::ro_inc and $fullname =~ /^main::([1-9])$/ ) {    # ignore PV regexp captures with -O2
+    if ( $fullname =~ /^main::([1-9])$/ ) {    # ignore PV regexp captures with -O2
         $filter = Save_SV;
     }
 

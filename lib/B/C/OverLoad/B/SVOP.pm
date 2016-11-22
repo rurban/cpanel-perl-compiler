@@ -5,13 +5,10 @@ use strict;
 use B::C::File qw/svopsect init/;
 use B::C::Config;
 use B::C::Helpers qw/do_labels/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 
-sub save {
+sub do_save {
     my ( $op, $level, $fullname ) = @_;
 
-    my $sym = objsym($op);
-    return $sym if defined $sym;
     my $svsym = 'Nullsv';
 
     # XXX moose1 crash with 5.8.5-nt, Cwd::_perl_abs_path also
@@ -56,19 +53,13 @@ sub save {
         $cv->save if $cv;
     }
     my $is_const_addr = $svsym =~ m/Null|\&/;
-    if ( USE_MULTIPLICITY() and svimmortal($svsym) ) {                                          # t/testm.sh Test::Pod
-        $is_const_addr = 0;
-    }
 
     svopsect()->comment_common("sv");
-    svopsect()->add( sprintf( "%s, %s", $op->_save_common, ( $is_const_addr ? $svsym : "Nullsv /* $svsym */" ) ) );
+    my $ix = svopsect()->sadd( "%s, %s", $op->_save_common, ( $is_const_addr ? $svsym : "Nullsv /* $svsym */" ) );
     svopsect()->debug( $op->name, $op );
-    my $ix = svopsect()->index;
-    init()->add( sprintf( "svop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
-      unless $B::C::optimize_ppaddr;
-    init()->add("svop_list[$ix].op_sv = $svsym;")
-      unless $is_const_addr;
-    savesym( $op, "(OP*)&svop_list[$ix]" );
+    init()->add("svop_list[$ix].op_sv = (SV*) $svsym;") unless $is_const_addr;
+
+    return "(OP*)&svop_list[$ix]";
 }
 
 sub svimmortal {

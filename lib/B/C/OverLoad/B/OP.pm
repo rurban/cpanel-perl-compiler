@@ -8,7 +8,6 @@ use B::C::Config;
 use B::C::Debug::Walker qw/walkoptree_debug/;
 use B::C::File qw/svsect init copsect opsect/;
 use B::C::Helpers qw/do_labels mark_package/;
-use B::C::Helpers::Symtable qw/savesym objsym/;
 
 my $OP_CUSTOM = opnumber('custom');
 
@@ -22,23 +21,20 @@ BEGIN {
 my %OP_COP = ( opnumber('nextstate') => 1 );
 debug( cops => %OP_COP );
 
-sub save {
+sub do_save {
     my ( $op, $level ) = @_;
 
-    my $sym = objsym($op);
-    return $sym if defined $sym;
     my $type = $op->type;
     $B::C::nullop_count++ unless $type;
     if ( $type == $B::C::OP_THREADSV ) {
 
         # saves looking up ppaddr but it's a bit naughty to hard code this
-        init()->add( sprintf( "(void)find_threadsv(%s);", cstring( $threadsv_names[ $op->targ ] ) ) );
+        init()->sadd( "(void)find_threadsv(%s);", cstring( $threadsv_names[ $op->targ ] ) );
     }
     if ( $type == $B::C::OP_UCFIRST ) {
-        $B::C::fold = 1;
-
         verbose("enabling -ffold with ucfirst");
         require "utf8.pm" unless $B::C::savINC{"utf8.pm"};
+        $B::C::savINC{'utf8.pm'} = 1;
         B::C::mark_package("utf8");
         B::C::load_utf8_heavy();
 
@@ -58,43 +54,24 @@ sub save {
     if ( !$type and $OP_COP{ $op->targ } ) {
         debug( cops => "Null COP: %d\n", $op->targ );
 
-        if ( USE_ITHREADS() ) {
-            copsect()->comment_common("line, stashoff, file, hints, seq, warnings, hints_hash");
-            copsect()->add(
-                sprintf(
-                    "%s, 0, 0, (char *)NULL, 0, 0, NULL, NULL",
-                    $op->_save_common
-                )
-            );
-        }
-        else {
-            copsect()->comment_common("line, stash, file, hints, seq, warnings, hints_hash");
-            copsect()->add(
-                sprintf(
-                    "%s, 0, %s, NULL, 0, 0, NULL, NULL",
-                    $op->_save_common, "Nullhv"
-                )
-            );
-        }
+        copsect()->comment_common("line, stash, file, hints, seq, warnings, hints_hash");
+        my $ix = copsect()->sadd(
+            "%s, 0, %s, NULL, 0, 0, NULL, NULL",
+            $op->_save_common, "Nullhv"
+        );
 
-        my $ix = copsect()->index;
-        init()->add( sprintf( "cop_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
-          unless $B::C::optimize_ppaddr;
-        savesym( $op, "(OP*)&cop_list[$ix]" );
+        return "(OP*)&cop_list[$ix]";
     }
     else {
         opsect()->comment( B::C::opsect_common() );
-        opsect()->add( $op->_save_common );
-
+        my $ix = opsect()->add( $op->_save_common );
         opsect()->debug( $op->name, $op );
-        my $ix = opsect()->index;
-        init()->add( sprintf( "op_list[%d].op_ppaddr = %s;", $ix, $op->ppaddr ) )
-          unless $B::C::optimize_ppaddr;
+
         debug(
             op => "  OP=%s targ=%d flags=0x%x private=0x%x\n",
             peekop($op), $op->targ, $op->flags, $op->private
         );
-        savesym( $op, "&op_list[$ix]" );
+        return "&op_list[$ix]";
     }
 }
 
@@ -108,9 +85,7 @@ sub B::OP::fake_ppaddr {
     if ( $op->type == $OP_CUSTOM ) {
         return ( verbose() ? sprintf( "/*XOP %s*/NULL", $op->name ) : "NULL" );
     }
-    return $B::C::optimize_ppaddr
-      ? sprintf( "INT2PTR(void*,OP_%s)", uc( $op->name ) )
-      : sprintf( "/*OP_%s*/NULL",        uc( $op->name ) );
+    return sprintf( "INT2PTR(void*,OP_%s)", uc( $op->name ) );
 }
 
 sub _save_common {

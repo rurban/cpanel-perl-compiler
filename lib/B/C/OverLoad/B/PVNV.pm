@@ -7,27 +7,13 @@ use B::C::Config;
 use B::C::Save qw/savepvn/;
 use B::C::Decimal qw/get_integer_value get_double_value/;
 use B::C::File qw/xpvnvsect svsect init/;
-use B::C::Helpers::Symtable qw/savesym objsym/;
-
 use B::C::Optimizer::DowngradePVXV qw/downgrade_pvnv/;
 
-sub save {
+sub do_save {
     my ( $sv, $fullname ) = @_;
-    my $sym = objsym($sv);
-
-    if ( defined $sym ) {
-        if ($B::C::in_endav) {
-            debug( av => "in_endav: static_free without $sym" );
-            @B::C::static_free = grep { !/$sym/ } @B::C::static_free;
-        }
-        return $sym;
-    }
 
     my $downgraded = downgrade_pvnv( $sv, $fullname );
-    if ( defined $downgraded ) {
-        savesym( $sv, $downgraded );
-        return $downgraded;
-    }
+    return $downgraded if defined $downgraded;
 
     my ( $savesym, $cur, $len, $pv, $static, $flags ) = B::PV::save_pv_or_rv( $sv, $fullname );
     my $nvx = '0.0';
@@ -40,20 +26,15 @@ sub save {
 
     # For some time the stringification works of NVX double to two ints worked ok.
     xpvnvsect()->comment('STASH, MAGIC, cur, len, IVX, NVX');
-    xpvnvsect()->add( sprintf( "Nullhv, {0}, %u, {%u}, {%s}, {%s}", $cur, $len, $ivx, $nvx ) );
+    my $xpv_ix = xpvnvsect()->sadd( "Nullhv, {0}, %u, {%u}, {%s}, {%s}", $cur, $len, $ivx, $nvx );
 
-    svsect()->add(
-        sprintf(
-            "&xpvnv_list[%d], %Lu, 0x%x %s",
-            xpvnvsect()->index, $sv->REFCNT, $flags,
-            ", {.svu_pv=(char*)$savesym}"
-        )
+    my $ix = svsect()->sadd(
+        "&xpvnv_list[%d], %Lu, 0x%x %s",
+        $xpv_ix, $sv->REFCNT, $flags,
+        ", {.svu_pv=(char*)$savesym}"
     );
     svsect()->debug( $fullname, $sv );
-    my $s = "sv_list[" . svsect()->index . "]";
-
-    push @B::C::static_free, "&" . $s if $flags & SVs_OBJECT;
-    return savesym( $sv, "&" . $s );
+    return "&sv_list[" . $ix . "]";
 }
 
 1;

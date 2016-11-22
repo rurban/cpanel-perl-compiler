@@ -6,19 +6,9 @@ use B qw/cstring SVf_FAKE/;
 use B::C::File qw( padnamesect init );
 use B::C::Config;
 use B::C::Helpers qw/is_constant/;
-use B::C::Helpers::Symtable qw/savesym objsym/;
 
-sub save {
+sub do_save {
     my ( $pn, $fullname ) = @_;
-    my $sym = objsym($pn);
-
-    if ( defined $sym ) {
-        if ($B::C::in_endav) {
-            debug( av => "in_endav: static_free without $sym" );
-            @B::C::static_free = grep { $_ ne $sym } @B::C::static_free;
-        }
-        return $sym;
-    }
 
     my $flags = $pn->FLAGS;    # U8 + FAKE if OUTER. OUTER,STATE,LVALUE,TYPED,OUR
     $flags = $flags & 0xff;
@@ -37,24 +27,23 @@ sub save {
     my $ix   = padnamesect()->index + 1;
     my $s    = "&padname_list[$ix]";
 
-    my $pnstr = "((char*)$s)+STRUCT_OFFSET(struct padname_with_str, xpadn_str[0])" ;
+    my $pnstr = "((char*)$s)+STRUCT_OFFSET(struct padname_with_str, xpadn_str[0])";
 
     # 5.22 needs the buffer to be at the end, and the pv pointing to it.
     # We allocate a static buffer, and for uniformity of the list pre-alloc size 60 (WIP, improve later)
     padnamesect()->comment(" pv, ourstash, type, low, high, refcnt, gen, len, flags, str");
 
-    padnamesect()->add(
-        sprintf(
-            # ignore warning: initializer-string for array of chars is too long
-            "%s, %s, {%s}, %u, %u, %s, %i, %u, 0x%x, %s",
-            $ix              ? $pnstr : 'NULL',
-            is_constant($sn) ? "(HV*)$sn"                                                         : 'Nullhv',
-            is_constant($tn) ? "(HV*)$tn"                                                         : 'Nullhv',
-            $pn->COP_SEQ_RANGE_LOW,
-            $pn->COP_SEQ_RANGE_HIGH,
-            $refcnt >= 1000 ? sprintf( "0x%x", $refcnt ) : "$refcnt /* +1 */",
-            $gen, $pn->LEN, $flags, $cstr
-        )
+    padnamesect()->sadd(
+
+        # ignore warning: initializer-string for array of chars is too long
+        "%s, %s, {%s}, %u, %u, %s, %i, %u, 0x%x, %s",
+        $ix              ? $pnstr     : 'NULL',
+        is_constant($sn) ? "(HV*)$sn" : 'Nullhv',
+        is_constant($tn) ? "(HV*)$tn" : 'Nullhv',
+        $pn->COP_SEQ_RANGE_LOW,
+        $pn->COP_SEQ_RANGE_HIGH,
+        $refcnt >= 1000 ? sprintf( "0x%x", $refcnt ) : "$refcnt /* +1 */",
+        $gen, $pn->LEN, $flags, $cstr
     );
 
     if ( $pn->LEN > 60 ) {
@@ -69,9 +58,7 @@ sub save {
     init()->add("SvOURSTASH_set($s, $sn);")     unless $sn eq 'Nullsv';
     init()->add("PadnameTYPE($s) = (HV*) $tn;") unless $tn eq 'Nullsv';
 
-    push @B::C::static_free, $s;
-
-    return savesym( $pn, $s );
+    return $s;
 }
 
 1;

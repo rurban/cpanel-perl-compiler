@@ -6,7 +6,6 @@ use B qw/cstring svref_2object RXf_EVAL_SEEN PMf_EVAL/;
 use B::C::Config;
 use B::C::File qw/pmopsect init init1/;
 use B::C::Helpers qw/read_utf8_string strlen_flags/;
-use B::C::Helpers::Symtable qw/objsym savesym/;
 
 # Global to this space?
 my ($swash_init);
@@ -14,31 +13,20 @@ my ($swash_init);
 # FIXME really required ?
 sub PMf_ONCE() { 0x10000 };    # PMf_ONCE also not exported
 
-sub save {
+sub do_save {
     my ( $op, $level, $fullname ) = @_;
     my ( $replrootfield, $replstartfield, $gvsym ) = ( 'NULL', 'NULL' );
-    my $sym = objsym($op);
-    return $sym if defined $sym;
 
     $level    ||= 0;
     $fullname ||= '????';
 
-    # 5.8.5-thr crashes here (7) at pushre
-    if ( USE_ITHREADS() and $$op < 256 ) {    # B bug. split->first->pmreplroot = 0x1
-        die "Internal B::walkoptree error: invalid PMOP for pushre\n";
-        return;
-    }
     my $replroot  = $op->pmreplroot;
     my $replstart = $op->pmreplstart;
     my $ppaddr    = $op->ppaddr;
 
     # under ithreads, OP_PUSHRE.op_replroot is an integer. multi not.
     $replrootfield = sprintf( "s\\_%x", $$replroot ) if ref $replroot;
-    if ( USE_ITHREADS() && $op->name eq "pushre" ) {
-        debug( gv => "PMOP::save saving a pp_pushre as int ${replroot}" );
-        $replrootfield = "INT2PTR(OP*,${replroot})";
-    }
-    elsif ($$replroot) {
+    if ($$replroot) {
 
         # OP_PUSHRE (a mutated version of OP_MATCH for the regexp
         # argument to a split) stores a GV in op_pmreplroot instead
@@ -61,31 +49,29 @@ sub save {
     # segfault when trying to dereference it to find op->op_pmnext->op_type
 
     pmopsect()->comment_common("first, last, pmoffset, pmflags, pmreplroot, pmreplstart");
-    pmopsect()->add(
+    my $ix = pmopsect()->add(
         sprintf(
             "%s, s\\_%x, s\\_%x, %u, 0x%x, {%s}, {%s}",
             $op->_save_common, ${ $op->first },
-            ${ $op->last }, ( USE_ITHREADS() ? $op->pmoffset : 0 ),
+            ${ $op->last },    0,
             $op->pmflags, $replrootfield, $replstartfield
         )
     );
 
     my $code_list = $op->code_list;
     if ( $code_list and $$code_list ) {
-        debug( gv => "saving pmop_list[%d] code_list $code_list (?{})", pmopsect()->index );
+        debug( gv => "saving pmop_list[%d] code_list $code_list (?{})", $ix );
         my $code_op = $code_list->save;
         if ($code_op) {
 
             # (?{}) code blocks
-            init()->add( sprintf( 'pmop_list[%d].op_code_list = %s;', pmopsect()->index, $code_op ) );
+            init()->sadd( 'pmop_list[%d].op_code_list = %s;', $ix, $code_op );
         }
-        debug( gv => "done saving pmop_list[%d] code_list $code_list (?{})", pmopsect()->index );
+        debug( gv => "done saving pmop_list[%d] code_list $code_list (?{})", $ix );
     }
 
     pmopsect()->debug( $op->name, $op );
-    my $pm = sprintf( "pmop_list[%d]", pmopsect()->index );
-    init()->add( sprintf( "%s.op_ppaddr = %s;", $pm, $ppaddr ) )
-      unless $B::C::optimize_ppaddr;
+    my $pm = sprintf( "pmop_list[%d]", $ix );
     my $re = $op->precomp;
 
     if ( defined($re) ) {
@@ -145,10 +131,7 @@ sub save {
         # See toke.c:8964
         # set in the stash the PERL_MAGIC_symtab PTR to the PMOP: ((PMOP**)mg->mg_ptr) [elements++] = pm;
         if ( $op->pmflags & PMf_ONCE() ) {
-            my $stash =
-                USE_MULTIPLICITY()          ? $op->pmstashpv
-              : ref $op->pmstash eq 'B::HV' ? $op->pmstash->NAME
-              :                               '__ANON__';
+            my $stash = ref $op->pmstash eq 'B::HV' ? $op->pmstash->NAME : '__ANON__';
             $B::C::Regexp{$$op} = $op;    #188: restore PMf_ONCE, set PERL_MAGIC_symtab in $stash
         }
     }
@@ -159,7 +142,7 @@ sub save {
         init()->add("$pm.op_pmreplrootu.op_pmreplroot = (OP*)$gvsym;");
     }
 
-    return savesym( $op, "(OP*)&$pm" );
+    return "(OP*)&$pm";
 }
 
 1;
