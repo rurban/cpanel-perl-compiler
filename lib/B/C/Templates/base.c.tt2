@@ -14,6 +14,7 @@
 #include "EXTERN.h" /* Embedded interface */
 #include "perl.h"   /* API interface */
 #include "XSUB.h"   /* XS interface */
+#include "proto.h"
 
 #ifdef DEBUG_BENCHMARK
 #include <sys/time.h>
@@ -24,7 +25,7 @@ PerlIO * PIO_stdout;
 
 #define benchmark_time(msg) clock_gettime(CLOCK_MONOTONIC_RAW, &end); delta_us = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec); PerlIO_printf(PIO_stdout, "--USECONDS %lu == %s\n", delta_us, msg )
 #else
-#define benchmark_time(msg) 
+#define benchmark_time(msg)
 #endif /* end of DEBUG_BENCHMARK */
 
 /* Workaround for mapstart: the only op which needs a different ppaddr */
@@ -33,7 +34,7 @@ PerlIO * PIO_stdout;
 #undef OP_MAPSTART
 #define OP_MAPSTART OP_GREPSTART
 
- 
+
 
 #ifdef BROKEN_STATIC_REDECL
 #define Static extern
@@ -75,7 +76,7 @@ typedef struct shared_he SHARED_HE;
 #define STATIC_SHARED_HE_ALLOC(index, length_of_key, key_string, flags_byte) \
     struct shared_he_struct_##index { HE *hent_next; HEK *hent_hek; union { SV *hent_val;  Size_t hent_refcount; } he_valu;  U32 hek_hash;  I32 hek_len;  char hek_key[ length_of_key + 1]; char flags; }; \
     struct shared_he_struct_##index shared_he_##index = { NULL, NULL, { .hent_refcount = IMMORTAL_PL_strtab }, 0, length_of_key, key_string, flags_byte  };
-    
+
 /* sharedhe definitions using the STATIC_SHARED_HE_ALLOC macro */
 [% section.sharedhe.output( "%s\n" ) %]
 
@@ -277,12 +278,12 @@ static void init_pl_strtab(pTHX) {
 
     PL_strtab = newHV();
 
-    /* manual malloc */    
+    /* manual malloc */
     //char * array;
     //Newxz (array, PERL_HV_ARRAY_ALLOC_BYTES ([% PL_strtab_max %]) + sizeof(struct xpvhv_aux), char);
     //HvARRAY (PL_strtab) = (HE **) array;
-    
-    /* automatic malloc */    
+
+    /* automatic malloc */
     hv_ksplit(PL_strtab, [% PL_strtab_max %]);
     HvSHAREKEYS_off(PL_strtab);                        /* mandatory */
     //SvOOK_on(PL_strtab);
@@ -312,6 +313,26 @@ static void init_pl_strtab(pTHX) {
     }
 
 [% END %]
+}
+
+// // #define init_main_stash()   S_init_main_stash(aTHX)
+// // STATIC void       S_init_main_stash(pTHX);
+
+// static void init_pl_defstash(pTHX);
+
+// static void init_pl_defstash(pTHX) {
+
+//     /* need to add a lock to call it only one time */
+//     //init_main_stash();
+//     S_init_main_stash(aTHX);
+
+//     /* from there main::: exists we can plug all our static GVs */
+
+// }
+static void plug_pl_defstash(pTHX);
+static void plug_pl_defstash(pTHX) {
+    assert(SvTYPE(PL_defstash) == SVt_PVHV);
+
 }
 
 static void init_assign(pTHX) {
@@ -425,7 +446,7 @@ static void perl_init0(pTHX) { /* fixup_ppaddr */
 *************************************************************************************************************/
 
 /* The first assignment got already refcount bumped */
-PERL_STATIC_INLINE HEK * 
+PERL_STATIC_INLINE HEK *
 my_share_hek( pTHX_ const char *str, I32 len, register U32 hash ) {
     if (!hash) {
       PERL_HASH(hash, str, abs(len));
@@ -783,7 +804,7 @@ main(int argc, char **argv, char **env)
     assert(PL_do_undump == 0);
 
     init_pl_strtab(); /* Initialize PL_Strtab on our own before perl gets to it in perl_alloc. This allows us to use immportal constant shared HEKs */
-
+    //init_pl_defstash();
 	perl_construct( &BC_unthreaded_interpreter );
 	PL_perl_destruct_level = 0;
 
@@ -839,6 +860,9 @@ main(int argc, char **argv, char **env)
 	exit( exitstatus );
 
     TAINT;
+
+    /* populate pl_defstash */
+    plug_pl_defstash();
 
 benchmark_time("pre global setup");
 
@@ -948,9 +972,22 @@ benchmark_time("pre global setup");
     perl_init2(aTHX);
     benchmark_time("init2 done.");
 
+    /*
+        > configure.524; perlcc -v4 -S --Wc=-Og -e 'package Bar; sub foo { "42\n" } print foo() '
+        > gdb a.out
+        (gdb) run
+        (gdb) find_and_dump_gv "Bar::"
+
+        > configure.524; perlcc -v4 -S --Wc=-Og -e 'package MyPackage::Second; sub two {2} package MyPackage::First; sub one { "1\n" } print one() '
+        (gdb) run
+        (gdb) find_and_dump_gv "MyPackage::"
+
+    */
 
     exitstatus = perl_run( &BC_unthreaded_interpreter );
     benchmark_time("program complete");
+
+assert(0); /* failure on purpose pre-run to inspect whatever we want */
 
     /* init pre_destruct */
     [% FOREACH str IN section.init.pre_destruct() %]
