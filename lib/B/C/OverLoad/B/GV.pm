@@ -128,6 +128,8 @@ sub savegp_from_gv {
     # ....
     #$gp_av = save_gv_av( $gv, $fullname ) if $savefields & Save_AV;
     # ....
+    #$gp_cv = $gv->x_save_gv_cv( $fullname ) if $savefields & Save_CV;
+    $gp_sv = $gv->x_save_gv_sv($fullname) if $savefields & Save_SV;
 
     gpsect()->comment('SV, gp_io, CV, cvgen, gp_refcount, HV, AV, CV, GV, line, flags, HEK* file');
 
@@ -158,7 +160,9 @@ sub do_save {
 
     my $sym = $gv->set_dynamic_gv;
 
-    my $gpsym = savegp_from_gv( $gv, $filter );                              # might be $gp->save( )
+    debug( gv => '===== GV::do_save for %s', $gv->get_fullname() );
+
+    my $gpsym = $gv->savegp_from_gv($filter);                                # might be $gp->save( )
 
     xpvgvsect()->comment("stash, magic, cur, len, xiv_u={.xivu_namehek=}, xnv_u={.xgv_stash=}");
     xpvgvsect()->sadd(
@@ -179,11 +183,25 @@ sub do_save {
     #my $gvsym = savesym( $gv, sprintf( '&gv_list[%d]', $gv_ix ) );
     my $gvsym = sprintf( '&gv_list[%d]', $gv_ix );
 
+    my $hack;
+    $hack = 1 if $gv->get_fullname() eq 'main::one';
+    if ($hack) {
+        debug( gv => '!@!$$% Hack: bypass legacy_save for %s = %s', $gv->get_fullname(), $gvsym );
+
+        # split the fullname and plug all of them in known territory...
+        # relies on template logic to preserve the hash structure...
+        save_shared_he('one');    # should save it in a different scope
+
+        return $gvsym;
+    }
+
     return legacy_save( $gv, $filter, $gvsym );
 }
 
 sub legacy_save {
     my ( $gv, $filter, $gvsym ) = @_;
+
+    debug( gv => '===== GV::legacy_save for %s', $gv->get_fullname() );
 
     # dynamic / legacy one
     my $sym = savesym( $gv, sprintf( "dynamic_gv_list[%s]", inc_index() ) );
@@ -564,6 +582,46 @@ sub save_gv_format {
     return;
 }
 
+sub x_save_gv_sv {
+    my ( $gv, $fullname ) = @_;
+
+    my $gvsv = $gv->SV;
+    return 'NULL' unless $$gvsv;
+
+    # rely on final replace to get the symbol name, it s fine
+    my $svsym = sprintf( "s\\_%x", $$gvsv );
+
+    my $package = $gv->get_package();
+    my $gvname  = $gv->NAME;
+
+    if ( my $pl_core_sv = $CORE_SVS->{$fullname} ) {
+        savesym( $gvsv, $pl_core_sv );
+    }
+
+    if ( $gvname && $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
+        debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
+        my $rv     = $gvsv->object_2svref();
+        my $origsv = $$rv;
+        no strict 'refs';
+        ${$fullname} = "$origsv";
+        svref_2object( \${$fullname} )->save($fullname);
+    }
+    else {
+        $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
+                                   # we need sv magic for the core_svs (PL_rs -> gv) (#314)
+
+        # Output record separator https://code.google.com/archive/p/perl-compiler/issues/318
+        return $svsym if $gvname eq "\\";
+
+        if ( exists $CORE_SVS->{"main::$gvname"} ) {
+            $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
+            init()->sadd( "SvREFCNT(s\\_%x) += 1;", $$gvsv );
+        }
+    }
+
+    return $svsym;
+}
+
 sub save_gv_sv {
     my ( $gv, $fullname, $sym, $package ) = @_;
 
@@ -723,7 +781,8 @@ sub savecv {
     return if ( $package eq 'main'
         and $name =~ /^([^\w].*|_\<.*|INC|ARGV|SIG|ENV|BEGIN|main::|!)$/ );
 
-    debug( gv => "Used GV \*$fullname 0x%x", ref $gv ? $$gv : 0 );
+    debug( gv => "GV::savecv - Used GV \*$fullname 0x%x", ref $gv ? $$gv : 0 );
+    debug( gv => "... called from %s", 'B::C::Save'->can('stack_flat')->() );
     return unless ( $$cv || $$av || $$sv || $$hv || $gv->IO || $gv->FORM );
     if ( $$cv and $name eq 'bootstrap' and $cv->XSUB ) {
 

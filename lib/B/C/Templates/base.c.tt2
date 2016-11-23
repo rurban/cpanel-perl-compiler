@@ -333,6 +333,21 @@ static void plug_pl_defstash(pTHX);
 static void plug_pl_defstash(pTHX) {
     assert(SvTYPE(PL_defstash) == SVt_PVHV);
 
+    /* TODO hsplit once as for PL_strtab */
+    /* increase */
+    HvTOTALKEYS(PL_defstash) += 1;
+    SvREFCNT(PL_defstash) += 1;
+
+  // dynamic_gv_list[1] = &gv_list[0];                                                                <
+  // dynamic_gv_list[1] =                                                                             <
+  //   gv_fetchpvn_flags ("one", 3, GV_NOTQUAL | GV_ADD, SVt_PV);                                     <
+  // SvREFCNT (dynamic_gv_list[1]) = 3;                                                               <
+  // SvFLAGS (dynamic_gv_list[1]) = 0x8009;                                                           <
+  // GvFLAGS (dynamic_gv_list[1]) = 0x2;                                                              <
+  // GvSVn (dynamic_gv_list[1]) = (SV *) & sv_list[1];                                                <
+  // GvFILE_HEK (dynamic_gv_list[1]) = &(sharedhe_list[0]->shared_he_hek);                            <
+  // svop_list[0].op_sv = (SV *) dynamic_gv_list[1];
+
 }
 
 static void init_assign(pTHX) {
@@ -978,9 +993,11 @@ benchmark_time("pre global setup");
         (gdb) run
         (gdb) find_and_dump_gv "Bar::"
 
+        > configure.524; perlcc -v4 -S --Wc=-Og -e 'package MyPackage; sub one { "1\n" } print one()'
+        > gdb -ex 'run' -ex 'find_and_dump_gv "MyPackage::"' a.out
+
         > configure.524; perlcc -v4 -S --Wc=-Og -e 'package MyPackage::Second; sub two {2} package MyPackage::First; sub one { "1\n" } print one() '
-        (gdb) run
-        (gdb) find_and_dump_gv "MyPackage::"
+        > PERL_HASH_SEED=7 gdb -ex 'run' -ex 'find_and_dump_gv "MyPackage::"' a.out
 
     */
 
