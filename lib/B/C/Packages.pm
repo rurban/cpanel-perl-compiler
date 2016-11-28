@@ -45,7 +45,6 @@ sub _mark_package {
 # better name ? include_package
 sub is_package_used {
     my $pkg = shift;
-    return if exists $B::C::settings->{'skip_packages'}->{$pkg};
     return unless defined $pkg;
     return $include_package{$pkg};
 }

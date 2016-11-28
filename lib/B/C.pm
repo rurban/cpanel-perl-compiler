@@ -31,7 +31,6 @@ our $settings = {
     'debug_options' => '',
     'output_file'   => '',
     'init_name'     => '',
-    'skip_packages' => {},
     'used_packages' => {},
 };
 
@@ -201,7 +200,9 @@ sub parse_options {
         }
         elsif ( $opt eq "U" ) {
             $arg ||= shift @opts;
-            $settings->{'skip_packages'}->{$arg} = 1;
+            ...
+
+              # TODO: Removed from code for re-factor.
         }
         else {
             die "Invalid option $opt";
