@@ -16,7 +16,6 @@ sub new {
     ref $self eq 'HASH' or die( ref $self );
 
     $self->{'xsub'}            or die;
-    $self->{'skip_package'}    or die;
     $self->{'curINC'}          or die;
     $self->{'output_file'}     or die;
     exists $self->{'staticxs'} or die;
@@ -49,22 +48,12 @@ sub optimize {
     for my $c (qw(B B::C)) {
         if ( !$self->{'xsub'}->{$c} and !is_package_used($c) ) {
 
-            # (hopefully, see test 103)
-            verbose("no dl_init for $c, not marked") if !$self->{'skip_package'}->{$c};
-
             # RT81332 pollute
             @dl_modules = grep { $_ ne $c } @dl_modules;
 
             # XXX Be sure to store the new @dl_modules
             # QUESTION: WHY??? we're rendering already and done walking the code tree, right? There's no value
         }
-    }
-
-    for my $c ( sort keys %{ $self->{'skip_package'} } ) {
-        verbose("no dl_init for $c, skipped") if $self->{'xsub'}->{$c};
-        delete $self->{'xsub'}->{$c};
-        mark_package_deleted($c);    # TODO: It's WAAAAY to late to do this?
-        @dl_modules = grep { $_ ne $c } @dl_modules;
     }
 
     # QUESTION: There's no readon to pump this back in if we're just rendering a template at this point.

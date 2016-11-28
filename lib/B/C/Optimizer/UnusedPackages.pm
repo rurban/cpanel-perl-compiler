@@ -34,7 +34,6 @@ sub descend_marked_unused {
 
     if ( verbose() ) {
         debug( pkg => "\%include_package: " . join( " ", get_all_packages_used() ) );
-        debug( pkg => "\%skip_package: " . join( " ", sort keys %B::C::skip_package ) );
     }
 
     foreach my $pack ( include_package_list() ) {

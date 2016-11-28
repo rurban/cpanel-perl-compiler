@@ -84,9 +84,9 @@ BEGIN {
     %all_bc_deps = map { $_ => 1 } @B::C::Flags::deps;
 }
 
-our ( $package_pv,     @package_pv );                 # global stash for methods since 5.13
+our ( $package_pv,     @package_pv );    # global stash for methods since 5.13
 our ( %xsub,           %init2_remap );
-our ( %dumped_package, %skip_package, %isa_cache );
+our ( %dumped_package, %isa_cache );
 
 # fixme move to config
 our ( $use_xsloader, $devel_peek_needed );
@@ -729,7 +729,7 @@ sub mark_package {
                     }
                 }
                 my $is_package_used = is_package_used($isa);
-                if ( !$is_package_used and !$skip_package{$isa} ) {
+                if ( !$is_package_used ) {
                     no strict 'refs';
                     verbose("$isa saved (it is in $package\'s \@ISA)");
                     svref_2object( \@{ $isa . "::ISA" } )->save;    #308
@@ -796,7 +796,7 @@ sub skip_pkg {
         or index( $package, " " ) != -1    # XXX skip invalid package names
         or index( $package, "(" ) != -1    # XXX this causes the compiler to abort
         or index( $package, ")" ) != -1    # XXX this causes the compiler to abort
-        or exists $B::C::settings->{'skip_packages'}->{$package} or exists $skip_package{$package} or ( $DB::deep and $package =~ /^(DB|Term::ReadLine)/ )
+        or exists $B::C::settings->{'skip_packages'}->{$package} or ( $DB::deep and $package =~ /^(DB|Term::ReadLine)/ )
       ) {
         return 1;
     }
@@ -1306,7 +1306,7 @@ sub save_main_rest {
     delete $xsub{'DynaLoader'};
     delete $xsub{'UNIVERSAL'};
 
-    my $dynaloader_optimizer = B::C::Optimizer::DynaLoader->new( { 'xsub' => \%xsub, 'skip_package' => \%skip_package, 'curINC' => \%curINC, 'output_file' => $settings->{'output_file'}, 'staticxs' => $settings->{staticxs} } );
+    my $dynaloader_optimizer = B::C::Optimizer::DynaLoader->new( { 'xsub' => \%xsub, 'curINC' => \%curINC, 'output_file' => $settings->{'output_file'}, 'staticxs' => $settings->{staticxs} } );
     $dynaloader_optimizer->optimize();
 
     my $c_file_stash = build_template_stash( \%static_ext, \@stashxsubs, $dynaloader_optimizer );
