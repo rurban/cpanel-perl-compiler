@@ -55,7 +55,8 @@ sub do_save {
     my $is_const_addr = $svsym =~ m/Null|\&/;
 
     svopsect()->comment_common("sv");
-    my $ix = svopsect()->sadd( "%s, %s", $op->_save_common, ( $is_const_addr ? $svsym : "Nullsv /* $svsym */" ) );
+    my $svop_sv = ( $is_const_addr ? $svsym : "Nullsv /* $svsym */" );
+    my $ix = svopsect()->sadd( "%s, (SV*) %s", $op->_save_common, $svop_sv );
     svopsect()->debug( $op->name, $op );
     init()->add("svop_list[$ix].op_sv = (SV*) $svsym;") unless $is_const_addr;
 
