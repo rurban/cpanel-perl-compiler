@@ -687,14 +687,14 @@ sub mark_package {
     my $package = shift;
     my $force = shift || 0;
 
-    return if skip_pkg($package);    # or $package =~ /^B::C(C?)::/;
+    return unless B::C::Optimizer::UnusedPackages::package_was_compiled_in($package);    # or $package =~ /^B::C(C?)::/;
     if ( !is_package_used($package) or $force ) {
         no strict 'refs';
         debug( pkg => "mark_package($package, $force)" );
         my @IO = qw(IO::File IO::Handle IO::Socket IO::Seekable IO::Poll);
         mark_package('IO') if grep { $package eq $_ } @IO;
         mark_package("DynaLoader") if $package eq 'XSLoader';
-        $use_xsloader = 1 if $package =~ /^B|Carp$/;    # to help CC a bit (49)
+        $use_xsloader = 1 if $package =~ /^B|Carp$/;                                     # to help CC a bit (49)
 
         # i.e. if force
         my $flag_as_unused = is_package_used($package);
@@ -783,24 +783,6 @@ sub static_core_packages {
 
     push @pkg, split( / /, $Config{static_ext} );
     return @pkg;
-}
-
-sub skip_pkg {
-    my $package = shift;
-    if (
-        $package =~ /^(main::)?(Internals|O)::/
-
-        #or $package =~ /::::/ #  CORE/base/lex.t 54
-        or $package =~ /^B::C::/
-        or $package eq '__ANON__'
-        or index( $package, " " ) != -1    # XXX skip invalid package names
-        or index( $package, "(" ) != -1    # XXX this causes the compiler to abort
-        or index( $package, ")" ) != -1    # XXX this causes the compiler to abort
-        or ( $DB::deep and $package =~ /^(DB|Term::ReadLine)/ )
-      ) {
-        return 1;
-    }
-    return 0;
 }
 
 # Do not delete/ignore packages which were brought in from the script,

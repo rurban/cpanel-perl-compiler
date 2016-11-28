@@ -91,7 +91,7 @@ sub do_save {
     my ( $gv, $filter ) = @_;
 
     # return earlier for special cases
-    return q/(SV*)&PL_sv_undef/   if B::C::skip_pkg( $gv->get_package() );
+    return q/(SV*)&PL_sv_undef/ unless B::C::Optimizer::UnusedPackages::package_was_compiled_in( $gv->get_package() );
     return $gv->save_special_gv() if $gv->is_special_gv();
 
     my $sym = $gv->set_dynamic_gv;
