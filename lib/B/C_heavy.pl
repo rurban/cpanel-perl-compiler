@@ -1171,7 +1171,8 @@ sub save_main_rest {
     debug( [qw/verbose cv/], "done main optree, walking symtable for extras" );
     init()->add("");
     init()->add("/* done main optree, extra subs which might be unused */");
-    B::C::Optimizer::UnusedPackages::optimize();
+
+    #B::C::Optimizer::UnusedPackages::optimize();
     init()->add("/* done extras */");
 
     # startpoints: XXX TODO push BEGIN/END blocks to modules code.
