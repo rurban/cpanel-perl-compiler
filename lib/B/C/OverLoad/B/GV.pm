@@ -84,7 +84,7 @@ my %saved_gps;
 
 # FIXME todo and move later to B/GP.pm ?
 sub savegp_from_gv {
-    my ( $gv, $savefields, $savedwith ) = @_;
+    my ( $gv, $savefields ) = @_;
 
     # no GP to save there...
     return 'NULL' unless $gv->isGV_with_GP and !$gv->is_coresym() and $gv->GP;
@@ -125,13 +125,10 @@ sub savegp_from_gv {
     }
 
     # .... TODO save stuff there
-    # ....
     $gp_sv = $gv->save_gv_sv($fullname) if $savefields & Save_SV;
     $gp_av = $gv->save_gv_av($fullname) if $savefields & Save_AV;
     $gp_hv = $gv->save_gv_hv($fullname) if $savefields & Save_HV;
     $gp_cv = $gv->save_gv_cv($fullname) if $savefields & Save_CV;
-
-    $$savedwith |= Save_SV if $gp_sv ne 'NULL';
 
     gpsect()->comment('SV, gp_io, CV, cvgen, gp_refcount, HV, AV, CV, GV, line, flags, HEK* file');
 
@@ -164,8 +161,7 @@ sub do_save {
 
     debug( gv => '===== GV::do_save for %s', $gv->get_fullname() );
 
-    my $gp_saved_with = 0;
-    my $gpsym         = $gv->savegp_from_gv( $filter, \$gp_saved_with );     # might be $gp->save( )
+    my $gpsym = $gv->savegp_from_gv($filter);                                # might be $gp->save( )
 
     xpvgvsect()->comment("stash, magic, cur, len, xiv_u={.xivu_namehek=}, xnv_u={.xgv_stash=}");
     xpvgvsect()->sadd(
@@ -184,36 +180,26 @@ sub do_save {
         $gv_ix = gvsect()->add( sprintf( "&%s, %u, 0x%x, {.svu_gp=(GP*)%s}", $xpvgv, $gv_refcnt, $gv_flags, $gpsym ) );
     }
 
-    #my $gvsym = savesym( $gv, sprintf( '&gv_list[%d]', $gv_ix ) );
     my $gvsym = sprintf( '&gv_list[%d]', $gv_ix );
 
     my $hack;
-
-    # $hack = 1 if $gv->get_fullname() eq 'main::one';
-    # $hack = 1 if $gv->get_fullname() eq 'MyPackage::one';
-    # $hack = 1 if $gv->get_fullname() eq 'MyPackage::list';
-    #$hack = 1 if $gp_saved_with;
     $hack = 1;
-    debug( gv => "hack $hack / gp_saved_with $gp_saved_with" );
     if ($hack) {
         debug( gv => '!@!$^&$% Hack: bypass legacy_save for %s = %s', $gv->get_fullname(), $gvsym );
 
-        # split the fullname and plug all of them in known territory...
+        # TODO: split the fullname and plug all of them in known territory...
         # relies on template logic to preserve the hash structure...
-
-        #save_shared_he( 'one' ); # should save it in a different scope
-        #save_shared_he( 'MyPackage' ); # should save it in a different scope
 
         my @namespace = split( '::', $gv->get_fullname() );
         if ( scalar @namespace >= 2 ) {
             my $shared_he = save_shared_he( $namespace[-1] );
 
-            #$shared_he = save_shared_he( 'WTF' );
-            #init()->sadd( "%s.xiv_u.xivu_namehek = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $xpvgv, $shared_he );
-            # or
+            # FIXME: check if this can be done staticly using a replace on the xpvgsect->update
+            # plug the shared_he HEK to xpvgv: GvNAME_HEK($gvsym) =~(similar to) $xpvgv.xiv_u.xivu_namehek
             init()->sadd( "GvNAME_HEK(%s) = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $gvsym, $shared_he );
         }
 
+        # Bypass legacy save... we should not need it anymore
         return $gvsym;
     }
 
@@ -222,24 +208,8 @@ sub do_save {
 
 =pod
 
-TODO: move them to their own test extra/v-*.t
-
-Strangely this one is working without the PL_defstash saving
-> configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package MyPackage; our $one = 1; package main; print $MyPackage::one . "\n" ' && ./a.out
-
-Test saving x_save_gv_av
-> configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; our @list = (1..5); print join(", ", @list, "\n") ' && ./a.out
-
-Test saving x_save_gv_av
-> configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; our @list = (1..5); print join(", ", @list, "\n") ' && ./a.out
-
-Test saving hash ||| TODO failure with multideref when using debug perl
-> rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; our %hash = (1..4); print join(" - ", keys %hash, "\n") ' && ./a.out
-
-Test saving a cv # use environment variable
-> rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; sub one { return 1 if $ENV{HOME} }; print one() . "\n" ' && ./a.out
-
 > rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; *one = sub { return 1 if -e q{/tmp} }; print one() . "\n" ' && ./a.out
+rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; sub one { return 1 if -e q{/tmp} }; print one() . "\n" ' && ./a.out
 
 =cut
 
