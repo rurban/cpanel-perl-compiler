@@ -84,7 +84,7 @@ my %saved_gps;
 
 # FIXME todo and move later to B/GP.pm ?
 sub savegp_from_gv {
-    my ( $gv, $savefields ) = @_;
+    my ( $gv, $savefields, $savedwith ) = @_;
 
     # no GP to save there...
     return 'NULL' unless $gv->isGV_with_GP and !$gv->is_coresym() and $gv->GP;
@@ -126,10 +126,10 @@ sub savegp_from_gv {
 
     # .... TODO save stuff there
     # ....
-    #$gp_av = save_gv_av( $gv, $fullname ) if $savefields & Save_AV;
-    # ....
-    #$gp_cv = $gv->x_save_gv_cv( $fullname ) if $savefields & Save_CV;
+    $gp_av = $gv->x_save_gv_av($fullname) if $savefields & Save_AV;
     $gp_sv = $gv->x_save_gv_sv($fullname) if $savefields & Save_SV;
+
+    $$savedwith |= Save_SV if $gp_sv ne 'NULL';
 
     gpsect()->comment('SV, gp_io, CV, cvgen, gp_refcount, HV, AV, CV, GV, line, flags, HEK* file');
 
@@ -162,12 +162,14 @@ sub do_save {
 
     debug( gv => '===== GV::do_save for %s', $gv->get_fullname() );
 
-    my $gpsym = $gv->savegp_from_gv($filter);                                # might be $gp->save( )
+    my $gp_saved_with = 0;
+    my $gpsym         = $gv->savegp_from_gv( $filter, \$gp_saved_with );     # might be $gp->save( )
 
     xpvgvsect()->comment("stash, magic, cur, len, xiv_u={.xivu_namehek=}, xnv_u={.xgv_stash=}");
     xpvgvsect()->sadd(
         "Nullhv, {0}, 0, {.xpvlenu_len=0}, {.xivu_namehek=%s}, {.xgv_stash=%s}",
-        'NULL', 'Nullhv'
+        'NULL',                                                              # the namehek (HEK*)
+        'Nullhv'
     );
     my $xpvgv = sprintf( 'xpvgv_list[%d]', xpvgvsect()->index );
 
@@ -185,18 +187,49 @@ sub do_save {
 
     my $hack;
     $hack = 1 if $gv->get_fullname() eq 'main::one';
+    $hack = 1 if $gv->get_fullname() eq 'MyPackage::one';
+    $hack = 1 if $gv->get_fullname() eq 'MyPackage::list';
+    $hack = 1 if $gp_saved_with;
+    $hack = 1;
+    debug( gv => "hack $hack / gp_saved_with $gp_saved_with" );
     if ($hack) {
         debug( gv => '!@!$$% Hack: bypass legacy_save for %s = %s', $gv->get_fullname(), $gvsym );
 
         # split the fullname and plug all of them in known territory...
         # relies on template logic to preserve the hash structure...
-        save_shared_he('one');    # should save it in a different scope
+
+        #save_shared_he( 'one' ); # should save it in a different scope
+        #save_shared_he( 'MyPackage' ); # should save it in a different scope
+
+        my @namespace = split( '::', $gv->get_fullname() );
+        if ( scalar @namespace >= 2 ) {
+            my $shared_he = save_shared_he( $namespace[-1] );
+
+            #$shared_he = save_shared_he( 'WTF' );
+            #init()->sadd( "%s.xiv_u.xivu_namehek = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $xpvgv, $shared_he );
+            # or
+            init()->sadd( "GvNAME_HEK(%s) = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $gvsym, $shared_he );
+        }
 
         return $gvsym;
     }
 
     return legacy_save( $gv, $filter, $gvsym );
 }
+
+=pod
+
+Strangely this one is working without the PL_defstash saving
+> configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package MyPackage; our $one = 1; package main; print $MyPackage::one . "\n" ' && ./a.out
+
+Test saving x_save_gv_av
+> configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; our @list = (1..5); print join(", ", @list, "\n") ' && ./a.out
+
+Test saving x_save_gv_av
+> configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; our @list = (1..5); print join(", ", @list, "\n") ' && ./a.out
+
+
+=cut
 
 sub legacy_save {
     my ( $gv, $filter, $gvsym ) = @_;
@@ -216,6 +249,7 @@ sub legacy_save {
         mark_package_used($pkg);
     }
 
+    # .....
     my $fullname = $gv->get_fullname();
 
     my $is_empty = $gv->is_empty;
@@ -237,7 +271,7 @@ sub legacy_save {
     my $notqual = $package eq 'main' ? 'GV_NOTQUAL' : '0';
     my $was_emptied = save_gv_with_gp( $gv, $sym, $name, $notqual, $is_empty );
     $is_empty = 1 if ($was_emptied);
-
+    return $sym;                               # XXXXXX hack
     my $gvflags = $gv->GvFLAGS;
     my $svflags = $gv->FLAGS;
     init()->sadd( "SvFLAGS(%s) = 0x%x;%s",  $sym, $svflags, debug('flags') ? " /* " . $gv->flagspv . " */"          : "" );
@@ -259,10 +293,13 @@ sub legacy_save {
         $B::C::use_xsloader = 1;
     }
 
+    return $sym;                                                         # XXXXXX
+
     my $savefields = get_savefields( $gv, $fullname, $filter );
 
     # There's nothing to save if savefields were not returned.
     return $sym unless $savefields;
+    return $sym;                                                         # hack....
 
     # Don't save subfields of special GVs (*_, *1, *# and so on)
     debug( gv => "GV::save '%s' saving subfields %s", $fullname, _savefields_to_str($savefields) );
@@ -666,7 +703,7 @@ sub save_gv_sv {
     return;
 }
 
-sub save_gv_av {
+sub save_gv_av {                       # legacy function to be removed later
     my ( $gv, $fullname, $sym ) = @_;
 
     my $gvav = $gv->AV;
@@ -680,6 +717,24 @@ sub save_gv_av {
     }
 
     return;
+}
+
+sub x_save_gv_av {    # new function to be renamed later..
+    my ( $gv, $fullname ) = @_;
+
+    my $gvav = $gv->AV;
+    return 'NULL' unless $gvav && $$gvav;
+
+    # # rely on final replace to get the symbol name, it s fine
+    # my $svsym = sprintf( "s\\_%x", $$gvsv );
+
+    my $svsym = $gvav->save($fullname);
+    if ( $fullname eq 'main::-' ) {    # fixme: can directly save these values
+        init()->sadd( "AvFILLp(s\\_%x) = -1;", $$gvav );
+        init()->sadd( "AvMAX(s\\_%x) = -1;",   $$gvav );
+    }
+
+    return $svsym;
 }
 
 sub save_gv_hv {
