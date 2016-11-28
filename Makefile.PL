@@ -37,15 +37,9 @@ my ( $extra_cflags, $extra_libs ) = ( "", "" );
     $extra_libs   .= " $e_l" if $e_l;
 }
 
-sub b_c_deps {
-    my $X = $^X =~ m/\s/ ? qq{"$^X"} : $^X;
-    return `$X -Ilib -mB::C -mO -MB -e'B::C::load_heavy(); B::C::collect_deps()'`;
-}
-
 sub write_b_c_flags {
     my $version = shift;
     mkdir "lib/B/C" unless -d "lib/B/C";
-    my $b_c_deps = b_c_deps();
     open PH, ">", "lib/B/C/Flags.pm";
     print PH "# written by B::C Makefile.PL. \$extra_{cflags,libs} need a leading space if used.\n";
     print PH "package B::C::Flags;\n\n";
@@ -68,7 +62,6 @@ sub write_b_c_flags {
     print PH "# use extra compiler flags, after ccopts, resp. ldopts\n";
     print PH "our \$extra_cflags = \"$extra_cflags\";\n";
     print PH "our \$extra_libs = \"$extra_libs\";\n";
-    print PH "our \@deps = qw( ", $b_c_deps, " );\n\n";
 
     $Data::Dumper::Terse    = 1;
     $Data::Dumper::Sortkeys = 1;

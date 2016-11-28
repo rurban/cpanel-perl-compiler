@@ -72,18 +72,6 @@ use B::C::Packages qw/is_package_used mark_package_unused mark_package_used mark
 use B::C::Save qw(constpv savepv savestashpv);
 use B::C::Save::Signals ();
 
-# FIXME: this part can now be dynamic
-# exclude all not B::C:: prefixed subs
-# used in CV
-our %all_bc_deps;
-
-BEGIN {
-    # track all internally used packages. all other may not be deleted automatically
-    # - hidden methods
-    # uses now @B::C::Flags::deps
-    %all_bc_deps = map { $_ => 1 } @B::C::Flags::deps;
-}
-
 our ( $package_pv,     @package_pv );                 # global stash for methods since 5.13
 our ( %xsub,           %init2_remap );
 our ( %dumped_package, %skip_package, %isa_cache );
@@ -674,15 +662,6 @@ sub walk_stashes {
     }
 }
 
-# Used by Makefile.PL to autogenerate %INC deps.
-# QUESTION: why Moose and IO::Socket::SSL listed here
-# QUESTION: can we skip B::C::* here
-sub collect_deps {
-    my %deps;
-    walk_stashes( \%main::, undef, \%deps );
-    print join " ", ( sort keys %deps );
-}
-
 sub mark_package {
     my $package = shift;
     my $force = shift || 0;
@@ -811,14 +790,6 @@ sub skip_pkg {
         return 1;
     }
     return 0;
-}
-
-# Do not delete/ignore packages which were brought in from the script,
-# i.e. not defined in B::C or O. Just to be on the safe side.
-sub can_delete {
-    my $pkg = shift;
-    if ( exists $all_bc_deps{$pkg} ) { return 1 }
-    return undef;
 }
 
 sub inc_packname {
