@@ -126,8 +126,10 @@ sub savegp_from_gv {
 
     # .... TODO save stuff there
     # ....
-    $gp_av = $gv->x_save_gv_av($fullname) if $savefields & Save_AV;
-    $gp_sv = $gv->x_save_gv_sv($fullname) if $savefields & Save_SV;
+    $gp_sv = $gv->save_gv_sv($fullname) if $savefields & Save_SV;
+    $gp_av = $gv->save_gv_av($fullname) if $savefields & Save_AV;
+    $gp_hv = $gv->save_gv_hv($fullname) if $savefields & Save_HV;
+    $gp_cv = $gv->save_gv_cv($fullname) if $savefields & Save_CV;
 
     $$savedwith |= Save_SV if $gp_sv ne 'NULL';
 
@@ -186,14 +188,15 @@ sub do_save {
     my $gvsym = sprintf( '&gv_list[%d]', $gv_ix );
 
     my $hack;
-    $hack = 1 if $gv->get_fullname() eq 'main::one';
-    $hack = 1 if $gv->get_fullname() eq 'MyPackage::one';
-    $hack = 1 if $gv->get_fullname() eq 'MyPackage::list';
-    $hack = 1 if $gp_saved_with;
+
+    # $hack = 1 if $gv->get_fullname() eq 'main::one';
+    # $hack = 1 if $gv->get_fullname() eq 'MyPackage::one';
+    # $hack = 1 if $gv->get_fullname() eq 'MyPackage::list';
+    #$hack = 1 if $gp_saved_with;
     $hack = 1;
     debug( gv => "hack $hack / gp_saved_with $gp_saved_with" );
     if ($hack) {
-        debug( gv => '!@!$$% Hack: bypass legacy_save for %s = %s', $gv->get_fullname(), $gvsym );
+        debug( gv => '!@!$^&$% Hack: bypass legacy_save for %s = %s', $gv->get_fullname(), $gvsym );
 
         # split the fullname and plug all of them in known territory...
         # relies on template logic to preserve the hash structure...
@@ -219,6 +222,8 @@ sub do_save {
 
 =pod
 
+TODO: move them to their own test extra/v-*.t
+
 Strangely this one is working without the PL_defstash saving
 > configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package MyPackage; our $one = 1; package main; print $MyPackage::one . "\n" ' && ./a.out
 
@@ -228,6 +233,13 @@ Test saving x_save_gv_av
 Test saving x_save_gv_av
 > configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; our @list = (1..5); print join(", ", @list, "\n") ' && ./a.out
 
+Test saving hash ||| TODO failure with multideref when using debug perl
+> rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; our %hash = (1..4); print join(" - ", keys %hash, "\n") ' && ./a.out
+
+Test saving a cv # use environment variable
+> rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; sub one { return 1 if $ENV{HOME} }; print one() . "\n" ' && ./a.out
+
+> rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; *one = sub { return 1 if -e q{/tmp} }; print one() . "\n" ' && ./a.out
 
 =cut
 
@@ -249,7 +261,6 @@ sub legacy_save {
         mark_package_used($pkg);
     }
 
-    # .....
     my $fullname = $gv->get_fullname();
 
     my $is_empty = $gv->is_empty;
@@ -271,7 +282,7 @@ sub legacy_save {
     my $notqual = $package eq 'main' ? 'GV_NOTQUAL' : '0';
     my $was_emptied = save_gv_with_gp( $gv, $sym, $name, $notqual, $is_empty );
     $is_empty = 1 if ($was_emptied);
-    return $sym;                               # XXXXXX hack
+
     my $gvflags = $gv->GvFLAGS;
     my $svflags = $gv->FLAGS;
     init()->sadd( "SvFLAGS(%s) = 0x%x;%s",  $sym, $svflags, debug('flags') ? " /* " . $gv->flagspv . " */"          : "" );
@@ -293,30 +304,29 @@ sub legacy_save {
         $B::C::use_xsloader = 1;
     }
 
-    return $sym;                                                         # XXXXXX
+    #return $sym; # hack....
 
     my $savefields = get_savefields( $gv, $fullname, $filter );
 
     # There's nothing to save if savefields were not returned.
     return $sym unless $savefields;
-    return $sym;                                                         # hack....
 
     # Don't save subfields of special GVs (*_, *1, *# and so on)
     debug( gv => "GV::save '%s' saving subfields %s", $fullname, _savefields_to_str($savefields) );
 
-    $gv->save_gv_sv( $fullname, $sym, $package ) if $savefields & Save_SV;
+    $gv->legacy_save_gv_sv( $fullname, $sym, $package ) if $savefields & Save_SV;
 
-    $gv->save_gv_av( $fullname, $sym ) if $savefields & Save_AV;
+    $gv->legacy_save_gv_av( $fullname, $sym ) if $savefields & Save_AV;
 
-    $gv->save_gv_hv( $fullname, $sym, $gvname ) if $savefields & Save_HV;
+    $gv->legacy_save_gv_hv( $fullname, $sym, $gvname ) if $savefields & Save_HV;
 
-    $gv->save_gv_cv( $fullname, $sym ) if $savefields & Save_CV;
+    $gv->legacy_save_gv_cv( $fullname, $sym ) if $savefields & Save_CV;
 
-    $gv->save_gv_format( $fullname, $sym ) if $savefields & Save_FORM;
+    $gv->legacy_save_gv_format( $fullname, $sym ) if $savefields & Save_FORM;
 
-    $gv->save_gv_io( $fullname, $sym ) if $savefields & Save_IO;
+    $gv->legacy_save_gv_io( $fullname, $sym ) if $savefields & Save_IO;
 
-    $gv->save_gv_file( $fullname, $sym ) if $savefields & Save_FILE;
+    $gv->legacy_save_gv_file( $fullname, $sym ) if $savefields & Save_FILE;
 
     # Shouldn't need to do save_magic since gv_fetchpv handles that. Esp. < and IO not
     # $gv->save_magic($fullname) if $PERL510;
@@ -362,18 +372,6 @@ sub save_egv {
     if ( ref($egv) ne 'B::SPECIAL' && ref( $egv->STASH ) ne 'B::SPECIAL' && $$gv != $$egv ) {
         return $egv->save;
     }
-
-    return;
-}
-
-sub save_gv_file {
-    my ( $gv, $fullname, $sym ) = @_;
-
-    # XXX Maybe better leave it NULL or asis, than fighting broken
-    my $file = save_shared_he( $gv->FILE );
-    return if ( !$file or $file eq 'NULL' );
-
-    init()->sadd( "GvFILE_HEK(%s) = &(%s->shared_he_hek);", $sym, $file );
 
     return;
 }
@@ -437,6 +435,503 @@ sub save_gv_with_gp {
 }
 
 sub save_gv_cv {
+    my ( $gv, $fullname ) = @_;
+
+    my $package = $gv->get_package();
+    my $gvcv    = $gv->CV;
+    if ( !$$gvcv ) {
+        debug( gv => "Empty CV $fullname, AUTOLOAD and try again" );
+        no strict 'refs';
+
+        # Fix test 31, catch unreferenced AUTOLOAD. The downside:
+        # It stores the whole optree and all its children.
+        # Similar with test 39: re::is_regexp
+        svref_2object( \*{"$package\::AUTOLOAD"} )->save if $package and exists ${"$package\::"}{AUTOLOAD};
+        svref_2object( \*{"$package\::CLONE"} )->save    if $package and exists ${"$package\::"}{CLONE};
+        $gvcv = $gv->CV;    # try again
+
+        return 'NULL';
+    }
+
+    debug( gv => "AAAA" );
+
+    return 'NULL' unless ref($gvcv) eq 'B::CV';
+    return 'NULL' if ref( $gvcv->GV ) eq 'B::SPECIAL' or ref( $gvcv->GV->EGV ) eq 'B::SPECIAL';
+
+    my $gvname = $gv->NAME();
+    my $gp     = $gv->GP;
+    debug( gv => "AAAA" );
+
+    # Can't locate object method "EGV" via package "B::SPECIAL" at /usr/local/cpanel/3rdparty/perl/520/lib/perl5/cpanel_lib/i386-linux-64int/B/C/OverLoad/B/GV.pm line 450.
+    {
+        my $package  = $gvcv->GV->EGV->STASH->NAME;    # is it the same than package earlier ??
+        my $oname    = $gvcv->GV->EGV->NAME;
+        my $origname = $package . "::" . $oname;
+        my $cvsym;
+        if ( $gvcv->XSUB and $oname ne '__ANON__' and $fullname ne $origname ) {    #XSUB CONSTSUB alias
+
+            # TODO
+            die "TODO";
+
+            # debug( pkg => "Boot $package, XS CONSTSUB alias of $fullname to $origname" );
+            # mark_package( $package, 1 );
+            # {
+            #     no strict 'refs';
+            #     svref_2object( \&{"$package\::bootstrap"} )->save
+            #       if $package and defined &{"$package\::bootstrap"};
+            # }
+
+            # # XXX issue 57: incomplete xs dependency detection
+            # my %hack_xs_detect = (
+            #     'Scalar::Util'  => 'List::Util',
+            #     'Sub::Exporter' => 'Params::Util',
+            # );
+            # if ( my $dep = $hack_xs_detect{$package} ) {
+            #     svref_2object( \&{"$dep\::bootstrap"} )->save;
+            # }
+
+            # # must save as a 'stub' so newXS() has a CV to populate
+            # debug( gv => "save stub CvGV for $sym GP assignments $origname" );
+            # init2()->sadd( "if ((sv = (SV*)%s))", get_cv_string( $origname, "GV_ADD" ) );
+            # init2()->sadd( "    GvCV_set(%s, (CV*)SvREFCNT_inc_simple_NN(sv));", $sym );
+        }
+        elsif ($gp) {
+            if ( $fullname eq 'Internals::V' ) {
+                $gvcv = svref_2object( \&__ANON__::_V );
+            }
+
+            # TODO: may need fix CvGEN if >0 to re-validate the CV methods
+            # on PERL510 (>0 + <subgeneration)
+            debug( gv => "GV::save &$fullname..." );
+            $cvsym = $gvcv->save($fullname);
+            debug( gv => "AAAA" );
+            return $cvsym;
+
+        }
+    }
+
+    return;
+}
+
+sub save_gv_sv {
+    my ( $gv, $fullname ) = @_;
+
+    my $gvsv = $gv->SV;
+    return 'NULL' unless $$gvsv;
+
+    # rely on final replace to get the symbol name, it s fine
+    my $svsym = sprintf( "s\\_%x", $$gvsv );
+
+    my $package = $gv->get_package();
+    my $gvname  = $gv->NAME;
+
+    if ( my $pl_core_sv = $CORE_SVS->{$fullname} ) {
+        savesym( $gvsv, $pl_core_sv );
+    }
+
+    if ( $gvname && $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
+        debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
+        my $rv     = $gvsv->object_2svref();
+        my $origsv = $$rv;
+        no strict 'refs';
+        ${$fullname} = "$origsv";
+        svref_2object( \${$fullname} )->save($fullname);
+    }
+    else {
+        $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
+                                   # we need sv magic for the core_svs (PL_rs -> gv) (#314)
+
+        # Output record separator https://code.google.com/archive/p/perl-compiler/issues/318
+        return $svsym if $gvname eq "\\";
+
+        if ( exists $CORE_SVS->{"main::$gvname"} ) {
+            $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
+            init()->sadd( "SvREFCNT(s\\_%x) += 1;", $$gvsv );
+        }
+    }
+
+    return $svsym;
+}
+
+sub save_gv_av {    # new function to be renamed later..
+    my ( $gv, $fullname ) = @_;
+
+    my $gvav = $gv->AV;
+    return 'NULL' unless $gvav && $$gvav;
+
+    # # rely on final replace to get the symbol name, it s fine
+    # my $svsym = sprintf( "s\\_%x", $$gvsv );
+
+    my $svsym = $gvav->save($fullname);
+    if ( $fullname eq 'main::-' ) {    # fixme: can directly save these values
+        init()->sadd( "AvFILLp(s\\_%x) = -1;", $$gvav );
+        init()->sadd( "AvMAX(s\\_%x) = -1;",   $$gvav );
+    }
+
+    return $svsym;
+}
+
+sub save_gv_hv {                       # new function to be renamed later..
+    my ( $gv, $fullname ) = @_;
+
+    my $gvhv = $gv->HV;
+    return 'NULL' unless $gvhv && $$gvhv;
+
+    # Handle HV exceptions first...
+    return 'NULL' if $fullname eq 'main::ENV' or $fullname eq 'main::INC';    # do not save %ENV
+
+    debug( gv => "GV::save \%$fullname" );
+
+    # TODO: cleanup these special cases
+    if ( $fullname eq 'main::!' ) {                                           # force loading Errno
+        init()->add("/* \%! force saving of Errno */");
+        mark_package( 'Errno', 1 );                                           # B::C needs Errno but does not import $!
+    }
+    elsif ( $fullname eq 'main::+' or $fullname eq 'main::-' ) {
+        init()->sadd( "/* %%%s force saving of Tie::Hash::NamedCapture */", $gv->NAME );
+        svref_2object( \&{'Tie::Hash::NamedCapture::bootstrap'} )->save;
+        mark_package( 'Tie::Hash::NamedCapture', 1 );
+    }
+
+    # skip static %Encode::Encoding since 5.20. GH #200. sv_upgrade cannot upgrade itself.
+    # Let it be initialized by boot_Encode/Encode_XSEncodingm with exceptions.
+    # GH #200 and t/testc.sh 75
+    # if ( $fullname eq 'Encode::Encoding' ) {
+    #     debug( gv => "skip some %Encode::Encoding - XS initialized" );
+    #     my %tmp_Encode_Encoding = %Encode::Encoding;
+    #     %Encode::Encoding = ();    # but we need some non-XS encoding keys
+    #     foreach my $k (qw(utf8 utf-8-strict Unicode Internal Guess)) {
+    #         $Encode::Encoding{$k} = $tmp_Encode_Encoding{$k} if exists $tmp_Encode_Encoding{$k};
+    #     }
+    #     $gvhv->save($fullname);
+    #     init()->add("/* deferred some XS enc pointers for \%Encode::Encoding */");
+    #     init()->sadd( "GvHV(%s) = s\\_%x;", $sym, $$gvhv );
+
+    #     %Encode::Encoding = %tmp_Encode_Encoding;
+    #     return;
+    # }
+
+    return $gvhv->save($fullname);
+}
+
+sub gv_fetchpv_string {
+    my ( $name, $flags, $type ) = @_;
+    warn 'undefined flags' unless defined $flags;
+    warn 'undefined type'  unless defined $type;
+    my ( $cname, $cur, $utf8 ) = strlen_flags($name);
+
+    $flags .= length($flags) ? "|$utf8" : $utf8 if $utf8;
+    return "gv_fetchpvn_flags($cname, $cur, $flags, $type)";
+}
+
+sub savecv {
+    my $gv      = shift;
+    my $package = $gv->STASH->NAME;
+    my $name    = $gv->NAME;
+    my $cv      = $gv->CV;
+    my $sv      = $gv->SV;
+    my $av      = $gv->AV;
+    my $hv      = $gv->HV;
+
+    # We Should NEVER compile B::C packages so if we get here, it's a bug.
+    # TODO: Currently breaks xtestc/0350.t and xtestc/0371.t if we make this a die.
+    return if $package eq 'B::C';
+
+    my $fullname = $package . "::" . $name;
+    debug( gv => "Checking GV *%s 0x%x\n", cstring($fullname), ref $gv ? $$gv : 0 ) if verbose();
+
+    # We may be looking at this package just because it is a branch in the
+    # symbol table which is on the path to a package which we need to save
+    # e.g. this is 'Getopt' and we need to save 'Getopt::Long'
+    #
+    return if ( $package ne 'main' and !is_package_used($package) );
+    return if ( $package eq 'main'
+        and $name =~ /^([^\w].*|_\<.*|INC|ARGV|SIG|ENV|BEGIN|main::|!)$/ );
+
+    debug( gv => "GV::savecv - Used GV \*$fullname 0x%x", ref $gv ? $$gv : 0 );
+    debug( gv => "... called from %s", 'B::C::Save'->can('stack_flat')->() );
+    return unless ( $$cv || $$av || $$sv || $$hv || $gv->IO || $gv->FORM );
+    if ( $$cv and $name eq 'bootstrap' and $cv->XSUB ) {
+
+        #return $cv->save($fullname);
+        debug( gv => "Skip XS \&$fullname 0x%x", ref $cv ? $$cv : 0 );
+        return;
+    }
+    if (
+        $$cv and B::C::in_static_core( $package, $name ) and ref($cv) eq 'B::CV'    # 5.8,4 issue32
+        and $cv->XSUB
+      ) {
+        debug( gv => "Skip internal XS $fullname" );
+
+        # but prevent it from being deleted
+        unless ( $B::C::dumped_package{$package} ) {
+
+            #$B::C::dumped_package{$package} = 1;
+            mark_package( $package, 1 );
+        }
+        return;
+    }
+
+    # load utf8 and bytes on demand.
+    if ( my $newgv = force_heavy( $package, $fullname ) ) {
+        $gv = $newgv;
+    }
+
+    # XXX fails and should not be needed. The B::C part should be skipped 9 lines above, but be defensive
+    return if $fullname eq 'B::walksymtable' or $fullname eq 'B::C::walksymtable';
+
+    # Config is marked on any Config symbol. TIE and DESTROY are exceptions,
+    # used by the compiler itself
+    if ( $name eq 'Config' ) {
+        mark_package( 'Config', 1 ) if !is_package_used('Config');
+    }
+
+    $B::C::dumped_package{$package} = 1 if !exists $B::C::dumped_package{$package} and $package !~ /::$/;
+    debug( gv => "Saving GV \*$fullname 0x%x", ref $gv ? $$gv : 0 );
+    $gv->save($fullname);
+}
+
+sub get_savefields {
+    my ( $gv, $fullname, $filter ) = @_;
+
+    my $gvname = $gv->NAME;
+
+    # default savefields
+    my $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
+
+    $savefields = 0 if $gv->save_egv();
+    $savefields = 0 if $gvname =~ /::$/;
+    $savefields = 0 if $gv->is_empty();
+
+    my $gp = $gv->GP;
+    $savefields = 0 if !$gp or !exists $gptable{ 0 + $gp };
+
+    # some non-alphabetic globs require some parts to be saved
+    # ( ex. %!, but not $! )
+    if ( ref($gv) eq 'B::STASHGV' and $gvname !~ /::$/ ) {
+
+        # https://code.google.com/archive/p/perl-compiler/issues/79 - Only save stashes for stashes.
+        $savefields = 0;
+    }
+    elsif ( $gvname !~ /^([^A-Za-z]|STDIN|STDOUT|STDERR|ARGV|SIG|ENV)$/ ) {
+        $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
+    }
+    elsif ( $fullname eq 'main::!' ) {    #Errno
+        $savefields = Save_HV | Save_SV | Save_CV;
+    }
+    elsif ( $fullname eq 'main::ENV' or $fullname eq 'main::SIG' ) {
+        $savefields = Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
+    }
+    elsif ( $fullname eq 'main::ARGV' ) {
+        $savefields = Save_HV | Save_SV | Save_CV | Save_FORM | Save_IO;
+    }
+    elsif ( $fullname =~ /^main::STD(IN|OUT|ERR)$/ ) {
+        $savefields = Save_FORM | Save_IO;
+    }
+    elsif ( $fullname eq 'main::_' or $fullname eq 'main::@' ) {
+        $savefields = 0;
+    }
+
+    # avoid overly dynamic POSIX redefinition warnings: GH #335, #345
+    if ( $fullname =~ m/^POSIX::M/ or $fullname eq 'attributes::bootstrap' ) {
+        $savefields &= ~Save_CV;
+    }
+
+    # compute filter
+    $filter = normalize_filter( $filter, $fullname );
+
+    # apply filter
+    if ( $filter and $filter =~ qr{^[0-9]$} ) {
+        $savefields &= ~$filter;
+    }
+
+    my $is_gvgp    = $gv->isGV_with_GP;
+    my $is_coresym = $gv->is_coresym();
+    if ( !$is_gvgp or $is_coresym ) {
+        $savefields &= ~Save_FORM;
+        $savefields &= ~Save_IO;
+    }
+
+    $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym );
+
+    $savefields &= Save_SV if $gvname eq '\\';
+
+    return $savefields;
+}
+
+sub normalize_filter {
+    my ( $filter, $fullname ) = @_;
+
+    if ( $filter and $filter =~ m/ :pad/ ) {
+        $filter = 0;
+    }
+
+    # no need to assign any SV/AV/HV to them (172)
+    if ( $fullname =~ /^DynaLoader::dl_(require_symbols|resolve_using|librefs)/ ) {
+        $filter = Save_SV | Save_AV | Save_HV;
+    }
+    if ( $fullname =~ /^main::([1-9])$/ ) {    # ignore PV regexp captures with -O2
+        $filter = Save_SV;
+    }
+
+    return $filter;
+}
+
+#########################
+#### Legacy Functions
+#########################
+
+sub legacy_save_gv_sv {
+    my ( $gv, $fullname, $sym, $package ) = @_;
+
+    my $gvsv = $gv->SV;
+    return unless $$gvsv;
+
+    my $gvname = $gv->NAME;
+
+    debug( gv => "GV::save \$" . $sym . " $gvsv" );
+
+    if ( my $pl_core_sv = $CORE_SVS->{$fullname} ) {
+        savesym( $gvsv, $pl_core_sv );
+    }
+
+    if ( $gvname && $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
+        debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
+        my $rv     = $gvsv->object_2svref();
+        my $origsv = $$rv;
+        no strict 'refs';
+        ${$fullname} = "$origsv";
+        svref_2object( \${$fullname} )->save($fullname);
+    }
+    else {
+        $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
+                                   # we need sv magic for the core_svs (PL_rs -> gv) (#314)
+
+        # Output record separator https://code.google.com/archive/p/perl-compiler/issues/318
+        return if $gvname eq "\\";
+
+        if ( exists $CORE_SVS->{"main::$gvname"} ) {
+            $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
+            init()->sadd( "SvREFCNT(s\\_%x) += 1;", $$gvsv );
+        }
+    }
+    init()->sadd( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv );
+    if ( $fullname eq 'main::$' ) {    # $$ = PerlProc_getpid() issue #108
+        debug( gv => "  GV $sym \$\$ perlpid" );
+        init()->sadd( "sv_setiv(GvSV(%s), (IV)PerlProc_getpid());", $sym );
+    }
+    debug( gv => "GV::save \$$fullname" );
+
+    return;
+}
+
+sub legacy_save_gv_io {
+    my ( $gv, $fullname, $sym ) = @_;
+
+    my $gvio = $gv->IO;
+    return unless $$gvio;
+
+    my $is_data;
+    if ( $fullname eq 'main::DATA' or ( $fullname =~ m/::DATA$/ ) ) {
+        no strict 'refs';
+        my $fh = *{$fullname}{IO};
+        use strict 'refs';
+        $is_data = 'is_DATA';
+        $gvio->save_data( $sym, $fullname, <$fh> ) if $fh->opened;
+    }
+
+    $gvio->save( $fullname, $is_data );
+    init()->sadd( "GvIOp(%s) = s\\_%x;", $sym, $$gvio );
+
+    return;
+}
+
+sub legacy_save_gv_hv {    # legacy function to be removed later
+    my ( $gv, $fullname, $sym, $gvname ) = @_;
+
+    my $gvhv = $gv->HV;
+    return unless $gvhv && $$gvhv;
+
+    # Handle HV exceptions first...
+    return if $fullname eq 'main::ENV' or $fullname eq 'main::INC';    # do not save %ENV
+
+    debug( gv => "GV::save \%$fullname" );
+    if ( $fullname eq 'main::!' ) {                                    # force loading Errno
+        init()->add("/* \%! force saving of Errno */");
+        mark_package( 'Errno', 1 );                                    # B::C needs Errno but does not import $!
+    }
+    elsif ( $fullname eq 'main::+' or $fullname eq 'main::-' ) {
+        init()->sadd( "/* %%%s force saving of Tie::Hash::NamedCapture */", $gvname );
+        svref_2object( \&{'Tie::Hash::NamedCapture::bootstrap'} )->save;
+        mark_package( 'Tie::Hash::NamedCapture', 1 );
+    }
+
+    # skip static %Encode::Encoding since 5.20. GH #200. sv_upgrade cannot upgrade itself.
+    # Let it be initialized by boot_Encode/Encode_XSEncodingm with exceptions.
+    # GH #200 and t/testc.sh 75
+    if ( $fullname eq 'Encode::Encoding' ) {
+        debug( gv => "skip some %Encode::Encoding - XS initialized" );
+        my %tmp_Encode_Encoding = %Encode::Encoding;
+        %Encode::Encoding = ();    # but we need some non-XS encoding keys
+        foreach my $k (qw(utf8 utf-8-strict Unicode Internal Guess)) {
+            $Encode::Encoding{$k} = $tmp_Encode_Encoding{$k} if exists $tmp_Encode_Encoding{$k};
+        }
+        $gvhv->save($fullname);
+        init()->add("/* deferred some XS enc pointers for \%Encode::Encoding */");
+        init()->sadd( "GvHV(%s) = s\\_%x;", $sym, $$gvhv );
+
+        %Encode::Encoding = %tmp_Encode_Encoding;
+        return;
+    }
+
+    $gvhv->save($fullname);
+    init()->sadd( "GvHV(%s) = s\\_%x;", $sym, $$gvhv );
+
+    return;
+}
+
+sub legacy_save_gv_av {
+    my ( $gv, $fullname, $sym ) = @_;
+
+    my $gvav = $gv->AV;
+    return 'NULL' unless $gvav && $$gvav;
+
+    $gvav->save($fullname);
+    init()->sadd( "GvAV(%s) = s\\_%x;", $sym, $$gvav );
+    if ( $fullname eq 'main::-' ) {
+        init()->sadd( "AvFILLp(s\\_%x) = -1;", $$gvav );
+        init()->sadd( "AvMAX(s\\_%x) = -1;",   $$gvav );
+    }
+
+    return;
+}
+
+sub legacy_save_gv_format {
+    my ( $gv, $fullname, $sym ) = @_;
+
+    my $gvform = $gv->FORM;
+    return unless $gvform && $$gvform;
+
+    $gvform->save($fullname);
+    init()->sadd( "GvFORM(%s) = (CV*)s\\_%x;", $sym, $$gvform );
+    init()->sadd( "SvREFCNT_inc(s\\_%x);", $$gvform );
+
+    return;
+}
+
+sub legacy_save_gv_file {
+    my ( $gv, $fullname, $sym ) = @_;
+
+    # XXX Maybe better leave it NULL or asis, than fighting broken
+    my $file = save_shared_he( $gv->FILE );
+    return if ( !$file or $file eq 'NULL' );
+
+    init()->sadd( "GvFILE_HEK(%s) = &(%s->shared_he_hek);", $sym, $file );
+
+    return;
+}
+
+sub legacy_save_gv_cv {
     my ( $gv, $fullname, $sym ) = @_;
 
     my $package = $gv->get_package();
@@ -606,362 +1101,4 @@ sub save_gv_cv {
     return;
 }
 
-sub save_gv_format {
-    my ( $gv, $fullname, $sym ) = @_;
-
-    my $gvform = $gv->FORM;
-    return unless $gvform && $$gvform;
-
-    $gvform->save($fullname);
-    init()->sadd( "GvFORM(%s) = (CV*)s\\_%x;", $sym, $$gvform );
-    init()->sadd( "SvREFCNT_inc(s\\_%x);", $$gvform );
-
-    return;
-}
-
-sub x_save_gv_sv {
-    my ( $gv, $fullname ) = @_;
-
-    my $gvsv = $gv->SV;
-    return 'NULL' unless $$gvsv;
-
-    # rely on final replace to get the symbol name, it s fine
-    my $svsym = sprintf( "s\\_%x", $$gvsv );
-
-    my $package = $gv->get_package();
-    my $gvname  = $gv->NAME;
-
-    if ( my $pl_core_sv = $CORE_SVS->{$fullname} ) {
-        savesym( $gvsv, $pl_core_sv );
-    }
-
-    if ( $gvname && $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
-        debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
-        my $rv     = $gvsv->object_2svref();
-        my $origsv = $$rv;
-        no strict 'refs';
-        ${$fullname} = "$origsv";
-        svref_2object( \${$fullname} )->save($fullname);
-    }
-    else {
-        $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
-                                   # we need sv magic for the core_svs (PL_rs -> gv) (#314)
-
-        # Output record separator https://code.google.com/archive/p/perl-compiler/issues/318
-        return $svsym if $gvname eq "\\";
-
-        if ( exists $CORE_SVS->{"main::$gvname"} ) {
-            $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
-            init()->sadd( "SvREFCNT(s\\_%x) += 1;", $$gvsv );
-        }
-    }
-
-    return $svsym;
-}
-
-sub save_gv_sv {
-    my ( $gv, $fullname, $sym, $package ) = @_;
-
-    my $gvsv = $gv->SV;
-    return unless $$gvsv;
-
-    my $gvname = $gv->NAME;
-
-    debug( gv => "GV::save \$" . $sym . " $gvsv" );
-
-    if ( my $pl_core_sv = $CORE_SVS->{$fullname} ) {
-        savesym( $gvsv, $pl_core_sv );
-    }
-
-    if ( $gvname && $gvname eq 'VERSION' and $B::C::xsub{$package} and $gvsv->FLAGS & SVf_ROK ) {
-        debug( gv => "Strip overload from $package\::VERSION, fails to xs boot (issue 91)" );
-        my $rv     = $gvsv->object_2svref();
-        my $origsv = $$rv;
-        no strict 'refs';
-        ${$fullname} = "$origsv";
-        svref_2object( \${$fullname} )->save($fullname);
-    }
-    else {
-        $gvsv->save($fullname);    #even NULL save it, because of gp_free nonsense
-                                   # we need sv magic for the core_svs (PL_rs -> gv) (#314)
-
-        # Output record separator https://code.google.com/archive/p/perl-compiler/issues/318
-        return if $gvname eq "\\";
-
-        if ( exists $CORE_SVS->{"main::$gvname"} ) {
-            $gvsv->save_magic($fullname) if ref($gvsv) eq 'B::PVMG';
-            init()->sadd( "SvREFCNT(s\\_%x) += 1;", $$gvsv );
-        }
-    }
-    init()->sadd( "GvSVn(%s) = (SV*)s\\_%x;", $sym, $$gvsv );
-    if ( $fullname eq 'main::$' ) {    # $$ = PerlProc_getpid() issue #108
-        debug( gv => "  GV $sym \$\$ perlpid" );
-        init()->sadd( "sv_setiv(GvSV(%s), (IV)PerlProc_getpid());", $sym );
-    }
-    debug( gv => "GV::save \$$fullname" );
-
-    return;
-}
-
-sub save_gv_av {                       # legacy function to be removed later
-    my ( $gv, $fullname, $sym ) = @_;
-
-    my $gvav = $gv->AV;
-    return 'NULL' unless $gvav && $$gvav;
-
-    $gvav->save($fullname);
-    init()->sadd( "GvAV(%s) = s\\_%x;", $sym, $$gvav );
-    if ( $fullname eq 'main::-' ) {
-        init()->sadd( "AvFILLp(s\\_%x) = -1;", $$gvav );
-        init()->sadd( "AvMAX(s\\_%x) = -1;",   $$gvav );
-    }
-
-    return;
-}
-
-sub x_save_gv_av {    # new function to be renamed later..
-    my ( $gv, $fullname ) = @_;
-
-    my $gvav = $gv->AV;
-    return 'NULL' unless $gvav && $$gvav;
-
-    # # rely on final replace to get the symbol name, it s fine
-    # my $svsym = sprintf( "s\\_%x", $$gvsv );
-
-    my $svsym = $gvav->save($fullname);
-    if ( $fullname eq 'main::-' ) {    # fixme: can directly save these values
-        init()->sadd( "AvFILLp(s\\_%x) = -1;", $$gvav );
-        init()->sadd( "AvMAX(s\\_%x) = -1;",   $$gvav );
-    }
-
-    return $svsym;
-}
-
-sub save_gv_hv {
-    my ( $gv, $fullname, $sym, $gvname ) = @_;
-
-    my $gvhv = $gv->HV;
-    return unless $gvhv && $$gvhv;
-
-    # Handle HV exceptions first...
-    return if $fullname eq 'main::ENV' or $fullname eq 'main::INC';    # do not save %ENV
-
-    debug( gv => "GV::save \%$fullname" );
-    if ( $fullname eq 'main::!' ) {                                    # force loading Errno
-        init()->add("/* \%! force saving of Errno */");
-        mark_package( 'Errno', 1 );                                    # B::C needs Errno but does not import $!
-    }
-    elsif ( $fullname eq 'main::+' or $fullname eq 'main::-' ) {
-        init()->sadd( "/* %%%s force saving of Tie::Hash::NamedCapture */", $gvname );
-        svref_2object( \&{'Tie::Hash::NamedCapture::bootstrap'} )->save;
-        mark_package( 'Tie::Hash::NamedCapture', 1 );
-    }
-
-    # skip static %Encode::Encoding since 5.20. GH #200. sv_upgrade cannot upgrade itself.
-    # Let it be initialized by boot_Encode/Encode_XSEncodingm with exceptions.
-    # GH #200 and t/testc.sh 75
-    if ( $fullname eq 'Encode::Encoding' ) {
-        debug( gv => "skip some %Encode::Encoding - XS initialized" );
-        my %tmp_Encode_Encoding = %Encode::Encoding;
-        %Encode::Encoding = ();    # but we need some non-XS encoding keys
-        foreach my $k (qw(utf8 utf-8-strict Unicode Internal Guess)) {
-            $Encode::Encoding{$k} = $tmp_Encode_Encoding{$k} if exists $tmp_Encode_Encoding{$k};
-        }
-        $gvhv->save($fullname);
-        init()->add("/* deferred some XS enc pointers for \%Encode::Encoding */");
-        init()->sadd( "GvHV(%s) = s\\_%x;", $sym, $$gvhv );
-
-        %Encode::Encoding = %tmp_Encode_Encoding;
-        return;
-    }
-
-    $gvhv->save($fullname);
-    init()->sadd( "GvHV(%s) = s\\_%x;", $sym, $$gvhv );
-
-    return;
-}
-
-sub save_gv_io {
-    my ( $gv, $fullname, $sym ) = @_;
-
-    my $gvio = $gv->IO;
-    return unless $$gvio;
-
-    my $is_data;
-    if ( $fullname eq 'main::DATA' or ( $fullname =~ m/::DATA$/ ) ) {
-        no strict 'refs';
-        my $fh = *{$fullname}{IO};
-        use strict 'refs';
-        $is_data = 'is_DATA';
-        $gvio->save_data( $sym, $fullname, <$fh> ) if $fh->opened;
-    }
-
-    $gvio->save( $fullname, $is_data );
-    init()->sadd( "GvIOp(%s) = s\\_%x;", $sym, $$gvio );
-
-    return;
-}
-
-sub gv_fetchpv_string {
-    my ( $name, $flags, $type ) = @_;
-    warn 'undefined flags' unless defined $flags;
-    warn 'undefined type'  unless defined $type;
-    my ( $cname, $cur, $utf8 ) = strlen_flags($name);
-
-    $flags .= length($flags) ? "|$utf8" : $utf8 if $utf8;
-    return "gv_fetchpvn_flags($cname, $cur, $flags, $type)";
-}
-
-sub savecv {
-    my $gv      = shift;
-    my $package = $gv->STASH->NAME;
-    my $name    = $gv->NAME;
-    my $cv      = $gv->CV;
-    my $sv      = $gv->SV;
-    my $av      = $gv->AV;
-    my $hv      = $gv->HV;
-
-    # We Should NEVER compile B::C packages so if we get here, it's a bug.
-    # TODO: Currently breaks xtestc/0350.t and xtestc/0371.t if we make this a die.
-    return if $package eq 'B::C';
-
-    my $fullname = $package . "::" . $name;
-    debug( gv => "Checking GV *%s 0x%x\n", cstring($fullname), ref $gv ? $$gv : 0 ) if verbose();
-
-    # We may be looking at this package just because it is a branch in the
-    # symbol table which is on the path to a package which we need to save
-    # e.g. this is 'Getopt' and we need to save 'Getopt::Long'
-    #
-    return if ( $package ne 'main' and !is_package_used($package) );
-    return if ( $package eq 'main'
-        and $name =~ /^([^\w].*|_\<.*|INC|ARGV|SIG|ENV|BEGIN|main::|!)$/ );
-
-    debug( gv => "GV::savecv - Used GV \*$fullname 0x%x", ref $gv ? $$gv : 0 );
-    debug( gv => "... called from %s", 'B::C::Save'->can('stack_flat')->() );
-    return unless ( $$cv || $$av || $$sv || $$hv || $gv->IO || $gv->FORM );
-    if ( $$cv and $name eq 'bootstrap' and $cv->XSUB ) {
-
-        #return $cv->save($fullname);
-        debug( gv => "Skip XS \&$fullname 0x%x", ref $cv ? $$cv : 0 );
-        return;
-    }
-    if (
-        $$cv and B::C::in_static_core( $package, $name ) and ref($cv) eq 'B::CV'    # 5.8,4 issue32
-        and $cv->XSUB
-      ) {
-        debug( gv => "Skip internal XS $fullname" );
-
-        # but prevent it from being deleted
-        unless ( $B::C::dumped_package{$package} ) {
-
-            #$B::C::dumped_package{$package} = 1;
-            mark_package( $package, 1 );
-        }
-        return;
-    }
-
-    # load utf8 and bytes on demand.
-    if ( my $newgv = force_heavy( $package, $fullname ) ) {
-        $gv = $newgv;
-    }
-
-    # XXX fails and should not be needed. The B::C part should be skipped 9 lines above, but be defensive
-    return if $fullname eq 'B::walksymtable' or $fullname eq 'B::C::walksymtable';
-
-    # Config is marked on any Config symbol. TIE and DESTROY are exceptions,
-    # used by the compiler itself
-    if ( $name eq 'Config' ) {
-        mark_package( 'Config', 1 ) if !is_package_used('Config');
-    }
-
-    $B::C::dumped_package{$package} = 1 if !exists $B::C::dumped_package{$package} and $package !~ /::$/;
-    debug( gv => "Saving GV \*$fullname 0x%x", ref $gv ? $$gv : 0 );
-    $gv->save($fullname);
-}
-
-sub get_savefields {
-    my ( $gv, $fullname, $filter ) = @_;
-
-    my $gvname = $gv->NAME;
-
-    # default savefields
-    my $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
-
-    $savefields = 0 if $gv->save_egv();
-    $savefields = 0 if $gvname =~ /::$/;
-    $savefields = 0 if $gv->is_empty();
-
-    my $gp = $gv->GP;
-    $savefields = 0 if !$gp or !exists $gptable{ 0 + $gp };
-
-    # some non-alphabetic globs require some parts to be saved
-    # ( ex. %!, but not $! )
-    if ( ref($gv) eq 'B::STASHGV' and $gvname !~ /::$/ ) {
-
-        # https://code.google.com/archive/p/perl-compiler/issues/79 - Only save stashes for stashes.
-        $savefields = 0;
-    }
-    elsif ( $gvname !~ /^([^A-Za-z]|STDIN|STDOUT|STDERR|ARGV|SIG|ENV)$/ ) {
-        $savefields = Save_HV | Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
-    }
-    elsif ( $fullname eq 'main::!' ) {    #Errno
-        $savefields = Save_HV | Save_SV | Save_CV;
-    }
-    elsif ( $fullname eq 'main::ENV' or $fullname eq 'main::SIG' ) {
-        $savefields = Save_AV | Save_SV | Save_CV | Save_FORM | Save_IO;
-    }
-    elsif ( $fullname eq 'main::ARGV' ) {
-        $savefields = Save_HV | Save_SV | Save_CV | Save_FORM | Save_IO;
-    }
-    elsif ( $fullname =~ /^main::STD(IN|OUT|ERR)$/ ) {
-        $savefields = Save_FORM | Save_IO;
-    }
-    elsif ( $fullname eq 'main::_' or $fullname eq 'main::@' ) {
-        $savefields = 0;
-    }
-
-    # avoid overly dynamic POSIX redefinition warnings: GH #335, #345
-    if ( $fullname =~ m/^POSIX::M/ or $fullname eq 'attributes::bootstrap' ) {
-        $savefields &= ~Save_CV;
-    }
-
-    # compute filter
-    $filter = normalize_filter( $filter, $fullname );
-
-    # apply filter
-    if ( $filter and $filter =~ qr{^[0-9]$} ) {
-        $savefields &= ~$filter;
-    }
-
-    my $is_gvgp    = $gv->isGV_with_GP;
-    my $is_coresym = $gv->is_coresym();
-    if ( !$is_gvgp or $is_coresym ) {
-        $savefields &= ~Save_FORM;
-        $savefields &= ~Save_IO;
-    }
-
-    $savefields |= Save_FILE if ( $is_gvgp and !$is_coresym );
-
-    $savefields &= Save_SV if $gvname eq '\\';
-
-    return $savefields;
-}
-
-sub normalize_filter {
-    my ( $filter, $fullname ) = @_;
-
-    if ( $filter and $filter =~ m/ :pad/ ) {
-        $filter = 0;
-    }
-
-    # no need to assign any SV/AV/HV to them (172)
-    if ( $fullname =~ /^DynaLoader::dl_(require_symbols|resolve_using|librefs)/ ) {
-        $filter = Save_SV | Save_AV | Save_HV;
-    }
-    if ( $fullname =~ /^main::([1-9])$/ ) {    # ignore PV regexp captures with -O2
-        $filter = Save_SV;
-    }
-
-    return $filter;
-}
 1;
