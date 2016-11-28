@@ -758,17 +758,7 @@ sub in_static_core {
 # Note: mro,re,UNIVERSAL have both, static core and dynamic/static XS
 # version has an external ::vxs
 sub static_core_packages {
-    my @pkg = qw(Internals utf8 UNIVERSAL);
-
-    push @pkg, 'version';
-
-    #push @pkg, 'DynaLoader'	      if $Config{usedl};
-    # Win32CORE only in official cygwin pkg. And it needs to be bootstrapped,
-    # handled by static_ext.
-    push @pkg, 'Cygwin'                     if $^O eq 'cygwin';
-    push @pkg, 'NetWare'                    if $^O eq 'NetWare';
-    push @pkg, 'OS2'                        if $^O eq 'os2';
-    push @pkg, qw(VMS VMS::Filespec vmsish) if $^O eq 'VMS';
+    my @pkg = qw(version Internals utf8 UNIVERSAL);
 
     push @pkg, split( / /, $Config{static_ext} );
     return @pkg;
