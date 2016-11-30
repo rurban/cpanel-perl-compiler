@@ -94,6 +94,27 @@ sub get {
     return $self->{'values'}->[$row];
 }
 
+sub get_field {
+    my ( $self, $row, $field, $void ) = @_;
+
+    die "Need to call with row, field" unless defined $field;
+    die "Extra argument after value" if defined $void;
+
+    my $line = $self->get($row);
+    my @fields = split( ',', $line );    # does not handle comma in comments
+
+    die "Invalid field id $field" if $field > $#fields;
+
+    return $fields[$field];
+}
+
+sub get_fields {
+    my ( $self, $row ) = @_;
+
+    my $line = $self->get($row);
+    return split( qr/\s*,\s*/, $line );
+}
+
 sub remove {                      # should be rename pop or remove last
     my $self = shift;
     pop @{ $self->{'values'} };
