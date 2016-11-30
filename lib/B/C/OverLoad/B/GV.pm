@@ -90,7 +90,7 @@ sub GP_IX_CVGEN  { 3 }
 sub GP_IX_REFCNT { 4 }
 sub GP_IX_HV     { 5 }
 sub GP_IX_AV     { 6 }
-sub GP_IX_CV     { 7 }
+sub GP_IX_FORM   { 7 }
 sub GP_IX_GV     { 8 }
 sub GP_IX_LINE   { 9 }
 sub GP_IX_FLAGS  { 10 }
@@ -144,7 +144,7 @@ sub savegp_from_gv {
     $gp_hv = $gv->save_gv_hv($fullname) if $savefields & Save_HV;
     $gp_cv = $gv->save_gv_cv($fullname) if $savefields & Save_CV;
 
-    gpsect()->comment('SV, gp_io, CV, cvgen, gp_refcount, HV, AV, CV, GV, line, flags, HEK* file');
+    gpsect()->comment('SV, gp_io, CV, cvgen, gp_refcount, HV, AV, CV* form, GV, line, flags, HEK* file');
 
     my $gp_ix = gpsect()->sadd(
         "(SV*) %s, %s, (CV*) %s, %d, %u, (HV*) %s, %s, %s, %s, %u, %d, %s ",
@@ -152,9 +152,29 @@ sub savegp_from_gv {
         $gp_line, $gp_flags, $gp_file_hek eq 'NULL' ? 'NULL' : qq{(HEK*) (&$gp_file_hek + sizeof(HE))}
     );
 
-    print STDERR "===== GP:$gp_ix SV:$gp_sv, AV:$gp_av, HV:$gp_hv, CV:$gp_cv \n";
-
+    #print STDERR "===== GP:$gp_ix SV:$gp_sv, AV:$gp_av, HV:$gp_hv, CV:$gp_cv \n";
     # we can only use static values for sv, av, hv, cv, if they are coming from a static list
+
+    my @postpone = (
+        [ 'gp_sv', GP_IX_SV(), $gp_sv ],
+        [ 'gp_av', GP_IX_AV(), $gp_av ],
+        [ 'gp_hv', GP_IX_HV(), $gp_hv ],
+        [ 'gp_cv', GP_IX_CV(), $gp_cv ],
+    );
+
+    foreach my $check (@postpone) {
+        my ( $field_name, $field_ix, $field_v ) = @$check;
+
+        # if the value is null or using a static list, then it's fine
+        next if $field_v =~ qr{null}i or $field_v =~ qr{list};
+
+        # replace the value by a null one
+        debug( gv => q{Cannot use static value '%s' for gp_list[%d].%s => postpone to init}, $field_v, $gp_ix, $field_name );
+        gpsect()->update_field( $gp_ix, $field_ix, 'NULL' );
+
+        # postpone the setting to init section
+        init()->sadd( q{gp_list[%d].%s = %s;}, $gp_ix, $field_name, $field_v );
+    }
 
     $saved_gps{$gp} = sprintf( "&gp_list[%d]", $gp_ix );
     return $saved_gps{$gp};
