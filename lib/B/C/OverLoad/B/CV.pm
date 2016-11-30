@@ -247,7 +247,7 @@ sub do_save {
     my $sv_ix = svsect()->index + 1;
     my $xpvcv_ix;
     my $new_cv_fw = 0;
-    if ($new_cv_fw) {
+    if ($new_cv_fw) {    # DEAD CODE....
         $sym = savesym( $cv, "CVIX$sv_ix" );
     }
     else {

@@ -82,6 +82,20 @@ sub get_fullname {
 
 my %saved_gps;
 
+# hardcode the order of GV elements, so we can use macro instead of indexes
+sub GP_IX_SV     { 0 }
+sub GP_IX_IO     { 1 }
+sub GP_IX_CV     { 2 }
+sub GP_IX_CVGEN  { 3 }
+sub GP_IX_REFCNT { 4 }
+sub GP_IX_HV     { 5 }
+sub GP_IX_AV     { 6 }
+sub GP_IX_CV     { 7 }
+sub GP_IX_GV     { 8 }
+sub GP_IX_LINE   { 9 }
+sub GP_IX_FLAGS  { 10 }
+sub GP_IX_HEK    { 11 }
+
 # FIXME todo and move later to B/GP.pm ?
 sub savegp_from_gv {
     my ( $gv, $savefields ) = @_;
@@ -132,13 +146,17 @@ sub savegp_from_gv {
 
     gpsect()->comment('SV, gp_io, CV, cvgen, gp_refcount, HV, AV, CV, GV, line, flags, HEK* file');
 
-    gpsect()->sadd(
-        "(SV*) %s, %s, (CV*) %s, %d, %u, %s, %s, %s, %s, %u, %d, %s ",
+    my $gp_ix = gpsect()->sadd(
+        "(SV*) %s, %s, (CV*) %s, %d, %u, (HV*) %s, %s, %s, %s, %u, %d, %s ",
         $gp_sv, $gp_io, $gp_cv, $gp_cvgen, $gp_refcount, $gp_hv, $gp_av, $gp_form, $gp_egv,
         $gp_line, $gp_flags, $gp_file_hek eq 'NULL' ? 'NULL' : qq{(HEK*) (&$gp_file_hek + sizeof(HE))}
     );
 
-    $saved_gps{$gp} = sprintf( "&gp_list[%d]", gpsect()->index );
+    print STDERR "===== GP:$gp_ix SV:$gp_sv, AV:$gp_av, HV:$gp_hv, CV:$gp_cv \n";
+
+    # we can only use static values for sv, av, hv, cv, if they are coming from a static list
+
+    $saved_gps{$gp} = sprintf( "&gp_list[%d]", $gp_ix );
     return $saved_gps{$gp};
 }
 
@@ -225,11 +243,10 @@ sub do_save {
 
 =pod
 
-> rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; *one = sub { return 1 if -e q{/tmp} }; print one() . "\n" ' && ./a.out
-rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; sub one { return 1 if -e q{/tmp} }; print one() . "\n" ' && ./a.out
-
+rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; *one = sub { return 1 if -e q{/tmp} }; print one() . "\n" ' && ./a.out
 rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; sub one { return 1 if -e q{/tmp} }; our $one = 42; print one() . "\n" ' && ./a.out
 
+rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; our $XYZ; open($XYZ, ">", "/tmp/xyz" ); @XYZ = (1..4); print ref $XYZ'
 =cut
 
 sub legacy_save {
@@ -453,7 +470,7 @@ sub save_gv_cv {
     my $gvname = $gv->NAME();
     my $gp     = $gv->GP;
 
-    my $cvsym;
+    my $cvsym = 'NULL';
 
     # Can't locate object method "EGV" via package "B::SPECIAL" at /usr/local/cpanel/3rdparty/perl/520/lib/perl5/cpanel_lib/i386-linux-64int/B/C/OverLoad/B/GV.pm line 450.
     {
@@ -464,10 +481,11 @@ sub save_gv_cv {
         if ( $gvcv->XSUB and $oname ne '__ANON__' and $fullname ne $origname ) {    #XSUB CONSTSUB alias
 
             # TODO
-            die "TODO";
+            #die "TODO";
 
             # debug( pkg => "Boot $package, XS CONSTSUB alias of $fullname to $origname" );
-            # mark_package( $package, 1 );
+            mark_package( $package, 1 );
+
             # {
             #     no strict 'refs';
             #     svref_2object( \&{"$package\::bootstrap"} )->save
@@ -485,8 +503,8 @@ sub save_gv_cv {
 
             # # must save as a 'stub' so newXS() has a CV to populate
             # debug( gv => "save stub CvGV for $sym GP assignments $origname" );
-            # init2()->sadd( "if ((sv = (SV*)%s))", get_cv_string( $origname, "GV_ADD" ) );
-            # init2()->sadd( "    GvCV_set(%s, (CV*)SvREFCNT_inc_simple_NN(sv));", $sym );
+            #init2()->sadd( "if ((sv = (SV*)%s))", get_cv_string( $origname, "GV_ADD" ) );
+            #init2()->sadd( "    GvCV_set(%s, (CV*)SvREFCNT_inc_simple_NN(sv));", $sym );
         }
         elsif ($gp) {
             if ( $fullname eq 'Internals::V' ) {
