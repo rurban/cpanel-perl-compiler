@@ -149,6 +149,14 @@ sub set_dynamic_gv {
     return savesym( $gv, sprintf( "dynamic_gv_list[%s]", inc_index() ) );
 }
 
+# hardcode the order of GV elements, so we can use macro instead of indexes
+sub GV_IX_STASH     { 0 }
+sub GV_IX_MAGIC     { 1 }
+sub GV_IX_CUR       { 2 }
+sub GV_IX_LEN       { 3 }
+sub GV_IX_NAMEHEK   { 4 }
+sub GV_IX_XGV_STASH { 5 }
+
 sub do_save {
     my ( $gv, $filter ) = @_;
 
@@ -165,12 +173,12 @@ sub do_save {
     my $gpsym = $gv->savegp_from_gv($savefields);                            # might be $gp->save( )
 
     xpvgvsect()->comment("stash, magic, cur, len, xiv_u={.xivu_namehek=}, xnv_u={.xgv_stash=}");
-    xpvgvsect()->sadd(
-        "Nullhv, {0}, 0, {.xpvlenu_len=0}, {.xivu_namehek=%s}, {.xgv_stash=%s}",
+    my $xpvg_ix = xpvgvsect()->sadd(
+        "Nullhv, {0}, 0, {.xpvlenu_len=0}, {.xivu_namehek=(HEK*)%s}, {.xgv_stash=%s}",
         'NULL',                                                              # the namehek (HEK*)
         'Nullhv'
     );
-    my $xpvgv = sprintf( 'xpvgv_list[%d]', xpvgvsect()->index );
+    my $xpvgv = sprintf( 'xpvgv_list[%d]', $xpvg_ix );
 
     my $gv_ix;
     {
@@ -197,11 +205,14 @@ sub do_save {
 
         if ( scalar @namespace >= 2 ) {
             my $shared_he = save_shared_he( $namespace[-1] );
+            if ( $shared_he ne 'NULL' ) {
 
-            # FIXME: check if this can be done staticly using a replace on the xpvgsect->update
-            #      { NULL, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 1, 0, (HEK*) (&sharedhe_list[0] + sizeof(HE))  }, /* gp_list[0]  */
-            # plug the shared_he HEK to xpvgv: GvNAME_HEK($gvsym) =~(similar to) $xpvgv.xiv_u.xivu_namehek
-            init()->sadd( "GvNAME_HEK(%s) = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $gvsym, $shared_he );
+                # plug the shared_he HEK to xpvgv: GvNAME_HEK($gvsym) =~(similar to) $xpvgv.xiv_u.xivu_namehek
+                # This is the static version of
+                #  init()->sadd( "GvNAME_HEK(%s) = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $gvsym, $shared_he );
+                xpvgvsect->update_field( $xpvg_ix, GV_IX_NAMEHEK(), qq[ {.xivu_namehek=(HEK*) (&$shared_he + sizeof(HE)) } ] );
+
+            }
         }
 
         #return legacy_save( $gv, $filter, $gvsym );
