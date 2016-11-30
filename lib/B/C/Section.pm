@@ -62,13 +62,39 @@ sub update {
     return;
 }
 
+sub supdate_field {
+    my ( $self, $row, $field, $pattern, @args ) = @_;
+    return $self->update_field( $row, $field, sprintf( $pattern, @args ) );
+}
+
+=pod
+
+update_field: update a single value from an existing line
+
+=cut
+
+sub update_field {
+    my ( $self, $row, $field, $value, $void ) = @_;
+    die "Need to call with row, field, value" unless defined $value;
+    die "Extra argument after value" if defined $void;
+
+    my $line = $self->get($row);
+    my @fields = split( ',', $line );    # does not handle comma in comments
+
+    die "Invalid field id $field" if $field > $#fields;
+    $fields[$field] = $value;
+    $line = join ',', @fields;    # update line
+
+    return $self->update( $row, $line );
+}
+
 sub get {
     my ( $self, $row ) = @_;
 
     return $self->{'values'}->[$row];
 }
 
-sub remove {    # should be rename pop or remove last
+sub remove {                      # should be rename pop or remove last
     my $self = shift;
     pop @{ $self->{'values'} };
 }
