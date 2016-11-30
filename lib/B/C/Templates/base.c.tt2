@@ -335,8 +335,35 @@ static void plug_pl_defstash(pTHX) {
 
     /* TODO hsplit once as for PL_strtab */
     /* increase */
-    HvTOTALKEYS(PL_defstash) += 1;
-    SvREFCNT(PL_defstash) += 1;
+    // HvTOTALKEYS(PL_defstash) += 1;
+    // SvREFCNT(PL_defstash) += 1;
+
+
+    {
+        int i;
+        HE   *entry;
+        HE  **oentry;
+        HEK  *hek_struct;
+
+        /* increase */
+        HvTOTALKEYS(PL_defstash) += 1;
+        SvREFCNT(PL_defstash) += 1;
+
+        i = 1; /* hard code it for now */
+        //for (i=0; i < [% section.sharedhe.index + 1 %]; i++) {
+            entry = &(sharedhe_list[i]->shared_he_he);
+            hek_struct = &(sharedhe_list[i]->shared_he_hek);
+
+            HeKEY_hek(entry) = hek_struct;
+            PERL_HASH (HEK_HASH(hek_struct), HEK_KEY(hek_struct), HEK_LEN(hek_struct));
+
+            /* Insert the hes */
+            /* FIXME 63 is hard coded */
+            oentry = &(HvARRAY (PL_defstash))[HEK_HASH(hek_struct) & (I32) 63  ];
+            HeNEXT(entry) = *oentry;
+            *oentry = entry;
+        //}
+    }
 
   // dynamic_gv_list[1] = &gv_list[0];                                                                <
   // dynamic_gv_list[1] =                                                                             <

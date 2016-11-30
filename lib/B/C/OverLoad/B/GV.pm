@@ -133,7 +133,7 @@ sub savegp_from_gv {
     gpsect()->comment('SV, gp_io, CV, cvgen, gp_refcount, HV, AV, CV, GV, line, flags, HEK* file');
 
     gpsect()->sadd(
-        "%s, %s, %s, %d, %u, %s, %s, %s, %s, %u, %d, %s ",
+        "(SV*) %s, %s, (CV*) %s, %d, %u, %s, %s, %s, %s, %u, %d, %s ",
         $gp_sv, $gp_io, $gp_cv, $gp_cvgen, $gp_refcount, $gp_hv, $gp_av, $gp_form, $gp_egv,
         $gp_line, $gp_flags, $gp_file_hek eq 'NULL' ? 'NULL' : qq{(HEK*) (&$gp_file_hek + sizeof(HE))}
     );
@@ -158,10 +158,11 @@ sub do_save {
     return $gv->save_special_gv() if $gv->is_special_gv();
 
     my $sym = $gv->set_dynamic_gv;
+    my $savefields = get_savefields( $gv, $gv->get_fullname(), $filter );
 
-    debug( gv => '===== GV::do_save for %s', $gv->get_fullname() );
+    debug( gv => '===== GV::do_save for %s [ savefields=%s ] ', $gv->get_fullname(), _savefields_to_str($savefields) );
 
-    my $gpsym = $gv->savegp_from_gv($filter);                                # might be $gp->save( )
+    my $gpsym = $gv->savegp_from_gv($savefields);                            # might be $gp->save( )
 
     xpvgvsect()->comment("stash, magic, cur, len, xiv_u={.xivu_namehek=}, xnv_u={.xgv_stash=}");
     xpvgvsect()->sadd(
@@ -191,14 +192,19 @@ sub do_save {
         # relies on template logic to preserve the hash structure...
 
         my @namespace = split( '::', $gv->get_fullname() );
+
+        # FIXME... need to plug it to init()->sadd( "%s = %s;", $sym, gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) );
+
         if ( scalar @namespace >= 2 ) {
             my $shared_he = save_shared_he( $namespace[-1] );
 
             # FIXME: check if this can be done staticly using a replace on the xpvgsect->update
+            #      { NULL, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 1, 0, (HEK*) (&sharedhe_list[0] + sizeof(HE))  }, /* gp_list[0]  */
             # plug the shared_he HEK to xpvgv: GvNAME_HEK($gvsym) =~(similar to) $xpvgv.xiv_u.xivu_namehek
             init()->sadd( "GvNAME_HEK(%s) = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $gvsym, $shared_he );
         }
 
+        #return legacy_save( $gv, $filter, $gvsym );
         # Bypass legacy save... we should not need it anymore
         return $gvsym;
     }
@@ -210,6 +216,8 @@ sub do_save {
 
 > rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; *one = sub { return 1 if -e q{/tmp} }; print one() . "\n" ' && ./a.out
 rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; sub one { return 1 if -e q{/tmp} }; print one() . "\n" ' && ./a.out
+
+rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; sub one { return 1 if -e q{/tmp} }; our $one = 42; print one() . "\n" ' && ./a.out
 
 =cut
 
@@ -250,7 +258,10 @@ sub legacy_save {
     $sym = $CORE_SYMS->{$fullname} if $gv->is_coresym();
 
     my $notqual = $package eq 'main' ? 'GV_NOTQUAL' : '0';
+
     my $was_emptied = save_gv_with_gp( $gv, $sym, $name, $notqual, $is_empty );
+
+    #return $sym; # hack....
     $is_empty = 1 if ($was_emptied);
 
     my $gvflags = $gv->GvFLAGS;
@@ -407,6 +418,8 @@ sub save_gv_with_gp {
 sub save_gv_cv {
     my ( $gv, $fullname ) = @_;
 
+    debug( gv => ".... save_gv_cv $fullname" );
+
     my $package = $gv->get_package();
     my $gvcv    = $gv->CV;
     if ( !$$gvcv ) {
@@ -420,24 +433,23 @@ sub save_gv_cv {
         svref_2object( \*{"$package\::CLONE"} )->save    if $package and exists ${"$package\::"}{CLONE};
         $gvcv = $gv->CV;    # try again
 
-        return 'NULL';
+        return 'NULL';      # ??? really
     }
-
-    debug( gv => "AAAA" );
 
     return 'NULL' unless ref($gvcv) eq 'B::CV';
     return 'NULL' if ref( $gvcv->GV ) eq 'B::SPECIAL' or ref( $gvcv->GV->EGV ) eq 'B::SPECIAL';
 
     my $gvname = $gv->NAME();
     my $gp     = $gv->GP;
-    debug( gv => "AAAA" );
+
+    my $cvsym;
 
     # Can't locate object method "EGV" via package "B::SPECIAL" at /usr/local/cpanel/3rdparty/perl/520/lib/perl5/cpanel_lib/i386-linux-64int/B/C/OverLoad/B/GV.pm line 450.
     {
         my $package  = $gvcv->GV->EGV->STASH->NAME;    # is it the same than package earlier ??
         my $oname    = $gvcv->GV->EGV->NAME;
         my $origname = $package . "::" . $oname;
-        my $cvsym;
+
         if ( $gvcv->XSUB and $oname ne '__ANON__' and $fullname ne $origname ) {    #XSUB CONSTSUB alias
 
             # TODO
@@ -469,18 +481,11 @@ sub save_gv_cv {
             if ( $fullname eq 'Internals::V' ) {
                 $gvcv = svref_2object( \&__ANON__::_V );
             }
-
-            # TODO: may need fix CvGEN if >0 to re-validate the CV methods
-            # on PERL510 (>0 + <subgeneration)
-            debug( gv => "GV::save &$fullname..." );
             $cvsym = $gvcv->save($fullname);
-            debug( gv => "AAAA" );
-            return $cvsym;
-
         }
     }
 
-    return;
+    return $cvsym;
 }
 
 sub save_gv_sv {
