@@ -54,7 +54,7 @@ sub struct_names {
 }
 
 sub assign_sections {
-    return qw{assign_hekkey2pv};
+    return qw{assign_hekkey2pv assign_bodyless_iv};
 }
 
 # These populate the init sections and have a special header.

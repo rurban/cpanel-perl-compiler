@@ -4,7 +4,7 @@ use strict;
 
 use B qw/SVf_ROK SVf_IOK SVp_IOK SVf_IVisUV/;
 use B::C::Config;
-use B::C::File qw/init svsect/;
+use B::C::File qw/init svsect assign_bodyless_iv/;
 use B::C::Decimal qw/get_integer_value/;
 
 sub do_save {
@@ -45,8 +45,28 @@ sub do_save {
 
 =cut
 
+=pod
+    The code below is just a for loop optimization for all the bc_SET_SVANY_FOR_BODYLESS_IV calls
+
     # the bc_SET_SVANY_FOR_BODYLESS_IV version just uses extra parens to be able to use a pointer [need to add patch to perl]
     init()->sadd( "bc_SET_SVANY_FOR_BODYLESS_IV(%s);", $sym );
+=cut
+
+    my $add_bodyless_iv  = 1;
+    my $last_bodyless_iv = assign_bodyless_iv()->index;
+    if ( $last_bodyless_iv >= 0 ) {
+        my ( $from, $to ) = assign_bodyless_iv()->get_fields($last_bodyless_iv);
+        if ( ( $to + 1 ) == $ix ) {
+
+            # we can use the previous entry bump the 'to' from 1
+            $add_bodyless_iv = 0;
+            assign_bodyless_iv()->update( $last_bodyless_iv, "$from, $ix" );
+        }
+
+    }
+
+    # fallback to the default add
+    assign_bodyless_iv()->add( $ix, $ix ) if $add_bodyless_iv;
 
     return $sym;
 }
