@@ -69,5 +69,3 @@ sub was_compiled_in {
 }
 
 1;
-
-# use B::C::Optimizer::UnusedPackages;
