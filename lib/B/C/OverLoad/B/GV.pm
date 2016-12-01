@@ -91,7 +91,6 @@ sub do_save {
     my ( $gv, $filter ) = @_;
 
     # return earlier for special cases
-    return B::BM::save($gv)       if $gv->FLAGS & 0x40000000;                # SVpbm_VALID # GV $sym isa FBM
     return q/(SV*)&PL_sv_undef/   if B::C::skip_pkg( $gv->get_package() );
     return $gv->save_special_gv() if $gv->is_special_gv();
 
