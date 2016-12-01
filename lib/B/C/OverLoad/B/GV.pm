@@ -262,6 +262,22 @@ sub do_save {
 }
 
 =pod
+gv_stashpvn
+
+# good
+> rm -f a.out*; configure.524; perlcc --debug=gv -S -r -e 'package A; our $x = 0; sub v { ++$x } package main; print A::v()."\n"; print eval q{A::v()}; print " <-\n"; print qq{done\n} '
+
+
+
+rm -f a.out*; configure.524; perlcc --debug=gv -S -r -e 'package A; sub v { "a" if -e q{/} } package A::B; sub v { "a::b" if -e q{/} } package C; sub v {42 if $ENV{214} }package main; print A::v(); print eval q{A::v()}; print "\n"; print eval q{A::B::v()}."\n"'
+
+rm -f a.out*; configure.524; perlcc --debug=gv -S -r -e 'package A; our $x = 0; sub v { ++$x } package main; print A::v()."\n"; '
+
+
+
+=cut
+
+=pod
 
 rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; *one = sub { return 1 if -e q{/tmp} }; print one() . "\n" ' && ./a.out
 rm -f a.out; configure.524; perlcc -v4 -S --Wc=-Og --debug=gv -e 'package main; sub one { return 1 if -e q{/tmp} }; our $one = 42; print one() . "\n" ' && ./a.out

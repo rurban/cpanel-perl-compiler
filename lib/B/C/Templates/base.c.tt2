@@ -359,8 +359,7 @@ static void plug_pl_defstash(pTHX) {
             PERL_HASH (HEK_HASH(hek_struct), HEK_KEY(hek_struct), HEK_LEN(hek_struct));
 
             /* Insert the hes */
-            /* FIXME 63 is hard coded */
-            oentry = &(HvARRAY (PL_defstash))[HEK_HASH(hek_struct) & (I32) 63  ];
+            oentry = &(HvARRAY (PL_defstash))[HEK_HASH(hek_struct) & (I32) HvMAX(PL_defstash)  ];
             HeNEXT(entry) = *oentry;
             *oentry = entry;
         //}
