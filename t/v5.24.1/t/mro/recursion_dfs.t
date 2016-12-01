@@ -23,41 +23,41 @@ into an infinite loop
 
 # initial setup, everything sane
 {
-    package K;
-    our @ISA = qw/J I/;
-    package J;
-    our @ISA = qw/F/;
-    package I;
-    our @ISA = qw/H F/;
-    package H;
-    our @ISA = qw/G/;
-    package G;
-    our @ISA = qw/D/;
-    package F;
-    our @ISA = qw/E/;
-    package E;
-    our @ISA = qw/D/;
-    package D;
-    our @ISA = qw/A BB C/;
-    package C;
+    package KK;
+    our @ISA = qw/JJ II/;
+    package JJ;
+    our @ISA = qw/FF/;
+    package II;
+    our @ISA = qw/HH FF/;
+    package HH;
+    our @ISA = qw/GG/;
+    package GG;
+    our @ISA = qw/DD/;
+    package FF;
+    our @ISA = qw/EE/;
+    package EE;
+    our @ISA = qw/DD/;
+    package DD;
+    our @ISA = qw/AA BB CC/;
+    package CC;
     our @ISA = qw//;
     package BB;
     our @ISA = qw//;
-    package A;
+    package AA;
     our @ISA = qw//;
 }
 
 # A series of 8 aberations that would cause infinite loops,
 #  each one undoing the work of the previous
 my @loopies = (
-    sub { @E::ISA = qw/F/ },
-    sub { @E::ISA = qw/D/; @C::ISA = qw/F/ },
-    sub { @C::ISA = qw//; @A::ISA = qw/K/ },
-    sub { @A::ISA = qw//; @J::ISA = qw/F K/ },
-    sub { @J::ISA = qw/F/; @H::ISA = qw/K G/ },
-    sub { @H::ISA = qw/G/; @BB::ISA = qw/BB/ },
-    sub { @B::ISA = qw//; @K::ISA = qw/K J I/ },
-    sub { @K::ISA = qw/J I/; @D::ISA = qw/A H BB C/ },
+    sub { @EE::ISA = qw/FF/ },
+    sub { @EE::ISA = qw/DD/; @CC::ISA = qw/FF/ },
+    sub { @CC::ISA = qw//;   @AA::ISA = qw/KK/ },
+    sub { @AA::ISA = qw//;   @JJ::ISA = qw/FF KK/ },
+    sub { @JJ::ISA = qw/FF/; @HH::ISA = qw/KK GG/ },
+    sub { @HH::ISA = qw/GG/; @BB::ISA = qw/BB/ },
+    sub { @BB::ISA = qw//;   @KK::ISA = qw/KK JJ II/ },
+    sub { @KK::ISA = qw/JJ II/; @DD::ISA = qw/AA HH BB CC/ },
 );
 
 foreach my $loopy (@loopies) {
@@ -65,7 +65,7 @@ foreach my $loopy (@loopies) {
         local $SIG{ALRM} = sub { die "ALRMTimeout" };
         alarm(3);
         $loopy->();
-        mro::get_linear_isa('K', 'dfs');
+        mro::get_linear_isa('KK', 'dfs');
     };
 
     if(my $err = $@) {
