@@ -99,8 +99,10 @@ sub _field_split {
     foreach my $next (@list) {
         $str .= ',' if length $str;
         $str .= $next;
-        $count_open  += $next =~ tr/(//;
-        $count_close += $next =~ tr/)//;
+        my $snext = $next;
+        $snext =~ s{"[^"]+"}{""}g;    # remove weird content inside double quotes
+        $count_open  += $snext =~ tr/(//;
+        $count_close += $snext =~ tr/)//;
 
         #warn "$count_open vs $count_close: $str";
         if ( $count_close == $count_open ) {
@@ -108,7 +110,7 @@ sub _field_split {
             $reset->();
         }
     }
-    die "Cannot split correctly '$to_split' (some leftover)" if length $str;
+    die "Cannot split correctly '$to_split' (some leftover='$str')" if length $str;
 
     return @ok;
 }
