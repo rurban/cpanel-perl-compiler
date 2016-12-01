@@ -340,7 +340,7 @@ static void plug_pl_defstash(pTHX) {
     // SvREFCNT(PL_defstash) += 1;
 
 
-    {
+    if (0){
         int i;
         HE   *entry;
         HE  **oentry;
