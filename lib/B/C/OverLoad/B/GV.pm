@@ -8,10 +8,8 @@ use B::C::Config;
 use B::C::Save::Hek qw/save_shared_he/;
 use B::C::Packages qw/is_package_used/;
 use B::C::File qw/init init2/;
-use B::C::Helpers qw/mark_package get_cv_string strlen_flags/;
+use B::C::Helpers qw/get_cv_string strlen_flags/;
 use B::C::Helpers::Symtable qw/objsym savesym/;
-use B::C::Optimizer::ForceHeavy qw/force_heavy/;
-use B::C::Packages qw/mark_package_used/;
 
 my %gptable;
 
@@ -99,26 +97,15 @@ sub do_save {
     my $package = $gv->get_package();
     my $gvname  = $gv->NAME();
 
-    # If we come across a stash hash, we therefore have code using it so we need to mark it was used so it won't be deleted.
-    if ( $gvname =~ m/::$/ ) {
-        my $pkg = $gvname;
-        $pkg =~ s/::$//;
-        mark_package_used($pkg);
-    }
-
     my $fullname = $gv->get_fullname();
 
     my $is_empty = $gv->is_empty;
-    if ( !defined $gvname and $is_empty ) {    # 5.8 curpad name
+    if ( !defined $gvname and $is_empty ) {                # 5.8 curpad name
         die("We don't think this ever happens");
         return q/(SV*)&PL_sv_undef/;
     }
 
     my $name = $package eq 'main' ? $gvname : $fullname;
-
-    if ( my $newgv = force_heavy( $package, $fullname ) ) {
-        $gv = $newgv;                          # defer to run-time autoload, or compile it in?
-    }
 
     # Core syms are initialized by perl so we don't need to other than tracking the symbol itself see init_main_stash()
     $sym = $CORE_SYMS->{$fullname} if $gv->is_coresym();
@@ -162,7 +149,6 @@ sub do_save {
             verbose("Forcing bootstrap of $package");
             eval { $package->bootstrap };
         }
-        mark_package( 'attributes', 1 );
 
         $B::C::xsub{attributes} = 'Dynamic-' . $INC{'attributes.pm'};    # XSLoader
         $B::C::use_xsloader = 1;
@@ -338,7 +324,6 @@ sub save_gv_cv {
         if ( $gvcv->XSUB and $oname ne '__ANON__' and $fullname ne $origname ) {    #XSUB CONSTSUB alias
 
             debug( pkg => "Boot $package, XS CONSTSUB alias of $fullname to $origname" );
-            mark_package( $package, 1 );
             {
                 no strict 'refs';
                 svref_2object( \&{"$package\::bootstrap"} )->save
@@ -557,15 +542,6 @@ sub save_gv_hv {
     return if $fullname eq 'main::ENV' or $fullname eq 'main::INC';    # do not save %ENV
 
     debug( gv => "GV::save \%$fullname" );
-    if ( $fullname eq 'main::!' ) {                                    # force loading Errno
-        init()->add("/* \%! force saving of Errno */");
-        mark_package( 'Errno', 1 );                                    # B::C needs Errno but does not import $!
-    }
-    elsif ( $fullname eq 'main::+' or $fullname eq 'main::-' ) {
-        init()->sadd( "/* %%%s force saving of Tie::Hash::NamedCapture */", $gvname );
-        svref_2object( \&{'Tie::Hash::NamedCapture::bootstrap'} )->save;
-        mark_package( 'Tie::Hash::NamedCapture', 1 );
-    }
 
     # skip static %Encode::Encoding since 5.20. GH #200. sv_upgrade cannot upgrade itself.
     # Let it be initialized by boot_Encode/Encode_XSEncodingm with exceptions.
@@ -659,29 +635,11 @@ sub savecv {
         and $cv->XSUB
       ) {
         debug( gv => "Skip internal XS $fullname" );
-
-        # but prevent it from being deleted
-        unless ( $B::C::dumped_package{$package} ) {
-
-            #$B::C::dumped_package{$package} = 1;
-            mark_package( $package, 1 );
-        }
         return;
-    }
-
-    # load utf8 and bytes on demand.
-    if ( my $newgv = force_heavy( $package, $fullname ) ) {
-        $gv = $newgv;
     }
 
     # XXX fails and should not be needed. The B::C part should be skipped 9 lines above, but be defensive
     return if $fullname eq 'B::walksymtable' or $fullname eq 'B::C::walksymtable';
-
-    # Config is marked on any Config symbol. TIE and DESTROY are exceptions,
-    # used by the compiler itself
-    if ( $name eq 'Config' ) {
-        mark_package( 'Config', 1 ) if !is_package_used('Config');
-    }
 
     $B::C::dumped_package{$package} = 1 if !exists $B::C::dumped_package{$package} and $package !~ /::$/;
     debug( gv => "Saving GV \*$fullname 0x%x", ref $gv ? $$gv : 0 );

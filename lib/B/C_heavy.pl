@@ -68,7 +68,7 @@ use B::STASHGV ();
 use B::C::Optimizer::DynaLoader     ();
 use B::C::Optimizer::UnusedPackages ();
 use B::C::OverLoad                  ();
-use B::C::Packages qw/is_package_used mark_package_unused mark_package_used mark_package_removed get_all_packages_used/;
+use B::C::Packages qw/is_package_used get_all_packages_used/;
 use B::C::Save qw(constpv savepv savestashpv);
 use B::C::Save::Signals ();
 
@@ -308,17 +308,6 @@ sub do_labels ($$@) {
     }
 }
 
-# XXX Until we know exactly the package name for a method_call
-# we improve the method search heuristics by maintaining this mru list.
-sub push_package ($) {
-    my $p = shift or return;
-    debug( pkg => "save package_pv \"$package_pv\" for method_name from @{[(caller(1))[3]]}" )
-      if !grep { $p eq $_ } @package_pv;
-    @package_pv = grep { $p ne $_ } @package_pv if @package_pv;    # remove duplicates at the end
-    unshift @package_pv, $p;                                       # prepend at the front
-    mark_package($p);
-}
-
 # method_named is in 5.6.1
 sub method_named {
     my $name = shift;
@@ -340,16 +329,10 @@ sub method_named {
         next unless defined $_;
         $method = $_ . '::' . $name;
         if ( defined(&$method) ) {
-            debug( cv => "Found &%s::%s\n", $_, $name );
-            mark_package_used($_);    # issue59
-            mark_package( $_, 1 );
             last;
         }
         else {
             if ( my $parent = try_isa( $_, $name ) ) {
-                debug( cv => "Found &%s::%s\n", $parent, $name );
-                $method = $parent . '::' . $name;
-                mark_package_used($parent);
                 last;
             }
             debug( cv => "no definition for method_name \"$method\"" );
@@ -488,7 +471,6 @@ sub try_isa {
                 svref_2object( \@{ $cvstashname . '::ISA' } )->save("$cvstashname\::ISA");
             }
             $isa_cache{"$cvstashname\::$cvname"} = $_;
-            mark_package( $_, 1 );    # force
             return $_;
         }
         else {
@@ -519,7 +501,6 @@ sub load_utf8_heavy {
     return if $savINC{"utf8_heavy.pl"};
 
     require 'utf8_heavy.pl';
-    mark_package('utf8_heavy.pl');
     $curINC{'utf8_heavy.pl'} = $INC{'utf8_heavy.pl'};
     $savINC{"utf8_heavy.pl"} = 1;
     add_hashINC("utf8");
@@ -535,7 +516,7 @@ sub load_utf8_heavy {
 }
 
 # If the sub or method is not found:
-# 1. try @ISA, mark_package and return.
+# 1. try @ISA and return.
 # 2. try UNIVERSAL::method
 # 3. try compile-time expansion of AUTOLOAD to get the goto &sub addresses
 sub try_autoload {
@@ -683,73 +664,6 @@ sub collect_deps {
     print join " ", ( sort keys %deps );
 }
 
-sub mark_package {
-    my $package = shift;
-    my $force = shift || 0;
-
-    return unless B::C::Optimizer::UnusedPackages::package_was_compiled_in($package);    # or $package =~ /^B::C(C?)::/;
-    if ( !is_package_used($package) or $force ) {
-        no strict 'refs';
-        debug( pkg => "mark_package($package, $force)" );
-        my @IO = qw(IO::File IO::Handle IO::Socket IO::Seekable IO::Poll);
-        mark_package('IO') if grep { $package eq $_ } @IO;
-        mark_package("DynaLoader") if $package eq 'XSLoader';
-        $use_xsloader = 1 if $package =~ /^B|Carp$/;                                     # to help CC a bit (49)
-
-        # i.e. if force
-        my $flag_as_unused = is_package_used($package);
-        if (    defined $flag_as_unused
-            and !$flag_as_unused
-            and $savINC{ inc_packname($package) } ) {
-            verbose( "$package previously deleted, save now ", $force ? " (forced)" : "" );
-
-            add_hashINC($package);
-            walk_syms($package);
-        }
-        else {
-            debug( pkg => "mark $package%s", $force ? " (forced)" : "" )
-              if !is_package_used($package)
-              and verbose();
-            mark_package_used($package);
-        }
-        my @isa = get_isa($package);
-        if (@isa) {
-
-            # XXX walking the ISA is often not enough.
-            # we should really check all new packages since the last full scan.
-            foreach my $isa (@isa) {
-                next if $isa eq $package;
-
-                # QUESTION: why forcing bootstrap when it s a DynaLoader like ?
-                #   is it to force the inclusion of XS code which is not called yet ?
-                if ( $isa eq 'DynaLoader' ) {
-                    unless ( defined( &{ $package . '::bootstrap' } ) ) {
-                        verbose("Forcing bootstrap of $package");
-                        eval { $package->bootstrap };
-                    }
-                }
-                my $is_package_used = is_package_used($isa);
-                if ( !$is_package_used ) {
-                    no strict 'refs';
-                    verbose("$isa saved (it is in $package\'s \@ISA)");
-                    svref_2object( \@{ $isa . "::ISA" } )->save;    #308
-
-                    if ( defined $is_package_used ) {
-                        verbose("$isa previously deleted, save now");    # e.g. Sub::Name
-                        mark_package($isa);
-                        walk_syms($isa);                                 # avoid deep recursion
-                    }
-                    else {
-                        #verbose( "isa $isa save" );
-                        mark_package($isa);
-                    }
-                }
-            }
-        }
-    }
-    return 1;
-}
-
 # XS in CORE which do not need to be bootstrapped extra.
 # There are some specials like mro,re,UNIVERSAL.
 sub in_static_core {
@@ -827,7 +741,7 @@ sub delete_unsaved_hashINC {
           if $package =~ /^DynaLoader|XSLoader$/
       and defined $use_xsloader
       and $use_xsloader == 0;
-    mark_package_unused($package);
+
     if ( $curINC{$incpack} ) {
 
         #debug( pkg => "Deleting $package from \%INC" );
@@ -840,7 +754,7 @@ sub delete_unsaved_hashINC {
 sub add_hashINC {
     my $package = shift;
     my $incpack = inc_packname($package);
-    mark_package_used($package);
+
     unless ( $curINC{$incpack} ) {
         if ( $savINC{$incpack} ) {
             debug( pkg => "Adding $package to \%INC (again)" );
@@ -956,10 +870,6 @@ sub dump_rest {
             $again++;
             debug( [qw/verbose pkg/], "$p marked but not saved, save now" );
 
-            # mark_package( $p, 1);
-            #eval {
-            #  require(inc_packname($p)) && add_hashINC( $p );
-            #} unless $savINC{inc_packname($p)};
             walk_syms($p);
         }
     }
@@ -973,20 +883,6 @@ sub make_c3 {
 
     return if ( grep { $_ eq $package } @made_c3 );
     push @made_c3, $package;
-
-    mark_package( 'mro', 1 );
-    mark_package($package);
-    my $isa_packages = mro::get_linear_isa($package) || [];
-    foreach my $isa (@$isa_packages) {
-        mark_package($isa);
-    }
-    debug( pkg => "set c3 for $package" );
-
-    ## from setmro.xs:
-    # classname = ST(0);
-    # class_stash = gv_stashsv(classname, GV_ADD);
-    # meta = HvMROMETA(class_stash);
-    # Perl_mro_set_mro(aTHX_ meta, ST(1));
 
     return init2()->sadd( 'Perl_mro_set_mro(aTHX_ HvMROMETA(%s), newSVpvs("c3"));', savestashpv($package) );
 }
@@ -1022,7 +918,6 @@ sub save_context {
         use strict 'refs';
         if ( !is_package_used('Errno') ) {
             init()->add("/* force saving of Errno */");
-            mark_package( 'Errno', 1 );
             svref_2object( \&{'Errno::bootstrap'} )->save;
         }    # else already included
     }
@@ -1124,9 +1019,6 @@ sub _delete_macros_vendor_undefined {
 }
 
 sub force_saving_xsloader {
-    mark_package( "XSLoader", 1 );
-
-    # mark_package("DynaLoader", 1);
 
     init()->add("/* custom XSLoader::load_file */");
 
@@ -1266,7 +1158,6 @@ sub save_main_rest {
         $incpack .= '.pm';
         unless ( exists $B::C::curINC{$incpack} ) {    # skip deleted packages
             debug( pkg => "skip xs_init for $stashname !\$INC{$incpack}" );
-            mark_package_removed($stashname);
             delete $xsub{$stashname} unless $static_ext{$stashname};
         }
 

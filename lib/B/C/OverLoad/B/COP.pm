@@ -146,9 +146,6 @@ sub do_save {
     if ( !$B::C::mainfile ) {
         $B::C::mainfile = $op->file if $op->stashpv eq 'main';
     }
-    else {
-        B::C::mark_package( $op->stashpv ) if $B::C::mainfile eq $op->file and $op->stashpv ne 'main';
-    }
 
     # add the cop at the end
     copsect()->comment_common("?, line_t line, HV* stash, GV* filegv, U32 hints, U32 seq, STRLEN* warn_sv, COPHH* hints_hash");

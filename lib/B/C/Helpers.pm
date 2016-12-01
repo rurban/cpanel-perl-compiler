@@ -4,16 +4,15 @@ use Exporter ();
 use B::C::Config;
 use B qw/SVf_POK SVp_POK/;
 our @ISA       = qw(Exporter);
-our @EXPORT_OK = qw/svop_name padop_name mark_package do_labels read_utf8_string get_cv_string
+our @EXPORT_OK = qw/svop_name padop_name do_labels read_utf8_string get_cv_string
   is_constant strlen_flags curcv set_curcv is_using_mro cow_strlen_flags is_shared_hek
   cstring_cow get_index
   /;
 
 # wip to be moved
-*do_labels    = \&B::C::do_labels;
-*mark_package = \&B::C::mark_package;
-*padop_name   = \&B::C::padop_name;
-*svop_name    = \&B::C::svop_name;
+*do_labels  = \&B::C::do_labels;
+*padop_name = \&B::C::padop_name;
+*svop_name  = \&B::C::svop_name;
 
 # B/C/Helpers/Sym
 

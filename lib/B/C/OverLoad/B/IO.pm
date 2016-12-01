@@ -6,7 +6,6 @@ use B qw/cstring cchar svref_2object/;
 use B::C::Config;
 use B::C::Save qw(savepv);
 use B::C::File qw/init init2 svsect xpviosect/;
-use B::C::Helpers qw/mark_package/;
 
 sub save_data {
     my ( $io, $sym, $globname, @data ) = @_;
@@ -22,16 +21,8 @@ sub save_data {
 
     # => eval_pv("open(main::DATA, '<:scalar', $main::DATA);",1); DATA being a ref to $data
     init()->pre_destruct( sprintf 'eval_pv("close %s;", 1);', $globname );
-    $B::C::use_xsloader = 1;    # layers are not detected as XSUB CV, so force it
-    require PerlIO         unless $B::C::savINC{'PerlIO.pm'};
-    require PerlIO::scalar unless $B::C::savINC{'PerlIO/scalar.pm'};
-    mark_package( "PerlIO", 1 );
-
-    $B::C::curINC{'PerlIO.pm'} = $INC{'PerlIO.pm'};    # as it was loaded from BEGIN
-    mark_package( "PerlIO::scalar", 1 );
-
-    $B::C::curINC{'PerlIO/scalar.pm'} = $INC{'PerlIO/scalar.pm'};
-    $B::C::xsub{'PerlIO::scalar'}     = 'Dynamic-' . $INC{'PerlIO/scalar.pm'};    # force dl_init boot
+    $B::C::use_xsloader = 1;                                                  # layers are not detected as XSUB CV, so force it
+    $B::C::xsub{'PerlIO::scalar'} = 'Dynamic-' . $INC{'PerlIO/scalar.pm'};    # force dl_init boot
 }
 
 sub do_save {

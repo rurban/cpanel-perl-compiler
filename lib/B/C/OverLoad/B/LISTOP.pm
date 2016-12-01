@@ -20,20 +20,8 @@ sub do_save {
     my $ix = listopsect()->index;
     my $sym = savesym( $op, "(OP*)&listop_list[$ix]" );    # protection if saved later
 
-    if ( $op->type == $B::C::OP_DBMOPEN ) {
-
-        # resolves it at compile-time, not at run-time
-        B::C::mark_package('AnyDBM_File');    # to save $INC{AnyDBM_File}
-        require AnyDBM_File unless $B::C::savINC{'AnyDBM_File.pm'};
-        $B::C::curINC{'AnyDBM_File.pm'} = $INC{'AnyDBM_File.pm'};
-        AnyDBM_File->import;                  # strip the @ISA
-        my $dbm = $AnyDBM_File::ISA[0];       # take the winner (only)
-        svref_2object( \&{"$dbm\::bootstrap"} )->save;
-        svref_2object( \&{"$dbm\::TIEHASH"} )->save;    # called by pp_dbmopen
-        B::C::add_to_currINC( "$dbm.pm" => $INC{"$dbm.pm"} );
-    }
-    elsif ( $op->type == $B::C::OP_FORMLINE and $B::C::const_strings ) {    # -O3 ~
-                                                                            # non-static only for all const strings containing ~ #277
+    if ( $op->type == $B::C::OP_FORMLINE and $B::C::const_strings ) {    # -O3 ~
+                                                                         # non-static only for all const strings containing ~ #277
         my $sv;
         my $fop  = $op;
         my $svop = $op->first;

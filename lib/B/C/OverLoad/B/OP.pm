@@ -7,7 +7,7 @@ use B qw/peekop cstring threadsv_names opnumber/;
 use B::C::Config;
 use B::C::Debug::Walker qw/walkoptree_debug/;
 use B::C::File qw/svsect init copsect opsect/;
-use B::C::Helpers qw/do_labels mark_package/;
+use B::C::Helpers qw/do_labels/;
 
 my $OP_CUSTOM = opnumber('custom');
 
@@ -30,14 +30,6 @@ sub do_save {
 
         # saves looking up ppaddr but it's a bit naughty to hard code this
         init()->sadd( "(void)find_threadsv(%s);", cstring( $threadsv_names[ $op->targ ] ) );
-    }
-    if ( $type == $B::C::OP_UCFIRST ) {
-        verbose("enabling -ffold with ucfirst");
-        require "utf8.pm" unless $B::C::savINC{"utf8.pm"};
-        $B::C::savINC{'utf8.pm'} = 1;
-        B::C::mark_package("utf8");
-        B::C::load_utf8_heavy();
-
     }
     if ( ref($op) eq 'B::OP' ) {    # check wrong BASEOPs
                                     # [perl #80622] Introducing the entrytry hack, needed since 5.12, fixed with 5.13.8 a425677
@@ -120,14 +112,6 @@ sub _save_common {
         }
         debug( cv => "check package_pv " . $pkgop->name . " for method_name" );
         my $pv = B::C::svop_or_padop_pv($pkgop);    # 5.13: need to store away the pkg pv
-        if ( $pv and $pv !~ /[! \(]/ ) {
-            $B::C::package_pv = $pv;
-            B::C::push_package($B::C::package_pv);
-        }
-        else {
-            # mostly optimized-away padsv NULL pads with 5.8
-            WARN("package_pv for method_name not found") if debug('cv');
-        }
     }
 
     return sprintf(

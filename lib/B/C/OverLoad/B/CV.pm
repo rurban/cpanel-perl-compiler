@@ -13,7 +13,6 @@ use B::C::Save::Hek qw/save_shared_he/;
 use B::C::File qw/init init2 decl svsect xpvcvsect symsect/;
 use B::C::Helpers qw/get_cv_string strlen_flags set_curcv/;
 use B::C::Helpers::Symtable qw/objsym savesym delsym/;
-use B::C::Optimizer::ForceHeavy qw/force_heavy/;
 
 my (%cvforward);
 my $cv_index      = 0;
@@ -72,11 +71,8 @@ sub do_save {
             $$cv, $$gv, $fullname, $CvFLAGS
         );
 
-        # XXX not needed, we already loaded utf8_heavy
-        #return if $fullname eq 'utf8::AUTOLOAD';
         return '0' unless B::C::Optimizer::UnusedPackages::package_was_compiled_in($cvstashname);
         $CvFLAGS &= ~0x400;    # no CVf_CVGV_RC otherwise we cannot set the GV
-        B::C::mark_package( $cvstashname, 1 ) unless is_package_used($cvstashname);
     }
     elsif ( $cv->is_lexsub($gv) ) {
         $fullname = $cv->NAME_HEK;
@@ -108,7 +104,6 @@ sub do_save {
             my $file = $gv->FILE;
             decl()->add("/* bootstrap $file */");
             verbose("Bootstrap $stashname $file");
-            B::C::mark_package($stashname);
 
             # Without DynaLoader we must boot and link static
             if ( !$B::C::Flags::Config{usedl} ) {
@@ -139,10 +134,6 @@ sub do_save {
             }
             else {
                 $B::C::xsub{$stashname} = 'Dynamic';
-
-                # DynaLoader was for sure loaded, before so we execute the branch which
-                # does walk_syms and add_hashINC
-                B::C::mark_package( 'DynaLoader', 1 );
             }
 
             # INIT is removed from the symbol table, so this call must come
@@ -151,23 +142,7 @@ sub do_save {
             debug( sub => $fullname );
             return qq/NULL/;
         }
-        else {
-            # XSUBs for IO::File, IO::Handle, IO::Socket, IO::Seekable and IO::Poll
-            # are defined in IO.xs, so let's bootstrap it
-            my @IO = qw(IO::File IO::Handle IO::Socket IO::Seekable IO::Poll);
-            if ( grep { $stashname eq $_ } @IO ) {
 
-                # mark_package('IO', 1);
-                # $B::C::xsub{IO} = 'Dynamic-'. $INC{'IO.pm'}; # XSLoader (issue59)
-                svref_2object( \&IO::bootstrap )->save;
-                B::C::mark_package( 'IO::Handle',  1 );
-                B::C::mark_package( 'SelectSaver', 1 );
-
-                #for (@IO) { # mark all IO packages
-                #  mark_package($_, 1);
-                #}
-            }
-        }
         debug( 'sub' => $fullname );
         unless ( B::C::in_static_core( $stashname, $cvname ) ) {
             no strict 'refs';
@@ -279,12 +254,8 @@ sub do_save {
 
     if ( !$$root && !$cvxsub ) {
         my $reloaded;
-        if ( force_heavy($cvstashname) ) {    # no autoload, force compile-time
-            $cv       = svref_2object( \&{"$cvstashname\::$cvname"} );
-            $reloaded = 1;
-        }
-        elsif ( $fullname eq 'Coro::State::_jit' ) {    # 293
-                                                        # need to force reload the jit src
+        if ( $fullname eq 'Coro::State::_jit' ) {    # 293
+                                                     # need to force reload the jit src
             my ($pl) = grep { m|^Coro/jit-| } keys %INC;
             if ($pl) {
                 delete $INC{$pl};

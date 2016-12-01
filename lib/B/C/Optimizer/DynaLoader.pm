@@ -8,7 +8,6 @@ use B qw(svref_2object);
 use B::C::Flags ();
 
 use B::C::Config qw/verbose debug/;
-use B::C::Packages qw/is_package_used mark_package_deleted/;
 
 sub new {
     my $class = shift or die;
@@ -46,7 +45,7 @@ sub optimize {
 
     # filter out unused dynaloaded B modules, used within the compiler only.
     for my $c (qw(B B::C)) {
-        if ( !$self->{'xsub'}->{$c} and !is_package_used($c) ) {
+        if ( !$self->{'xsub'}->{$c} ) {
 
             # RT81332 pollute
             @dl_modules = grep { $_ ne $c } @dl_modules;
