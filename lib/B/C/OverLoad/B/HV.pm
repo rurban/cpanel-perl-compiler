@@ -57,43 +57,30 @@ sub do_save {
 
     # reduce the content
     # remove values from contents we are not going to save
-    my @hash_content_to_save;
-    my @contents = $hv->ARRAY;
-    if (@contents) {
+    my %contents = $hv->ARRAY;
+    if (%contents) {
         local $B::C::const_strings = $B::C::const_strings;
-        my ( $i, $length );
-        $length = scalar(@contents);
 
         # Walk the values and save them into symbols
-        for ( $i = 1; $i < @contents; $i += 2 ) {
-            my $key = $contents[ $i - 1 ];    # string only
-            my $sv  = $contents[$i];
-            my $value;
+        foreach my $key ( sort keys %contents ) {
 
-            if ( debug('hv') and ref($sv) eq 'B::RV' and defined objsym($sv) ) {
-                WARN( "HV recursion? with $fullname\{$key\} -> %s\n", $sv->RV );
-            }
+            my $sv = $contents{$key};
 
-            if ($is_stash) {
-                if ( ref($sv) eq "B::GV" and $sv->NAME =~ /::$/ ) {
-                    $sv = bless $sv, "B::STASHGV";    # do not expand stash GV's only other stashes
-                    debug( hv => "saving STASH $fullname" . '{' . $key . "}" );
-                    $value = $sv->save( $fullname . '{' . $key . '}' );
-                }
-            }
-            else {
-                debug( hv => "saving HV [ $i / len=$length ]\$" . $fullname . '{' . $key . "} 0x%0x", $sv );
-                $value = $sv->save( $fullname . '{' . $key . '}' );    # Turn the hash value into a symbol
-            }
+            #if ( debug('hv') and ref($sv) eq 'B::RV' and defined objsym($sv) ) {
+            #    WARN( "HV recursion? with $fullname\{$key\} -> %s\n", $sv->RV );
+            #}
 
-            push @hash_content_to_save, [ $key, $value ] if defined $value;
+            #debug( hv => "saving HV [ $i / len=$length ]\$" . $fullname . '{' . $key . "} 0x%0x", $sv );
+            $contents{$key} = $sv->save( $fullname . '{' . $key . '}' );    # Turn the hash value into a symbol
+
+            delete $contents{$key} if !defined $contents{$key};
         }
     }
 
     # Ordinary HV or Stash
     # KEYS = 0, inc. dynamically below with hv_store
 
-    my $hv_total_keys = scalar(@hash_content_to_save);
+    my $hv_total_keys = scalar keys %contents;
     my $max           = get_max_hash_from_keys($hv_total_keys);
     xpvhvsect()->comment("HV* xmg_stash, union _xmgu mgu, STRLEN xhv_keys, STRLEN xhv_max");
     xpvhvsect()->sadd( "Nullhv, {0}, %d, %d", $hv_total_keys, $max );
@@ -113,22 +100,11 @@ sub do_save {
         init()->no_split;
         init()->sadd( qq[{\n] . q{HvSETUP(%s, %d);}, $sym, $max + 1 );
 
-        my @hash_elements;
-        {
-            my $i = 0;
-            my %hash_kv = ( map { $i++, $_ } @hash_content_to_save );
-            @hash_elements = values %hash_kv;    # randomize the hash eleement order to the buckets [ when coliding ]
-        }
-
-        # uncomment for saving hashes in a consistent order while debugging
-        #@hash_elements = @hash_content_to_save;
-
-        foreach my $elt (@hash_elements) {
-            my ( $key, $value ) = @$elt;
+        foreach my $key ( sort keys %contents ) {
 
             # Insert each key into the hash.
             my $shared_he = save_shared_he($key);
-            init()->sadd( q{HvAddEntry(%s, %s, %s, %d);}, $sym, $value, $shared_he, $max );
+            init()->sadd( q{HvAddEntry(%s, %s, %s, %d);}, $sym, $contents{$key}, $shared_he, $max );
 
             #debug( hv => q{ HV key "%s" = %s}, $key, $value );
         }
