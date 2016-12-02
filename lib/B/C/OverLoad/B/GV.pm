@@ -139,15 +139,16 @@ sub savegp_from_gv {
     }
 
     # .... TODO save stuff there
-    $gp_sv = $gv->save_gv_sv($fullname) if $savefields & Save_SV;
-    $gp_av = $gv->save_gv_av($fullname) if $savefields & Save_AV;
-    $gp_hv = $gv->save_gv_hv($fullname) if $savefields & Save_HV;
-    $gp_cv = $gv->save_gv_cv($fullname) if $savefields & Save_CV;
+    $gp_sv   = $gv->save_gv_sv($fullname)     if $savefields & Save_SV;
+    $gp_av   = $gv->save_gv_av($fullname)     if $savefields & Save_AV;
+    $gp_hv   = $gv->save_gv_hv($fullname)     if $savefields & Save_HV;
+    $gp_cv   = $gv->save_gv_cv($fullname)     if $savefields & Save_CV;
+    $gp_form = $gv->save_gv_format($fullname) if $savefields & Save_FORM;       # FIXME incomplete for now
 
     gpsect()->comment('SV, gp_io, CV, cvgen, gp_refcount, HV, AV, CV* form, GV, line, flags, HEK* file');
 
     my $gp_ix = gpsect()->sadd(
-        "(SV*) %s, %s, (CV*) %s, %d, %u, (HV*) %s, %s, %s, %s, %u, %d, %s ",
+        "(SV*) %s, %s, (CV*) %s, %d, %u, (HV*) %s, %s, (CV*) %s, %s, %u, %d, %s ",
         $gp_sv, $gp_io, $gp_cv, $gp_cvgen, $gp_refcount, $gp_hv, $gp_av, $gp_form, $gp_egv,
         $gp_line, $gp_flags, $gp_file_hek eq 'NULL' ? 'NULL' : qq{(HEK*) (&$gp_file_hek + sizeof(HE))}
     );
@@ -207,23 +208,23 @@ sub do_save {
 
     debug( gv => '===== GV::do_save for %s [ savefields=%s ] ', $gv->get_fullname(), _savefields_to_str($savefields) );
 
-    my $gpsym = $gv->savegp_from_gv($savefields);                            # might be $gp->save( )
+    my $gpsym = $gv->savegp_from_gv($savefields);    # might be $gp->save( )
 
     xpvgvsect()->comment("stash, magic, cur, len, xiv_u={.xivu_namehek=}, xnv_u={.xgv_stash=}");
     my $xpvg_ix = xpvgvsect()->sadd(
         "Nullhv, {0}, 0, {.xpvlenu_len=0}, {.xivu_namehek=(HEK*)%s}, {.xgv_stash=%s}",
-        'NULL',                                                              # the namehek (HEK*)
+        'NULL',                                      # the namehek (HEK*)
         'Nullhv'
     );
     my $xpvgv = sprintf( 'xpvgv_list[%d]', $xpvg_ix );
 
     my $gv_ix;
     {
-        my $gv_refcnt = $gv->REFCNT;                                         # TODO probably need more love for both refcnt (+1 ? extra flag immortal)
+        my $gv_refcnt = $gv->REFCNT;                 # TODO probably need more love for both refcnt (+1 ? extra flag immortal)
         my $gv_flags  = $gv->FLAGS;
 
         gvsect()->comment("XPVGV*  sv_any,  U32     sv_refcnt; U32     sv_flags; union   { gp* } sv_u # gp*");
-        $gv_ix = gvsect()->add( sprintf( "&%s, %u, 0x%x, {.svu_gp=(GP*)%s}", $xpvgv, $gv_refcnt, $gv_flags, $gpsym ) );
+        $gv_ix = gvsect()->add( sprintf( "&%s, %u, 0x%x, {.svu_gp=(GP*)%s} /* %s */", $xpvgv, $gv_refcnt, $gv_flags, $gpsym, $gv->get_fullname() ) );
     }
 
     my $gvsym = sprintf( '&gv_list[%d]', $gv_ix );
@@ -245,7 +246,7 @@ sub do_save {
                 # plug the shared_he HEK to xpvgv: GvNAME_HEK($gvsym) =~(similar to) $xpvgv.xiv_u.xivu_namehek
                 # This is the static version of
                 #  init()->sadd( "GvNAME_HEK(%s) = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $gvsym, $shared_he );
-                xpvgvsect->update_field( $xpvg_ix, GV_IX_NAMEHEK(), qq[ {.xivu_namehek=(HEK*) (&$shared_he + sizeof(HE)) } ] );
+                xpvgvsect->supdate_field( $xpvg_ix, GV_IX_NAMEHEK(), qq[ {.xivu_namehek=(HEK*) (&%s + sizeof(HE)) } /* %s */ ], $shared_he, $namespace[-1] );
 
             }
         }
@@ -260,6 +261,8 @@ sub do_save {
 
 =pod
 gv_stashpvn
+
+> rm -f test test.c; configure.524 && perlcc --debug=gv -S test.pl && ./test
 
 # good
 > rm -f a.out*; configure.524; perlcc --debug=gv -S -r -e 'package A; our $x = 0; sub v { ++$x } package main; print A::v()."\n"; print eval q{A::v()}; print " <-\n"; print qq{done\n} '
@@ -433,17 +436,18 @@ sub save_gv_cv {
     my $package = $gv->get_package();
     my $gvcv    = $gv->CV;
     if ( !$$gvcv ) {
-        debug( gv => "Empty CV $fullname, AUTOLOAD and try again" );
-        no strict 'refs';
+
+        #debug( gv => "Empty CV $fullname, AUTOLOAD and try again" );
+        #no strict 'refs';
 
         # Fix test 31, catch unreferenced AUTOLOAD. The downside:
         # It stores the whole optree and all its children.
         # Similar with test 39: re::is_regexp
-        svref_2object( \*{"$package\::AUTOLOAD"} )->save if $package and exists ${"$package\::"}{AUTOLOAD};
-        svref_2object( \*{"$package\::CLONE"} )->save    if $package and exists ${"$package\::"}{CLONE};
-        $gvcv = $gv->CV;    # try again
+        #svref_2object( \*{"$package\::AUTOLOAD"} )->save if $package and exists ${"$package\::"}{AUTOLOAD};
+        #svref_2object( \*{"$package\::CLONE"} )->save    if $package and exists ${"$package\::"}{CLONE};
+        #$gvcv = $gv->CV;    # try again
 
-        return 'NULL';      # ??? really
+        return 'NULL';    # ??? really
     }
 
     return 'NULL' unless ref($gvcv) eq 'B::CV';
@@ -497,6 +501,20 @@ sub save_gv_cv {
     }
 
     return $cvsym;
+}
+
+sub save_gv_format {
+    my ( $gv, $fullname ) = @_;
+
+    my $gvform = $gv->FORM;
+    return 'NULL' unless $gvform && $$gvform;
+
+    return $gvform->save($fullname);
+
+    # init()->sadd( "GvFORM(%s) = (CV*)s\\_%x;", $sym, $$gvform );
+    # init()->sadd( "SvREFCNT_inc(s\\_%x);", $$gvform );
+
+    # return;
 }
 
 sub get_savefields {
