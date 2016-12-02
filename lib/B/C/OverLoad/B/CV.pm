@@ -7,7 +7,6 @@ use B::C::Flags ();
 use B qw/cstring svref_2object CVf_ANON CVf_ANONCONST CVf_CONST main_cv SVf_ROK SVp_POK SVf_IOK SVf_UTF8 SVs_PADSTALE CVf_WEAKOUTSIDE/;
 use B::C::Config;
 use B::C::Decimal qw/get_integer_value/;
-use B::C::Packages qw/is_package_used/;
 use B::C::Save qw/savepvn constpv/;
 use B::C::Save::Hek qw/save_shared_he/;
 use B::C::File qw/init init2 decl svsect xpvcvsect symsect/;

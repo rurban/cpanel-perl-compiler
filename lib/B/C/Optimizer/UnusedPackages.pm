@@ -16,7 +16,7 @@ sub package_was_compiled_in {
     return $was;
 }
 
-sub sub_was_compiled_in {
+sub gv_was_in_original_program {
     return was_compiled_in( shift, 1 );
 }
 

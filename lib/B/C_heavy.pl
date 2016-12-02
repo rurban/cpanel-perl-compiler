@@ -878,12 +878,12 @@ sub dump_rest {
 my @made_c3;
 
 sub make_c3 {
-    my $package = shift or die;
+    my $symbol = shift or die;
 
-    return if ( grep { $_ eq $package } @made_c3 );
-    push @made_c3, $package;
+    return if ( grep { $_ eq $symbol } @made_c3 );
+    push @made_c3, $symbol;
 
-    return init2()->sadd( 'Perl_mro_set_mro(aTHX_ HvMROMETA(%s), newSVpvs("c3"));', savestashpv($package) );
+    return init2()->sadd( 'Perl_mro_set_mro(aTHX_ HvMROMETA(%s), newSVpvs("c3"));', $symbol );
 }
 
 # global state only, unneeded for modules
@@ -905,11 +905,6 @@ sub save_context {
             # -T -1 false, -t 1 true
             "PL_taint_warn = " . ( $^{TAINT} < 0 ? "FALSE" : "TRUE" ) . ";"
         );
-    }
-
-    # need to mark assign c3 to %main::. no need to assign the default dfs
-    if ( is_using_mro() && mro::get_mro("main") eq 'c3' ) {
-        make_c3('main');
     }
 
     no strict 'refs';
@@ -948,19 +943,20 @@ sub save_context {
         $inc_av = $inc_gv->AV->save('main::INC');
     }
 
-    # ensure all included @ISA's are stored (#308), and also assign c3 (#325)
-    my @saved_isa;
-    for my $p ( get_all_packages_used() ) {
-        no strict 'refs';
-        if ( exists( ${ $p . '::' }{ISA} ) and ${ $p . '::' }{ISA} ) {
-            push @saved_isa, $p;
-            svref_2object( \@{ $p . '::ISA' } )->save( $p . '::ISA' );
-            if ( is_using_mro() && mro::get_mro($p) eq 'c3' ) {
-                make_c3($p);
-            }
-        }
-    }
-    debug( [qw/verbose pkg/], "Saved \@ISA for: " . join( " ", @saved_isa ) ) if @saved_isa;
+    # TODO: Not clear if this is needed any more given 
+    ## ensure all included @ISA's are stored (#308), and also assign c3 (#325)
+    #my @saved_isa;
+    #for my $p ( get_all_packages_used() ) {
+    #    no strict 'refs';
+    #    if ( exists( ${ $p . '::' }{ISA} ) and ${ $p . '::' }{ISA} ) {
+    #        push @saved_isa, $p;
+    #        svref_2object( \@{ $p . '::ISA' } )->save( $p . '::ISA' );
+    #        if ( is_using_mro() && mro::get_mro($p) eq 'c3' ) {
+    #            make_c3($p);
+    #        }
+    #    }
+    #}
+    #debug( [qw/verbose pkg/], "Saved \@ISA for: " . join( " ", @saved_isa ) ) if @saved_isa;
     init()->add(
         "GvHV(PL_incgv) = $inc_hv;",
         "GvAV(PL_incgv) = $inc_av;",
@@ -977,8 +973,13 @@ sub save_context {
 
 sub save_main {
     verbose("Starting compile");
+
+    verbose("Backing up all pre-existing stashes.");
+    my $pl_defstash = svref_2object( \%main:: )->do_save('%main::');
+    init()->add("PL_defstash = $pl_defstash;");
+
     verbose("Walking tree");
-    %Exporter::Cache = ();                # avoid B::C and B symbols being stored
+    %Exporter::Cache = ();    # avoid B::C and B symbols being stored
     _delete_macros_vendor_undefined();
     set_curcv(B::main_cv);
 

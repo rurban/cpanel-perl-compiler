@@ -21,7 +21,6 @@ use B::C::Config;
 use B::C::File qw/init xpvhvsect svsect sharedhe decl init1 init2/;
 use B::C::Helpers qw/read_utf8_string strlen_flags is_using_mro/;
 use B::C::Helpers::Symtable qw/objsym savesym/;
-use B::C::Save qw/savestashpv/;
 use B::C::Save::Hek qw/save_shared_he/;
 
 my ($swash_ToCf);
@@ -34,24 +33,12 @@ sub do_save {
     my ( $hv, $fullname ) = @_;
 
     $fullname = '' unless $fullname;
-    my $name     = $hv->NAME;
-    my $is_stash = $name;
+    my $name = $hv->NAME;
     my $magic;
     my $sym;
 
-    if ($name) {
-        my $no_gvadd = $name eq 'main' ? 1 : 0;
-        $sym = savestashpv( $name, $no_gvadd );    # inc hv_index
-        return $hv->do_special_stash_stuff( $name, $sym );
-
-    }
-
-    # protect against recursive self-reference
-    # i.e. with use Moose at stash Class::MOP::Class::Immutable::Trait
-    # value => rv => cv => ... => rv => same hash
-
     my $sv_list_index = svsect()->add("FAKE_HV");
-    $sym = savesym( $hv, "(HV*)&sv_list[$sv_list_index]" ) unless $is_stash;
+    $sym = savesym( $hv, "(HV*)&sv_list[$sv_list_index]" );
 
     # could also simply use: savesym( $hv, sprintf( "s\\_%x", $$hv ) );
 
@@ -63,6 +50,12 @@ sub do_save {
 
         # Walk the values and save them into symbols
         foreach my $key ( sort keys %contents ) {
+
+            # $name means it is a stash.
+            if ( $name && !B::C::Optimizer::UnusedPackages::gv_was_in_original_program( $fullname . $key ) ) {
+                delete $contents{$key};
+                next;
+            }
 
             my $sv = $contents{$key};
 
@@ -129,6 +122,10 @@ sub do_save {
         B::C::make_c3($name);
     }
 
+    if ($name) {
+        $hv->do_special_stash_stuff( $name, $sym );
+    }
+
     return $sym;
 }
 
@@ -143,8 +140,6 @@ sub get_max_hash_from_keys {
 
 sub do_special_stash_stuff {
     my ( $hv, $name, $sym ) = @_;
-
-    savesym( $hv, $sym );
 
     # SVf_AMAGIC is set on almost every stash until it is
     # used.  This forces a transversal of the stash to remove
@@ -203,12 +198,7 @@ sub do_special_stash_stuff {
         B::C::make_c3($name);
     }
 
-    if ( $magic and $magic =~ m/c/ ) {
-        debug( mg => "defer AMT magic of $name" );
-
-        # defer AMT magic of XS loaded hashes.
-        #init1()->add(qq[$sym = gv_stashpvn($cname, $len, GV_ADDWARN|GV_ADDMULTI);]);
-    }
     return $sym;
 }
+
 1;
