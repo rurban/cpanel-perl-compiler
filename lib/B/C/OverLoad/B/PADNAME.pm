@@ -23,9 +23,11 @@ sub do_save {
     $refcnt++ if $refcnt < 1000;    # XXX protect from free, but allow SvREFCOUNT_IMMORTAL
 
     my $str  = $pn->PVX;
-    my $cstr = cstring($str);              # a 5.22 padname is always utf8
-    my $ix   = padnamesect()->index + 1;
-    my $s    = "&padname_list[$ix]";
+    my $cstr = cstring($str);       # a 5.22 padname is always utf8
+    $cstr = '{0}' if $cstr eq '0';
+
+    my $ix = padnamesect()->index + 1;
+    my $s  = "&padname_list[$ix]";
 
     my $pnstr = "((char*)$s)+STRUCT_OFFSET(struct padname_with_str, xpadn_str[0])";
 

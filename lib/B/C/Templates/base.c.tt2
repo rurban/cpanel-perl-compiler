@@ -316,8 +316,9 @@ static void init_pl_strtab(pTHX) {
 }
 
 static void init_assign(pTHX) {
-    U32 i;
 [% IF section.assign_hekkey2pv.index + 1 > 0 %]
+    U32 i;
+
     for (i=0; i < [% section.assign_hekkey2pv.index + 1 %]; i++) {
         sv_list[assign_hekkey2pv_list[i].a].sv_u.svu_pv = sharedhe_list[assign_hekkey2pv_list[i].b]->shared_he_hek.hek_key;
     }
@@ -326,9 +327,9 @@ static void init_assign(pTHX) {
 
 /* only do this for IVs, UVs are less common, not the same win */
 static void init_bodyless_ivs(pTHX) {
+[% IF section.assign_bodyless_iv.index + 1 > 0 %]
     U32 i, svix;
 
-[% IF section.assign_bodyless_iv.index + 1 > 0 %]
     for (i=0; i < [% section.assign_bodyless_iv.index + 1 %]; i++) {
         for (svix=assign_bodyless_iv_list[i].from; svix < assign_bodyless_iv_list[i].to + 1; svix++) {
             bc_SET_SVANY_FOR_BODYLESS_IV(&sv_list[svix]);
@@ -556,12 +557,13 @@ static int fast_perl_destruct( PerlInterpreter *my_perl ) {
 
     if (PL_exit_flags & PERL_EXIT_DESTRUCT_END) {
         dJMPENV;
-        int x = 0;
+        int x;
         JMPENV_PUSH(x);
         if (PL_endav && !PL_minus_c) {
             PL_phase = PERL_PHASE_END;
             call_list(PL_scopestack_ix, PL_endav);
         }
+        PERL_UNUSED_ARG(x);
         JMPENV_POP;
     }
     LEAVE;
@@ -687,6 +689,7 @@ dl_init(pTHX)
 	/* char *file = __FILE__; */
 [% IF optimizer.dynaloader.dl %]
     dTARG;
+    PERL_UNUSED_ARG(targ);
     dSP;
 /* DynaLoader bootstrapping */
     ENTER;
