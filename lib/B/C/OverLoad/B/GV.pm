@@ -83,18 +83,18 @@ sub get_fullname {
 my %saved_gps;
 
 # hardcode the order of GV elements, so we can use macro instead of indexes
-sub GP_IX_SV     { 0 }
-sub GP_IX_IO     { 1 }
-sub GP_IX_CV     { 2 }
-sub GP_IX_CVGEN  { 3 }
-sub GP_IX_REFCNT { 4 }
-sub GP_IX_HV     { 5 }
-sub GP_IX_AV     { 6 }
-sub GP_IX_FORM   { 7 }
-sub GP_IX_GV     { 8 }
-sub GP_IX_LINE   { 9 }
-sub GP_IX_FLAGS  { 10 }
-sub GP_IX_HEK    { 11 }
+sub GP_IX_SV()     { 0 }
+sub GP_IX_IO()     { 1 }
+sub GP_IX_CV()     { 2 }
+sub GP_IX_CVGEN () { 3 }
+sub GP_IX_REFCNT() { 4 }
+sub GP_IX_HV()     { 5 }
+sub GP_IX_AV()     { 6 }
+sub GP_IX_FORM()   { 7 }
+sub GP_IX_GV()     { 8 }
+sub GP_IX_LINE()   { 9 }
+sub GP_IX_FLAGS()  { 10 }
+sub GP_IX_HEK()    { 11 }
 
 # FIXME todo and move later to B/GP.pm ?
 sub savegp_from_gv {
@@ -188,12 +188,12 @@ sub set_dynamic_gv {
 }
 
 # hardcode the order of GV elements, so we can use macro instead of indexes
-sub GV_IX_STASH     { 0 }
-sub GV_IX_MAGIC     { 1 }
-sub GV_IX_CUR       { 2 }
-sub GV_IX_LEN       { 3 }
-sub GV_IX_NAMEHEK   { 4 }
-sub GV_IX_XGV_STASH { 5 }
+sub GV_IX_STASH ()     { 0 }
+sub GV_IX_MAGIC ()     { 1 }
+sub GV_IX_CUR ()       { 2 }
+sub GV_IX_LEN ()       { 3 }
+sub GV_IX_NAMEHEK ()   { 4 }
+sub GV_IX_XGV_STASH () { 5 }
 
 sub do_save {
     my ( $gv, $filter ) = @_;
