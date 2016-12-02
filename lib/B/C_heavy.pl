@@ -943,7 +943,7 @@ sub save_context {
         $inc_av = $inc_gv->AV->save('main::INC');
     }
 
-    # TODO: Not clear if this is needed any more given 
+    # TODO: Not clear if this is needed any more given
     ## ensure all included @ISA's are stored (#308), and also assign c3 (#325)
     #my @saved_isa;
     #for my $p ( get_all_packages_used() ) {
@@ -975,7 +975,7 @@ sub save_main {
     verbose("Starting compile");
 
     verbose("Backing up all pre-existing stashes.");
-    my $pl_defstash = svref_2object( \%main:: )->do_save('%main::');
+    my $pl_defstash = svref_2object( \%main:: )->save('%main::');
     init()->add("PL_defstash = $pl_defstash;");
 
     verbose("Walking tree");

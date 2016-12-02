@@ -17,7 +17,22 @@ sub package_was_compiled_in {
 }
 
 sub gv_was_in_original_program {
-    return was_compiled_in( shift, 1 );
+    my $package = shift;
+    $package =~ s/^main:://;
+    return 1 if $package eq '';     # %main::
+    return 0 if $package eq '0';    # $0
+
+    my $was;
+    if ( $package =~ m/\S::$/ ) {
+        $was = was_compiled_in( $package, 0 );
+    }
+    else {
+        $was = was_compiled_in( $package, 1 );
+    }
+
+    #    print STDERR "GV $package not compiled\n" unless $was;
+
+    return $was;
 }
 
 sub was_compiled_in {

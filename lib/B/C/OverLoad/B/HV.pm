@@ -52,7 +52,7 @@ sub do_save {
         foreach my $key ( sort keys %contents ) {
 
             # $name means it is a stash.
-            if ( $name && !B::C::Optimizer::UnusedPackages::gv_was_in_original_program( $fullname . $key ) ) {
+            if ( $name && !B::C::Optimizer::UnusedPackages::gv_was_in_original_program( $name . '::' . $key ) ) {
                 delete $contents{$key};
                 next;
             }
@@ -64,7 +64,7 @@ sub do_save {
             #}
 
             #debug( hv => "saving HV [ $i / len=$length ]\$" . $fullname . '{' . $key . "} 0x%0x", $sv );
-            $contents{$key} = $sv->save( $fullname . '{' . $key . '}' );    # Turn the hash value into a symbol
+            $contents{$key} = $sv->save($key);    # Turn the hash value into a symbol
 
             delete $contents{$key} if !defined $contents{$key};
         }
