@@ -1,7 +1,7 @@
 # From http://cpansearch.perl.org/src/GOZER/mod_perl-1.31/.gdbinit
 
 #some handy debugging macros, hopefully you'll never need them
-#some don't quite work, like dump_hv and hv_fetch, 
+#some don't quite work, like dump_hv and hv_fetch,
 #where's the bloody manpage for .gdbinit syntax?
 
 set history save on
@@ -54,7 +54,7 @@ end
 define curinfo
    printf "%d:%s\n", PL_curcop->cop_line, \
    ((XPV*)(*(XPVGV*)PL_curcop->cop_filegv->sv_any)\
-   ->xgv_gp->gp_sv->sv_any)->xpv_pv 
+   ->xgv_gp->gp_sv->sv_any)->xpv_pv
 end
 
 define SvPVX
@@ -62,11 +62,11 @@ print ((XPV*) ($arg0)->sv_any )->xpv_pv
 end
 
 define SvCUR
-   print ((XPV*)  ($arg0)->sv_any )->xpv_cur 
+   print ((XPV*)  ($arg0)->sv_any )->xpv_cur
 end
 
 define SvLEN
-   print ((XPV*)  ($arg0)->sv_any )->xpv_len 
+   print ((XPV*)  ($arg0)->sv_any )->xpv_len
 end
 
 define SvEND
@@ -78,15 +78,15 @@ define SvSTASH
 end
 
 define SvTAINTED
-   print ((($arg0)->sv_flags  & (0x00002000 |0x00004000 |0x00008000 ))  && Perl_sv_tainted ($arg0)) 
+   print ((($arg0)->sv_flags  & (0x00002000 |0x00004000 |0x00008000 ))  && Perl_sv_tainted ($arg0))
 end
 
 define SvTRUE
-   print (	!$arg0	? 0	:    (($arg0)->sv_flags  & 0x00040000 ) 	?   ((PL_Xpv  = (XPV*)($arg0)->sv_any ) &&	(*PL_Xpv ->xpv_pv > '0' ||	PL_Xpv ->xpv_cur > 1 ||	(PL_Xpv ->xpv_cur && *PL_Xpv ->xpv_pv != '0'))	? 1	: 0)	:	(($arg0)->sv_flags  & 0x00010000 ) 	? ((XPVIV*)  ($arg0)->sv_any )->xiv_iv  != 0	:   (($arg0)->sv_flags  & 0x00020000 ) 	? ((XPVNV*)($arg0)->sv_any )->xnv_nv  != 0.0	: Perl_sv_2bool ($arg0) ) 
+   print (	!$arg0	? 0	:    (($arg0)->sv_flags  & 0x00040000 ) 	?   ((PL_Xpv  = (XPV*)($arg0)->sv_any ) &&	(*PL_Xpv ->xpv_pv > '0' ||	PL_Xpv ->xpv_cur > 1 ||	(PL_Xpv ->xpv_cur && *PL_Xpv ->xpv_pv != '0'))	? 1	: 0)	:	(($arg0)->sv_flags  & 0x00010000 ) 	? ((XPVIV*)  ($arg0)->sv_any )->xiv_iv  != 0	:   (($arg0)->sv_flags  & 0x00020000 ) 	? ((XPVNV*)($arg0)->sv_any )->xnv_nv  != 0.0	: Perl_sv_2bool ($arg0) )
 end
 
 define GvHV
-   set $hv = (((((XPVGV*)($arg0)->sv_any ) ->xgv_gp) )->gp_hv) 
+   set $hv = (((((XPVGV*)($arg0)->sv_any ) ->xgv_gp) )->gp_hv)
 end
 
 define GvSV
@@ -110,7 +110,7 @@ define CvSTASH
 end
 
 define CvDEPTH
-   print ((XPVCV*)($arg0)->sv_any )->xcv_depth 
+   print ((XPVCV*)($arg0)->sv_any )->xcv_depth
 end
 
 define CvFILEGV
@@ -158,7 +158,7 @@ end
 
 define dflags
     set $flags = $arg0
-    printf "Value: 0x%x\n", $flags
+    printf "Flags value: 0x%x = %d\n", $flags, $flags
     # type
     set $type = 0xf & $flags
     printf "Type:  %d - ", $type
@@ -308,6 +308,114 @@ define dumphv
         printf "%s = `%s'\n", $key, ((XPV*) ($sv)->sv_any )->xpv_pv
         set $i = $i + 1
     end
+end
+
+define dump_defstash
+  print "# PL_defstash:\n"
+  dump_hv PL_defstash
+end
+
+define dump_hv
+  set $hv   = (HV*) $arg0
+  set $keys = (int) ( ((XPVHV*)  ($hv)->sv_any)->xhv_keys )
+  set $max = (int) ( ((XPVHV*)  ($hv)->sv_any)->xhv_max )
+
+  set $i = 0
+  printf "HV: keys=%d ; max=%d\n", $keys, $max
+
+  set $h = (($hv)->sv_u.svu_hash)
+  # check all buckets, max included as this is = X^2 - 1
+  while $i <= $max
+    # only show used buckets
+    if $h[$i]
+      set $c = 1
+      set $next = $h[$i]->hent_next
+      while $next
+        set $c = $c + 1
+        set $next = $next->hent_next
+      end
+      # generic stats for the bucket
+      printf "bucket #%d: 0x%x [ %d element(s) ]\n", $i, $h[$i], $c
+
+      # display all keys in the bucket
+      set $next = $h[$i]
+      printf "  "
+      while $next
+        printf "%s ", ((HEK*) ( (HE*) $next)->hent_hek)->hek_key
+        set $next = $next->hent_next
+      end
+      printf "\n"
+
+      #p (char *) ((HEK*) ( (HE*) 0x618810)->hent_hek)->hek_key
+
+    end
+    set $i = $i + 1
+  end
+
+end
+
+
+define find_and_dump_gv
+   find_and_dump_gv_from_hv $arg0 PL_defstash
+end
+
+define find_and_dump_gv_from_hv
+  set $search = (char*) $arg0
+  set $hv     = (HV*) $arg1
+  set $max = (int) ( ((XPVHV*)  ($hv)->sv_any)->xhv_max )
+
+  set $i = 0
+  set $h = (($hv)->sv_u.svu_hash)
+
+  while $i <= $max
+    if $h[$i]
+      # display all keys in the bucket
+      set $next = $h[$i]
+      while $next
+        set $key  = ((HEK*) ( (HE*) $next)->hent_hek)->hek_key
+        if strcmp($key, $search) == 0
+          printf "Found '%s' HE=0x%x\n", $search, $next
+          dump_gv_from_he $next
+          return
+        end
+
+        set $next = $next->hent_next
+      end
+    end
+    set $i = $i + 1
+  end
+end
+
+define dump_gv_from_he
+  set $he  = (HE*) $arg0
+  set $key = ((HEK*) ((HE*) $he)->hent_hek)->hek_key
+  set $gv  = (GV*) ((HE*) $he)->he_valu.hent_val
+
+  printf "*** HEK key='%s'\n", $key
+  dump_gv $gv
+
+end
+
+define dump_gv
+  set $gv    = (GV*) $arg0
+  set $gp    = (GP*) $gv->sv_u.svu_gp
+  set $xpvgv = (XPVGV*) $gv->sv_any
+  # p *(GP*) ((GV*) ((HE*) 0x69a528)->he_valu.hent_val)->sv_u.svu_gp
+  printf "GV: 0x%x = ", $gv
+  # could also use a simple print
+  #p *$gv
+  printf "{ sv_any=0x%x, refcnt=%d, flags=0x%x, gp=0x%x}\n", $gv->sv_any, $gv->sv_refcnt, $gv->sv_flags, $gv->sv_u.svu_gp
+  printf "\n"
+  svflags $gv
+  printf "\n"
+  printf "SvANY(gv)=XPVGV: 0x%x = { stash=0x%x, magic=0x%x, cur=%d, len=%d, namehek=0x%x, xgv_stash=0x%x }\n", $xpvgv, $xpvgv->xmg_stash, $xpvgv->xmg_u.xmg_magic, $xpvgv->xpv_cur, $xpvgv->xpv_len_u.xpvlenu_len, $xpvgv->xiv_u.xivu_namehek, $xpvgv->xnv_u.xgv_stash
+  #p *$xpvgv
+  printf "GP: 0x%x -> ", $gp
+  p *$gp
+  # .... show keys from the hash
+  set $gp_hv = (HV*) $gp->gp_hv
+  printf "\nKeys from gp_hv=0x%x\n", $gp_hv
+  dump_hv $gp_hv
 end
 
 define hvfetch
