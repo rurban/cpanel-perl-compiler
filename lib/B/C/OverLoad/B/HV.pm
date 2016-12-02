@@ -40,85 +40,10 @@ sub do_save {
     my $sym;
 
     if ($name) {
-
-        # It's a stash. See issue 79 + test 46
-        debug(
-            hv => "Saving stash HV \"%s\" from \"$fullname\" 0x%x MAX=%d\n",
-            $name, $$hv, $hv->MAX
-        );
-
-        # A perl bug means HvPMROOT isn't altered when a PMOP is freed. Usually
-        # the only symptom is that sv_reset tries to reset the PMf_USED flag of
-        # a trashed op but we look at the trashed op_type and segfault.
         my $no_gvadd = $name eq 'main' ? 1 : 0;
-
         $sym = savestashpv( $name, $no_gvadd );    # inc hv_index
-        savesym( $hv, $sym );
+        return $hv->do_special_stash_stuff( $name, $sym );
 
-        # SVf_AMAGIC is set on almost every stash until it is
-        # used.  This forces a transversal of the stash to remove
-        # the flag if its not actually needed.
-        # fix overload stringify
-        # Gv_AMG: potentially removes the AMG flag
-        if ( $hv->FLAGS & SVf_AMAGIC and length($name) and $hv->Gv_AMG ) {
-            init2()->sadd( "mro_isa_changed_in(%s);  /* %s */", $sym, $name );
-        }
-
-        # Add aliases if namecount > 1 (GH #331)
-        # There was no B API for the count or multiple enames, so I added one.
-        my @enames = $hv->ENAMES;
-        if ( @enames > 1 ) {
-            debug( hv => "Saving for $name multiple enames: ", join( " ", @enames ) );
-            my $name_count = $hv->name_count;
-
-            my $hv_max_plus_one = $hv->MAX + 1;
-
-            # If the stash name is empty xhv_name_count is negative, and names[0] should
-            # be already set. but we rather write it.
-            init()->no_split;
-
-            # unshift @enames, $name if $name_count < 0; # stashpv has already set names[0]
-            init()->add(
-                "if (!SvOOK($sym)) {",    # hv_auxinit is not exported
-                "  HE **a;",
-                sprintf( "  Newxz(a, %d + sizeof(struct xpvhv_aux), HE*);", $hv_max_plus_one ),
-                "  SvOOK_on($sym);",
-                "}",
-                "{",
-                "  struct xpvhv_aux *aux = HvAUX($sym);",
-                sprintf( "  Newx(aux->xhv_name_u.xhvnameu_names, %d, HEK*);", scalar $name_count ),
-                sprintf( "  aux->xhv_name_count = %d;",                       $name_count )
-            );
-            my $i = 0;
-            while (@enames) {
-                my ( $cstring, $cur, $utf8 ) = strlen_flags( shift @enames );
-                init()->sadd(
-                    "  aux->xhv_name_u.xhvnameu_names[%u] = share_hek(%s, %d, 0);",
-                    $i++, $cstring, $utf8 ? -$cur : $cur
-                );
-            }
-            init()->add("}");
-            init()->split;
-        }
-
-        # issue 79, test 46: save stashes to check for packages.
-        # and via B::STASHGV we only save stashes for stashes.
-        # For efficiency we skip most stash symbols unless -fstash.
-        # However it should be now safe to save all stash symbols.
-        # $fullname !~ /::$/ or
-
-        $magic = $hv->save_magic( '%' . $name . '::' );    #symtab magic set in PMOP #188 (#267)
-        if ( is_using_mro() && mro::get_mro($name) eq 'c3' ) {
-            B::C::make_c3($name);
-        }
-
-        if ( $magic and $magic =~ m/c/ ) {
-            debug( mg => "defer AMT magic of $name" );
-
-            # defer AMT magic of XS loaded hashes.
-            #init1()->add(qq[$sym = gv_stashpvn($cname, $len, GV_ADDWARN|GV_ADDMULTI);]);
-        }
-        return $sym;
     }
 
     # protect against recursive self-reference
@@ -240,4 +165,74 @@ sub get_max_hash_from_keys {
     return 2**( int( log($keys) / log(2) ) + 1 ) - 1;
 }
 
+sub do_special_stash_stuff {
+    my ( $hv, $name, $sym ) = @_;
+
+    savesym( $hv, $sym );
+
+    # SVf_AMAGIC is set on almost every stash until it is
+    # used.  This forces a transversal of the stash to remove
+    # the flag if its not actually needed.
+    # fix overload stringify
+    # Gv_AMG: potentially removes the AMG flag
+    if ( $hv->FLAGS & SVf_AMAGIC and length($name) and $hv->Gv_AMG ) {
+        init2()->sadd( "mro_isa_changed_in(%s);  /* %s */", $sym, $name );
+    }
+
+    # Add aliases if namecount > 1 (GH #331)
+    # There was no B API for the count or multiple enames, so I added one.
+    my @enames = $hv->ENAMES;
+    if ( @enames > 1 ) {
+        debug( hv => "Saving for $name multiple enames: ", join( " ", @enames ) );
+        my $name_count = $hv->name_count;
+
+        my $hv_max_plus_one = $hv->MAX + 1;
+
+        # If the stash name is empty xhv_name_count is negative, and names[0] should
+        # be already set. but we rather write it.
+        init()->no_split;
+
+        # unshift @enames, $name if $name_count < 0; # stashpv has already set names[0]
+        init()->add(
+            "if (!SvOOK($sym)) {",    # hv_auxinit is not exported
+            "  HE **a;",
+            sprintf( "  Newxz(a, %d + sizeof(struct xpvhv_aux), HE*);", $hv_max_plus_one ),
+            "  SvOOK_on($sym);",
+            "}",
+            "{",
+            "  struct xpvhv_aux *aux = HvAUX($sym);",
+            sprintf( "  Newx(aux->xhv_name_u.xhvnameu_names, %d, HEK*);", scalar $name_count ),
+            sprintf( "  aux->xhv_name_count = %d;",                       $name_count )
+        );
+        my $i = 0;
+        while (@enames) {
+            my ( $cstring, $cur, $utf8 ) = strlen_flags( shift @enames );
+            init()->sadd(
+                "  aux->xhv_name_u.xhvnameu_names[%u] = share_hek(%s, %d, 0);",
+                $i++, $cstring, $utf8 ? -$cur : $cur
+            );
+        }
+        init()->add("}");
+        init()->split;
+    }
+
+    # issue 79, test 46: save stashes to check for packages.
+    # and via B::STASHGV we only save stashes for stashes.
+    # For efficiency we skip most stash symbols unless -fstash.
+    # However it should be now safe to save all stash symbols.
+    # $fullname !~ /::$/ or
+
+    my $magic = $hv->save_magic( '%' . $name . '::' );    #symtab magic set in PMOP #188 (#267)
+    if ( is_using_mro() && mro::get_mro($name) eq 'c3' ) {
+        B::C::make_c3($name);
+    }
+
+    if ( $magic and $magic =~ m/c/ ) {
+        debug( mg => "defer AMT magic of $name" );
+
+        # defer AMT magic of XS loaded hashes.
+        #init1()->add(qq[$sym = gv_stashpvn($cname, $len, GV_ADDWARN|GV_ADDMULTI);]);
+    }
+    return $sym;
+}
 1;
