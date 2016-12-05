@@ -220,19 +220,13 @@ sub do_save {
     # The new method, which saves a SV only works since 5.10 (? Does not work in newer perls)
     my $sv_ix = svsect()->index + 1;
     my $xpvcv_ix;
-    my $new_cv_fw = 0;
-    if ($new_cv_fw) {
-        $sym = savesym( $cv, "CVIX$sv_ix" );
-    }
-    else {
-        svsect()->add("CVIX$sv_ix");
-        svsect()->debug( "&" . $fullname, $cv );
-        $xpvcv_ix = xpvcvsect()->index + 1;
-        xpvcvsect()->add("XPVCVIX$xpvcv_ix");
+    svsect()->add("CVIX$sv_ix");
+    svsect()->debug( "&" . $fullname, $cv );
+    $xpvcv_ix = xpvcvsect()->index + 1;
+    xpvcvsect()->add("XPVCVIX$xpvcv_ix");
 
-        # Save symbol now so that GvCV() doesn't recurse back to us via CvGV()
-        $sym = savesym( $cv, "&sv_list[$sv_ix]" );
-    }
+    # Save symbol now so that GvCV() doesn't recurse back to us via CvGV()
+    $sym = savesym( $cv, "&sv_list[$sv_ix]" );
 
     debug( cv => "saving %s CV 0x%x as %s", $fullname, $$cv, $sym );
 
@@ -289,10 +283,8 @@ sub do_save {
                         if ( $cvstashname ne $gvnew->STASH->NAME or $cvname ne $gvnew->NAME ) {    # UNIVERSAL or AUTOLOAD
                             my $newname = $gvnew->STASH->NAME . "::" . $gvnew->NAME;
                             debug( sub => " New $newname autoloaded. remove old cv" );
-                            unless ($new_cv_fw) {
-                                svsect()->remove;
-                                xpvcvsect()->remove;
-                            }
+                            svsect()->remove;
+                            xpvcvsect()->remove;
                             delsym($oldcv);
 
                             no strict 'refs';
@@ -349,7 +341,7 @@ sub do_save {
             init()->add("/* CV $fullname not found */") if verbose() or debug('sub');
 
             # This block broke test 15, disabled
-            if ( $sv_ix == svsect()->index and !$new_cv_fw ) {    # can delete, is the last SV
+            if ( $sv_ix == svsect()->index ) {    # can delete, is the last SV
                 debug( cv => "No definition for sub $fullname (unable to autoload), skip CV[$sv_ix]" );
                 svsect()->remove;
                 xpvcvsect()->remove;
@@ -453,9 +445,7 @@ sub do_save {
         # svsect()->remove( $sv_ix );
         # xpvcvsect()->remove( $xpvcv_ix );
         # delsym( $cv );
-        if ( !$new_cv_fw ) {
-            symsect()->add("XPVCVIX$xpvcv_ix\t0");
-        }
+        symsect()->add("XPVCVIX$xpvcv_ix\t0");
         $CvFLAGS &= ~0x1000;                   # CVf_DYNFILE
         $CvFLAGS &= ~0x400 if $gv and $$gv;    #CVf_CVGV_RC
         symsect()->sadd(
@@ -463,16 +453,6 @@ sub do_save {
             $sv_ix, $xpvcv_ix, $cv->REFCNT, $CvFLAGS
         );
         return get_cv_string( $fullname, $flags );
-    }
-
-    # Now it is time to record the CV
-    if ($new_cv_fw) {
-        $sv_ix = svsect()->index + 1;
-        if ( !$cvforward{$sym} ) {             # avoid duplicates
-            symsect()->sadd( "%s\t&sv_list[%d]", $sym, $sv_ix );    # forward the old CVIX to the new CV
-            $cvforward{$sym}++;
-        }
-        $sym = savesym( $cv, "&sv_list[$sv_ix]" );
     }
 
     my $proto = defined $pv ? cstring($pv) : 'NULL';
@@ -526,18 +506,7 @@ sub do_save {
 
     # repro only with 5.15.* threaded -q (70c0620) Encode::Alias::define_alias
     WARN("lexwarnsym in XPVCV OUTSIDE: $xpvc") if $xpvc =~ /, \(CV\*\)iv\d/;    # t/testc.sh -q -O3 227
-    if ( !$new_cv_fw ) {
-        symsect()->add("XPVCVIX$xpvcv_ix\t$xpvc");
-    }
-    else {
-        xpvcvsect()->comment('STASH mg_u cur len CV_STASH START_U ROOT_U GV file PADLIST OUTSIDE outside_seq flags depth');
-        xpvcvsect()->add($xpvc);
-        svsect()->sadd(
-            "&xpvcv_list[%d], %Lu, 0x%x, {0}",
-            xpvcvsect()->index, $cv->REFCNT, $cv->FLAGS
-        );
-        svsect()->debug( $fullname, $cv );
-    }
+    symsect()->add("XPVCVIX$xpvcv_ix\t$xpvc");
 
     if ($$cv) {
 
@@ -660,12 +629,12 @@ sub do_save {
     if ( $magic and $$magic ) {
         $cv->save_magic($fullname);    # XXX will this work?
     }
-    if ( !$new_cv_fw ) {
-        symsect()->sadd(
-            "CVIX%d\t(XPVCV*)&xpvcv_list[%u], %Lu, 0x%x, {0}",
-            $sv_ix, $xpvcv_ix, $cv->REFCNT, $cv->FLAGS
-        );
-    }
+
+    symsect()->sadd(
+        "CVIX%d\t(XPVCV*)&xpvcv_list[%u], %Lu, 0x%x, {0}",
+        $sv_ix, $xpvcv_ix, $cv->REFCNT, $cv->FLAGS
+    );
+
     if ($cur) {
         debug( cv => "Saving CV proto %s for CV $sym 0x%x\n", cstring($pv), $$cv );
     }

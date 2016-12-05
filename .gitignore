@@ -23,9 +23,9 @@ log.*.err
 pm_to_blib
 nohup.out
 t/reports
-t/CORE*/*/*.bin
-t/CORE*/*/*.c
-t/CORE*/*/*.subtest.*
+t/*/*/*/*.bin
+t/*/*/*/*.c
+t/*/*/*/*.subtest.*
 t/test-*.sh
 t/*.c
 *.c.lst
