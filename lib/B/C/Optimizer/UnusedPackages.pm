@@ -36,7 +36,7 @@ sub stash_fixup {
         delete $stash->{$name};
     }
 
-    delete $stash->{$_} foreach qw(stderr stdin stdout STDERR STDIN STDOUT ENV 0 1 2 3 4 5 6 7 8 9 @ - + INC ARGV BEGIN _ " , \\ ]), '/';
+    delete $stash->{$_} foreach qw(stderr stdin stdout STDERR STDIN STDOUT ENV 0 1 2 3 4 5 6 7 8 9 @ - + INC ARGV BEGIN _ " \\ ]), q{,}, '/';
 
     # $^X, $^R $^H
     delete $stash->{ chr($_) } foreach qw(24 18 8);
