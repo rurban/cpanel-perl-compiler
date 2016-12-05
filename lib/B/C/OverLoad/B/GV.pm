@@ -194,6 +194,21 @@ sub GV_IX_LEN ()       { 3 }
 sub GV_IX_NAMEHEK ()   { 4 }
 sub GV_IX_XGV_STASH () { 5 }
 
+sub get_stash_symbol {
+    my ($gv) = @_;
+
+    my @namespace = split( '::', $gv->get_fullname() );
+    pop @namespace;
+    my $stash_name = join "::", @namespace;
+
+    my $symbol = $B::HV::stash_cache{$stash_name};
+    return $symbol if $symbol;
+
+    $stash_name .= '::';
+    no strict 'refs';
+    return svref_2object( \%{$stash_name} )->save($stash_name);
+}
+
 sub do_save {
     my ( $gv, $filter ) = @_;
 
@@ -208,10 +223,7 @@ sub do_save {
 
     my $gpsym = $gv->savegp_from_gv($savefields);    # might be $gp->save( )
 
-    my @namespace = split( '::', $gv->get_fullname() );
-    pop @namespace;
-    my $stash_name = join "::", @namespace;
-    my $stash_symbol = $B::HV::stash_cache{$stash_name} or die;
+    my $stash_symbol = $gv->get_stash_symbol();
 
     xpvgvsect()->comment("stash, magic, cur, len, xiv_u={.xivu_namehek=}, xnv_u={.xgv_stash=}");
     my $xpvg_ix = xpvgvsect()->sadd(
