@@ -68,7 +68,6 @@ sub save_compile_state {
     $settings->{'starting_INC'} = save_inc();
 
     $settings->{'starting_stash'} = save_stashes( $::{"main::"}, 1 );
-    delete $settings->{'starting_stash'}->{'B::'};
     set_stashes_enames( $settings->{'starting_stash'} );
 
     # We're

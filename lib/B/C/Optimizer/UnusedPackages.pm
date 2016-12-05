@@ -6,6 +6,52 @@ use strict;
 # use B::C::Config;    # import everything
 # B::C::Packages Aliases
 
+sub stash_fixup {
+    my $stash = $B::C::settings->{'starting_stash'};
+
+    delete $stash->{'B::'};    # What if they use B::Devel
+
+    die if scalar keys %{ $stash->{'O::'} } != 7;
+    delete $stash->{'O::'};
+
+    delete $stash->{'Carp::'}      if ( scalar keys %{ $stash->{'Carp::'} } == 1 );
+    delete $stash->{'UNIVERSAL::'} if ( scalar keys %{ $stash->{'UNIVERSAL::'} } == 4 );
+
+    my %empty_packages = (
+        'version'   => 30,
+        'utf8'      => 8,
+        'DB'        => 2,
+        're'        => 5,
+        'mro'       => 1,
+        'constant'  => 1,
+        'Regexp'    => 1,
+        'CORE'      => 1,
+        'Internals' => 4,
+        'Exporter'  => 0,
+    );
+    foreach my $package ( keys %empty_packages ) {
+        my $name = $package . '::';
+        next unless scalar keys %{ $stash->{$name} } <= $empty_packages{$package};
+        next if $stash->{$name}->{'VERSION'};
+        delete $stash->{$name};
+    }
+
+    delete $stash->{$_} foreach qw(stderr stdin stdout STDERR STDIN STDOUT ENV 0 1 2 3 4 5 6 7 8 9 @ - + INC ARGV BEGIN _ " , \\ ]), '/';
+
+    # $^X, $^R $^H
+    delete $stash->{ chr($_) } foreach qw(24 18 8);
+
+    # $^R + E_TRIE_MAXBUF
+    delete $stash->{ chr(18) . "E_TRIE_MAXBUF" };
+
+    foreach my $key ( keys %$stash ) {
+        delete $stash->{$key} if $key =~ m{^_<};
+    }
+
+    #eval 'use Data::Dumper; $Data::Dumper::Sortkeys=1';    print STDERR Data::Dumper::Dumper($stash); die;
+    return;
+}
+
 sub package_was_compiled_in {
     my $package = shift;
 

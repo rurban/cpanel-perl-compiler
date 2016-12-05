@@ -107,6 +107,8 @@ sub start_heavy {
 
     B::C::Debug::setup_debug( $settings->{'debug_options'}, $settings->{'enable_verbose'} );
 
+    B::C::Optimizer::UnusedPackages::stash_fixup();
+
     save_main();
 
     return;
@@ -971,17 +973,18 @@ sub save_context {
     );
 }
 
+my $pl_defstash;
+
 sub save_main {
     verbose("Starting compile");
 
     verbose("Backing up all pre-existing stashes.");
-    my $pl_defstash = svref_2object( \%main:: )->save('%main::');
-    init()->add("PL_defstash = $pl_defstash;");
+    $pl_defstash = svref_2object( \%main:: )->save('%main::');
 
     verbose("Walking tree");
     %Exporter::Cache = ();    # avoid B::C and B symbols being stored
-    _delete_macros_vendor_undefined();
-    set_curcv(B::main_cv);
+                              #_delete_macros_vendor_undefined();
+                              #set_curcv(B::main_cv);
 
     if ( debug('walk') ) {
         verbose("Enabling B::debug / B::walkoptree_debug");
@@ -1200,6 +1203,7 @@ sub build_template_stash {
     my $c_file_stash = {
         'verbose'               => verbose(),
         'debug'                 => B::C::Debug::save(),
+        'PL_defstash'           => $pl_defstash,
         'creator'               => "created at " . scalar localtime() . " with B::C $VERSION for $^X",
         'DEBUG_LEAKING_SCALARS' => DEBUG_LEAKING_SCALARS(),
         'static_ext'            => $static_ext,

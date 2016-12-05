@@ -56,6 +56,9 @@ sub do_save {
                 delete $contents{$key};
                 next;
             }
+            else {
+                debug( "avc" => "decided to save " . $name . '::' . $key );
+            }
 
             my $sv = $contents{$key};
 
@@ -97,7 +100,7 @@ sub do_save {
 
             # Insert each key into the hash.
             my $shared_he = save_shared_he($key);
-            init()->sadd( q{HvAddEntry(%s, %s, %s, %d);}, $sym, $contents{$key}, $shared_he, $max );
+            init()->sadd( q{HvAddEntry(%s, (SV*) %s, %s, %d);}, $sym, $contents{$key}, $shared_he, $max );
 
             #debug( hv => q{ HV key "%s" = %s}, $key, $value );
         }
@@ -115,7 +118,9 @@ sub do_save {
 
         # defer AMT magic of XS loaded stashes
         my ( $cname, $len, $utf8 ) = strlen_flags($name);
-        init2()->add(qq[$sym = gv_stashpvn($cname, $len, GV_ADDWARN|GV_ADDMULTI|$utf8);]);
+
+        # TODO NEED A BETTER FIX FOR THIS
+        #init2()->add(qq[$sym = gv_stashpvn($cname, $len, GV_ADDWARN|GV_ADDMULTI|$utf8);]);
     }
 
     if ( $name and is_using_mro() and mro::get_mro($name) eq 'c3' ) {
