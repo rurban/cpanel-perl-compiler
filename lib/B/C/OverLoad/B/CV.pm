@@ -645,14 +645,14 @@ sub do_save {
         $stash->save($fullname);
 
         # $sym fixed test 27
-        init()->sadd( "CvSTASH_set((CV*)%s, s\\_%x);", $sym, $$stash );
+        init2()->sadd( "CvSTASH_set((CV*)%s, s\\_%x);", $sym, $$stash );
 
         #init()->sadd( "SvREFCNT_inc(%s);", $sym ); # fixes mro/basic.t and more
 
         # 5.18 bless does not inc sv_objcount anymore. broken by ddf23d4a1ae (#208)
         # We workaround this 5.18 de-optimization by adding it if at least a DESTROY
         # method exists.
-        init()->add("++PL_sv_objcount;") if $cvname eq 'DESTROY';
+        init2()->add("++PL_sv_objcount;") if $cvname eq 'DESTROY';
 
         debug( gv => "done saving STASH 0x%x for CV 0x%x\n", $$stash, $$cv ) if debug('cv');
     }
