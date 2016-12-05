@@ -114,7 +114,7 @@ sub savegp_from_gv {
 
     # gp fields initializations
     # gp_cvgen: not set, no B api ( could be done in init section )
-    my ( $gp_sv, $gp_io, $gp_cv, $gp_cvgen, $gp_hv, $gp_av, $gp_form, $gp_egv ) = ( 'NULL', 'NULL', 'NULL', 0, 'NULL', 'NULL', 'NULL', 'NULL' );
+    my ( $gp_sv, $gp_io, $gp_cv, $gp_cvgen, $gp_hv, $gp_av, $gp_form, $gp_egv ) = ( '(SV*)&PL_sv_undef', 'NULL', 'NULL', 0, 'NULL', 'NULL', 'NULL', 'NULL' );
 
     # walksymtable creates an extra reference to the GV (#197)
     my $gp_refcount = $gv->GvREFCNT - 1;    # +1 for immortal ?
@@ -213,8 +213,10 @@ sub do_save {
     my ( $gv, $filter ) = @_;
 
     # return earlier for special cases
-    return q/(SV*)&PL_sv_undef/ unless B::C::Optimizer::UnusedPackages::package_was_compiled_in( $gv->get_package() );
+    return $CORE_SYMS->{ $gv->get_fullname } if $gv->is_coresym();
     return $gv->save_special_gv() if $gv->is_special_gv();
+
+    return q/(SV*)&PL_sv_undef/ unless B::C::Optimizer::UnusedPackages::package_was_compiled_in( $gv->get_package() );
 
     my $sym = $gv->set_dynamic_gv;
     my $savefields = get_savefields( $gv, $gv->get_fullname(), $filter );

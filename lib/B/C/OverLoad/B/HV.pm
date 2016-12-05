@@ -60,7 +60,7 @@ sub do_save {
                 next;
             }
             else {
-                debug( "avc" => "decided to save " . $name . '::' . $key );
+                debug( "nico" => "decided to save " . $name . '::' . $key );
             }
 
             my $sv = $contents{$key};
