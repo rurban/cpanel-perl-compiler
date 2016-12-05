@@ -427,6 +427,12 @@ static void perl_init0(pTHX) { /* fixup_ppaddr */
 [% END %]
 [% section.init2.output( "    %s\n", 'perl_init2' ) %]
 
+[% IF section.init_stashes.comment() %]
+    /* [% section.init_stashes.comment() %] */
+[% END %]
+[% section.init_stashes.output( "    %s\n", 'perl_init_stashes' ) %]
+
+
 [% IF verbose %]
 /*
     COMPILE STATS:  [% compile_stats %]
@@ -803,6 +809,7 @@ main(int argc, char **argv, char **env)
     init_pl_strtab(); /* Initialize PL_Strtab on our own before perl gets to it in perl_alloc. This allows us to use immportal constant shared HEKs */
 
     PL_defstash = [% PL_defstash %];
+    perl_init_stashes();
 
 	perl_construct( &BC_unthreaded_interpreter );
 	PL_perl_destruct_level = 0;

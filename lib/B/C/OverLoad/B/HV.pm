@@ -18,7 +18,7 @@ use strict;
 
 use B qw/cstring SVf_READONLY SVf_PROTECT SVs_OBJECT SVf_OOK SVf_AMAGIC/;
 use B::C::Config;
-use B::C::File qw/init xpvhvsect svsect sharedhe decl init1 init2/;
+use B::C::File qw/init xpvhvsect svsect sharedhe decl init1 init2 init_stashes/;
 use B::C::Helpers qw/read_utf8_string strlen_flags is_using_mro/;
 use B::C::Helpers::Symtable qw/objsym savesym/;
 use B::C::Save::Hek qw/save_shared_he/;
@@ -28,6 +28,8 @@ my ($swash_ToCf);
 sub swash_ToCf_value {    # NO idea what it s ??
     return $swash_ToCf;
 }
+
+our %stash_cache;
 
 sub do_save {
     my ( $hv, $fullname ) = @_;
@@ -39,6 +41,7 @@ sub do_save {
 
     my $sv_list_index = svsect()->add("FAKE_HV");
     $sym = savesym( $hv, "(HV*)&sv_list[$sv_list_index]" );
+    $stash_cache{$name} = $sym if ($name);
 
     # could also simply use: savesym( $hv, sprintf( "s\\_%x", $$hv ) );
 
@@ -92,28 +95,30 @@ sub do_save {
         )
     );
 
+    my $init = $name ? init_stashes() : init();
     {    # add hash content even if the hash is empty [ maybe only for %INC ??? ]
-        init()->no_split;
-        init()->sadd( qq[{\n] . q{HvSETUP(%s, %d);}, $sym, $max + 1 );
+        $init->no_split;
+        $init->sadd("/* STASH declaration for $name */") if $name;
+        $init->sadd( qq[{\n] . q{HvSETUP(%s, %d);}, $sym, $max + 1 );
 
         foreach my $key ( sort keys %contents ) {
 
             # Insert each key into the hash.
             my $shared_he = save_shared_he($key);
-            init()->sadd( q{HvAddEntry(%s, (SV*) %s, %s, %d);}, $sym, $contents{$key}, $shared_he, $max );
+            $init->sadd( q{HvAddEntry(%s, (SV*) %s, %s, %d);}, $sym, $contents{$key}, $shared_he, $max );
 
             #debug( hv => q{ HV key "%s" = %s}, $key, $value );
         }
 
         # save the iterator in hv_aux (and malloc it)
-        init()->sadd( "HvRITER_set(%s, %d);", $sym, -1 );    # saved $hv->RITER
+        $init->sadd( "HvRITER_set(%s, %d);", $sym, -1 );    # saved $hv->RITER
 
-        init()->add("}");
-        init()->split;
+        $init->add("}");
+        $init->split;
     }
 
     $magic = $hv->save_magic($fullname);
-    init()->add("SvREADONLY_on($sym);") if $hv->FLAGS & SVf_READONLY;
+    $init->add("SvREADONLY_on($sym);") if $hv->FLAGS & SVf_READONLY;
     if ( $magic =~ /c/ ) {
 
         # defer AMT magic of XS loaded stashes

@@ -58,7 +58,7 @@ sub assign_sections {
 }
 
 # These populate the init sections and have a special header.
-sub init_section_names { return qw /init init1 init2/ }
+sub init_section_names { return qw /init init1 init2 init_stashes/ }
 
 sub op_sections {
     return qw { binop condop cop padop loop listop logop op pmop pvop svop unop unopaux methop};

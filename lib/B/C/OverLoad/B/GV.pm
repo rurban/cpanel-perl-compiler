@@ -208,11 +208,17 @@ sub do_save {
 
     my $gpsym = $gv->savegp_from_gv($savefields);    # might be $gp->save( )
 
+    my @namespace = split( '::', $gv->get_fullname() );
+    pop @namespace;
+    my $stash_name = join "::", @namespace;
+    my $stash_symbol = $B::HV::stash_cache{$stash_name} or die;
+
     xpvgvsect()->comment("stash, magic, cur, len, xiv_u={.xivu_namehek=}, xnv_u={.xgv_stash=}");
     my $xpvg_ix = xpvgvsect()->sadd(
-        "Nullhv, {0}, 0, {.xpvlenu_len=0}, {.xivu_namehek=(HEK*)%s}, {.xgv_stash=%s}",
+        "%s, {0}, 0, {.xpvlenu_len=0}, {.xivu_namehek=(HEK*)%s}, {.xgv_stash=%s}",
+        $stash_symbol,                               # ????????
         'NULL',                                      # the namehek (HEK*)
-        'Nullhv'
+        $stash_symbol,                               # ???????
     );
     my $xpvgv = sprintf( 'xpvgv_list[%d]', $xpvg_ix );
 
