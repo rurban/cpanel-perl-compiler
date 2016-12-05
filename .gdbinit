@@ -408,7 +408,9 @@ define dump_gv
   printf "\n"
   svflags $gv
   printf "\n"
-  printf "SvANY(gv)=XPVGV: 0x%x = { stash=0x%x, magic=0x%x, cur=%d, len=%d, namehek=0x%x, xgv_stash=0x%x }\n", $xpvgv, $xpvgv->xmg_stash, $xpvgv->xmg_u.xmg_magic, $xpvgv->xpv_cur, $xpvgv->xpv_len_u.xpvlenu_len, $xpvgv->xiv_u.xivu_namehek, $xpvgv->xnv_u.xgv_stash
+  if ( $xpvgv )
+    printf "SvANY(gv)=XPVGV: 0x%x = { stash=0x%x, magic=0x%x, cur=%d, len=%d, namehek=0x%x, xgv_stash=0x%x }\n", $xpvgv, $xpvgv->xmg_stash, $xpvgv->xmg_u.xmg_magic, $xpvgv->xpv_cur, $xpvgv->xpv_len_u.xpvlenu_len, $xpvgv->xiv_u.xivu_namehek, $xpvgv->xnv_u.xgv_stash
+  end
   #p *$xpvgv
   printf "GP: 0x%x -> ", $gp
   p *$gp

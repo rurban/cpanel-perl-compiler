@@ -78,14 +78,41 @@ sub update_field {
     die "Need to call with row, field, value" unless defined $value;
     die "Extra argument after value" if defined $void;
 
-    my $line = $self->get($row);
-    my @fields = split( ',', $line );    # does not handle comma in comments
+    my $line   = $self->get($row);
+    my @fields = _field_split($line);    # does not handle comma in comments
 
     die "Invalid field id $field" if $field > $#fields;
     $fields[$field] = $value;
-    $line = join ',', @fields;    # update line
+    $line = join ',', @fields;           # update line
 
     return $self->update( $row, $line );
+}
+
+sub _field_split {
+    my $to_split = shift;
+    my @list = split( ',', $to_split );
+    my @ok;
+    my ( $count_open, $count_close );
+    my $str;
+    my $reset = sub { $str = '', $count_open = $count_close = 0 };
+    $reset->();
+    foreach my $next (@list) {
+        $str .= ',' if length $str;
+        $str .= $next;
+        my $snext = $next;
+        $snext =~ s{"[^"]+"}{""}g;    # remove weird content inside double quotes
+        $count_open  += $snext =~ tr/(//;
+        $count_close += $snext =~ tr/)//;
+
+        #warn "$count_open vs $count_close: $str";
+        if ( $count_close == $count_open ) {
+            push @ok, $str;
+            $reset->();
+        }
+    }
+    die "Cannot split correctly '$to_split' (some leftover='$str')" if length $str;
+
+    return @ok;
 }
 
 sub get {
@@ -100,8 +127,8 @@ sub get_field {
     die "Need to call with row, field" unless defined $field;
     die "Extra argument after value" if defined $void;
 
-    my $line = $self->get($row);
-    my @fields = split( ',', $line );    # does not handle comma in comments
+    my $line   = $self->get($row);
+    my @fields = _field_split($line);    # does not handle comma in comments
 
     die "Invalid field id $field" if $field > $#fields;
 
