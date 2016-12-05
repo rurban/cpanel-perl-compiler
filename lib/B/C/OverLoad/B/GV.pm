@@ -8,10 +8,8 @@ use B::C::Config;
 use B::C::Save::Hek qw/save_shared_he/;
 use B::C::Packages qw/is_package_used/;
 use B::C::File qw/init init2 gvsect gpsect xpvgvsect/;
-use B::C::Helpers qw/mark_package get_cv_string strlen_flags/;
+use B::C::Helpers qw/get_cv_string strlen_flags/;
 use B::C::Helpers::Symtable qw/objsym savesym/;
-use B::C::Optimizer::ForceHeavy qw/force_heavy/;
-use B::C::Packages qw/mark_package_used/;
 
 my %gptable;
 
@@ -200,7 +198,7 @@ sub do_save {
     my ( $gv, $filter ) = @_;
 
     # return earlier for special cases
-    return q/(SV*)&PL_sv_undef/   if B::C::skip_pkg( $gv->get_package() );
+    return q/(SV*)&PL_sv_undef/ unless B::C::Optimizer::UnusedPackages::package_was_compiled_in( $gv->get_package() );
     return $gv->save_special_gv() if $gv->is_special_gv();
 
     my $sym = $gv->set_dynamic_gv;
@@ -396,17 +394,6 @@ sub save_gv_hv {                       # new function to be renamed later..
 
     debug( gv => "GV::save \%$fullname" );
 
-    # TODO: cleanup these special cases
-    if ( $fullname eq 'main::!' ) {                                           # force loading Errno
-        init()->add("/* \%! force saving of Errno */");
-        mark_package( 'Errno', 1 );                                           # B::C needs Errno but does not import $!
-    }
-    elsif ( $fullname eq 'main::+' or $fullname eq 'main::-' ) {
-        init()->sadd( "/* %%%s force saving of Tie::Hash::NamedCapture */", $gv->NAME );
-        svref_2object( \&{'Tie::Hash::NamedCapture::bootstrap'} )->save;
-        mark_package( 'Tie::Hash::NamedCapture', 1 );
-    }
-
     # skip static %Encode::Encoding since 5.20. GH #200. sv_upgrade cannot upgrade itself.
     # Let it be initialized by boot_Encode/Encode_XSEncodingm with exceptions.
     # GH #200 and t/testc.sh 75
@@ -468,9 +455,6 @@ sub save_gv_cv {
 
             # TODO
             #die "TODO";
-
-            # debug( pkg => "Boot $package, XS CONSTSUB alias of $fullname to $origname" );
-            mark_package( $package, 1 );
 
             # {
             #     no strict 'refs';
@@ -641,13 +625,6 @@ sub savecv {
         and $cv->XSUB
       ) {
         debug( gv => "Skip internal XS $fullname" );
-
-        # but prevent it from being deleted
-        unless ( $B::C::dumped_package{$package} ) {
-
-            #$B::C::dumped_package{$package} = 1;
-            mark_package( $package, 1 );
-        }
         return;
     }
 
@@ -687,13 +664,6 @@ sub legacy_save {
 
     my $gvname = $gv->NAME();
 
-    # If we come across a stash hash, we therefore have code using it so we need to mark it was used so it won't be deleted.
-    if ( $gvname =~ m/::$/ ) {
-        my $pkg = $gvname;
-        $pkg =~ s/::$//;
-        mark_package_used($pkg);
-    }
-
     my $fullname = $gv->get_fullname();
 
     my $is_empty = $gv->is_empty;
@@ -704,10 +674,6 @@ sub legacy_save {
 
     my $package = $gv->get_package();
     my $name = $package eq 'main' ? $gvname : $fullname;
-
-    if ( my $newgv = force_heavy( $package, $fullname ) ) {
-        $gv = $newgv;                          # defer to run-time autoload, or compile it in?
-    }
 
     # Core syms are initialized by perl so we don't need to other than tracking the symbol itself see init_main_stash()
     $sym = $CORE_SYMS->{$fullname} if $gv->is_coresym();
@@ -734,7 +700,6 @@ sub legacy_save {
             verbose("Forcing bootstrap of $package");
             eval { $package->bootstrap };
         }
-        mark_package( 'attributes', 1 );
 
         $B::C::xsub{attributes} = 'Dynamic-' . $INC{'attributes.pm'};    # XSLoader
         $B::C::use_xsloader = 1;
