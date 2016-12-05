@@ -65,10 +65,7 @@ sub save_pv_or_rv {
 
     my $flags = $sv->FLAGS;
 
-    my ( $static, $shared_hek ) = ( 1, is_shared_hek($sv) );
-
-    $static = 0 if ( ( $sv->FLAGS & ( SVp_SCREAM | SVpbm_VALID ) ) == ( SVp_SCREAM | SVpbm_VALID ) );    # ??
-    $static = 0 if !( $flags & SVf_ROK ) and $sv->PV and $sv->PV =~ /::bootstrap$/;
+    my ( $static, $shared_hek ) = ( 0, is_shared_hek($sv) );
 
     if ( $shared_hek && !$static ) {
         my $savesym = 'NULL';
