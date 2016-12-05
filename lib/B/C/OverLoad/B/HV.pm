@@ -167,34 +167,23 @@ sub do_special_stash_stuff {
         debug( hv => "Saving for $name multiple enames: ", join( " ", @enames ) );
         my $name_count = $hv->name_count;
 
-        my $hv_max_plus_one = $hv->MAX + 1;
-
         # If the stash name is empty xhv_name_count is negative, and names[0] should
         # be already set. but we rather write it.
-        init()->no_split;
+        init_stashes()->no_split;
 
         # unshift @enames, $name if $name_count < 0; # stashpv has already set names[0]
-        init()->add(
-            "if (!SvOOK($sym)) {",    # hv_auxinit is not exported
-            "  HE **a;",
-            sprintf( "  Newxz(a, %d + sizeof(struct xpvhv_aux), HE*);", $hv_max_plus_one ),
-            "  SvOOK_on($sym);",
-            "}",
+        init_stashes()->add(
             "{",
             "  struct xpvhv_aux *aux = HvAUX($sym);",
-            sprintf( "  Newx(aux->xhv_name_u.xhvnameu_names, %d, HEK*);", scalar $name_count ),
+            sprintf( "  Newx(aux->xhv_name_u.xhvnameu_names, %d, HEK*);", $name_count ),
             sprintf( "  aux->xhv_name_count = %d;",                       $name_count )
         );
         my $i = 0;
-        while (@enames) {
-            my ( $cstring, $cur, $utf8 ) = strlen_flags( shift @enames );
-            init()->sadd(
-                "  aux->xhv_name_u.xhvnameu_names[%u] = share_hek(%s, %d, 0);",
-                $i++, $cstring, $utf8 ? -$cur : $cur
-            );
+        foreach my $ename (@enames) {
+            init_stashes()->sadd( "  aux->xhv_name_u.xhvnameu_names[%u] = (HEK*) %s;", $i++, save_shared_he($ename) );
         }
-        init()->add("}");
-        init()->split;
+        init_stashes()->add("}");
+        init_stashes()->split;
     }
     else {
         init_stashes()->sadd( "HvAUX(%s)->xhv_name_u.xhvnameu_name = (HEK*) %s;", $sym, save_shared_he($name) );
