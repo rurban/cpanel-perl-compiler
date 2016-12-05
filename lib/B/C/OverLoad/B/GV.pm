@@ -262,8 +262,8 @@ sub do_save {
                 # plug the shared_he HEK to xpvgv: GvNAME_HEK($gvsym) =~(similar to) $xpvgv.xiv_u.xivu_namehek
                 # This is the static version of
                 #  init()->sadd( "GvNAME_HEK(%s) = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $gvsym, $shared_he );
-                xpvgvsect->supdate_field( $xpvg_ix, GV_IX_NAMEHEK(), qq[ {.xivu_namehek=(HEK*) (&%s + sizeof(HE)) } /* %s */ ], $shared_he, $namespace[-1] );
-
+                #xpvgvsect->supdate_field( $xpvg_ix, GV_IX_NAMEHEK(), qq[ {.xivu_namehek=(HEK*) (&%s + sizeof(HE)) } /* %s */ ], $shared_he, $namespace[-1] );
+                1;
             }
         }
 

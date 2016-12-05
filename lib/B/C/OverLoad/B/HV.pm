@@ -132,9 +132,7 @@ sub do_save {
         B::C::make_c3($name);
     }
 
-    if ($name) {
-        $hv->do_special_stash_stuff( $name, $sym );
-    }
+    $hv->do_special_stash_stuff( $name, $sym );
 
     return $sym;
 }
@@ -150,6 +148,8 @@ sub get_max_hash_from_keys {
 
 sub do_special_stash_stuff {
     my ( $hv, $name, $sym ) = @_;
+
+    return unless $name;
 
     # SVf_AMAGIC is set on almost every stash until it is
     # used.  This forces a transversal of the stash to remove
@@ -195,6 +195,9 @@ sub do_special_stash_stuff {
         }
         init()->add("}");
         init()->split;
+    }
+    else {
+        init_stashes()->sadd( "HvAUX(%s)->xhv_name_u.xhvnameu_name = (HEK*) %s;", $sym, save_shared_he($name) );
     }
 
     # issue 79, test 46: save stashes to check for packages.
