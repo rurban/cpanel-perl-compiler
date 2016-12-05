@@ -80,8 +80,8 @@ my $want = $1;
 ( my $c_file    = $file_to_test ) =~ s/\.t$/.c/;
 ( my $bin_file  = $file_to_test ) =~ s/\.t$/.bin/;
 
-eval q{ END { unlink $bin_file, $c_file, $perl_file unless $ENV{BC_DEVELOPING} }};
-unlink $bin_file, $c_file, $perl_file;
+eval q{ END { unlink $bin_file, $c_file, "$c_file.lst", $perl_file unless $ENV{BC_DEVELOPING} }};
+unlink $bin_file, $c_file, "$c_file.lst", $perl_file;
 
 open( my $fh, '>', $perl_file ) or die "Can't write $perl_file";
 print {$fh} $test_code;

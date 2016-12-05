@@ -75,7 +75,7 @@ pass( $taint ? "Taint mode!" : "Not in taint mode" );
 
 ( my $c_file   = $file_to_test ) =~ s/\.t$/.c/;
 ( my $bin_file = $file_to_test ) =~ s/\.t$/.bin/;
-unlink $bin_file, $c_file;
+unlink $bin_file, $c_file, "$c_file.lst",;
 
 my $PERL = $^X;
 my $blib = ( grep { $_ =~ m{/blib/} } @INC ) ? '-Mblib' : '';
@@ -129,7 +129,7 @@ TODO: SKIP: {
       or note( "TODO Passed: " . join( ", ", @{ $parser->{todo_passed} } ) );
 }
 
-unlink $bin_file, $c_file unless $ENV{BC_DEVELOPING};
+unlink $bin_file, $c_file, "$c_file.lst", unless $ENV{BC_DEVELOPING};
 
 if ( $ENV{BC_DEVELOPING} ) {
     note "List of generated files for ", $file_to_test;
