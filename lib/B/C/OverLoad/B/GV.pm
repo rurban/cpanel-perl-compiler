@@ -136,28 +136,25 @@ sub savegp_from_gv {
         $gp_file_hek = save_shared_he( $gv->FILE );                             # use FILE instead of FILEGV or we will save the B::GV stash
     }
 
-    my $gp_ix = gpsect()->add('FAKE_GP');                                       # add a fake entry to get the index
-    $saved_gps{$gp} = sprintf( "&gp_list[%d]", $gp_ix );
-
     # .... TODO save stuff there
     $gp_sv   = $gv->save_gv_sv($fullname)     if $savefields & Save_SV;
     $gp_av   = $gv->save_gv_av($fullname)     if $savefields & Save_AV;
     $gp_hv   = $gv->save_gv_hv($fullname)     if $savefields & Save_HV;
     $gp_cv   = $gv->save_gv_cv($fullname)     if $savefields & Save_CV;
     $gp_form = $gv->save_gv_format($fullname) if $savefields & Save_FORM;       # FIXME incomplete for now
-    
+
     my $io_sv;
-    ($gp_io, $io_sv) = $gv->save_gv_io( $fullname ) if $savefields & Save_IO;    # FIXME: get rid of sym
+    ( $gp_io, $io_sv ) = $gv->save_gv_io($fullname) if $savefields & Save_IO;    # FIXME: get rid of sym
     $gp_sv = $io_sv if $io_sv;
 
     gpsect()->comment('SV, gp_io, CV, cvgen, gp_refcount, HV, AV, CV* form, GV, line, flags, HEK* file');
 
-    gpsect()->supdate(
-        $gp_ix,
+    my $gp_ix = gpsect()->sadd(
         "(SV*) %s, %s, (CV*) %s, %d, %u, (HV*) %s, %s, (CV*) %s, %s, %u, %d, %s ",
         $gp_sv, $gp_io, $gp_cv, $gp_cvgen, $gp_refcount, $gp_hv, $gp_av, $gp_form, $gp_egv,
         $gp_line, $gp_flags, $gp_file_hek eq 'NULL' ? 'NULL' : qq{(HEK*) (&$gp_file_hek + sizeof(HE))}
     );
+    $saved_gps{$gp} = sprintf( "&gp_list[%d]", $gp_ix );
 
     #print STDERR "===== GP:$gp_ix SV:$gp_sv, AV:$gp_av, HV:$gp_hv, CV:$gp_cv \n";
     # we can only use static values for sv, av, hv, cv, if they are coming from a static list
@@ -254,34 +251,34 @@ sub do_save {
 
     my $gvsym = sprintf( '&gv_list[%d]', $gv_ix );
 
-        debug( gv => 'Save for %s = %s VS %s', $gv->get_fullname(), $gvsym, $gv->NAME );
+    debug( gv => 'Save for %s = %s VS %s', $gv->get_fullname(), $gvsym, $gv->NAME );
 
-        # TODO: split the fullname and plug all of them in known territory...
-        # relies on template logic to preserve the hash structure...
+    # TODO: split the fullname and plug all of them in known territory...
+    # relies on template logic to preserve the hash structure...
 
-        #my @namespace = split( '::', $gv->get_fullname() );
+    #my @namespace = split( '::', $gv->get_fullname() );
 
-        # FIXME... need to plug it to init()->sadd( "%s = %s;", $sym, gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) );
+    # FIXME... need to plug it to init()->sadd( "%s = %s;", $sym, gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) );
 
-        if ( my $gvname = $gv->NAME ) {
-            my $shared_he = save_shared_he($gvname);    # ,....
+    if ( my $gvname = $gv->NAME ) {
+        my $shared_he = save_shared_he($gvname);    # ,....
 
-            if ( $shared_he ne 'NULL' ) {
+        if ( $shared_he ne 'NULL' ) {
 
-                # plug the shared_he HEK to xpvgv: GvNAME_HEK($gvsym) =~(similar to) $xpvgv.xiv_u.xivu_namehek
-                # This is the static version of
-                #  init()->sadd( "GvNAME_HEK(%s) = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $gvsym, $shared_he );
-                # sharedhe_list[68] => shared_he_68
-                my $sharedhe_ix;
-                $sharedhe_ix = $1 if $shared_he =~ qr{\[([0-9]+)\]};
-                die unless defined $sharedhe_ix;
-                my $se = q{shared_he_} . $sharedhe_ix;
-                xpvgvsect->supdate_field( $xpvg_ix, GV_IX_NAMEHEK(), qq[ {.xivu_namehek=(HEK*) (&%s + sizeof(HE)) } /* %s */ ], $se, $gvname );
-                1;
-            }
+            # plug the shared_he HEK to xpvgv: GvNAME_HEK($gvsym) =~(similar to) $xpvgv.xiv_u.xivu_namehek
+            # This is the static version of
+            #  init()->sadd( "GvNAME_HEK(%s) = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $gvsym, $shared_he );
+            # sharedhe_list[68] => shared_he_68
+            my $sharedhe_ix;
+            $sharedhe_ix = $1 if $shared_he =~ qr{\[([0-9]+)\]};
+            die unless defined $sharedhe_ix;
+            my $se = q{shared_he_} . $sharedhe_ix;
+            xpvgvsect->supdate_field( $xpvg_ix, GV_IX_NAMEHEK(), qq[ {.xivu_namehek=(HEK*) (&%s + sizeof(HE)) } /* %s */ ], $se, $gvname );
+            1;
         }
+    }
 
-        return $gvsym;
+    return $gvsym;
 }
 
 =pod
@@ -546,7 +543,7 @@ sub save_gv_io {
         $sv = $gvio->save_data( $fullname, <$fh> ) if $fh->opened;
     }
 
-    return ($gvio->save( $fullname, $is_data ), $sv);
+    return ( $gvio->save( $fullname, $is_data ), $sv );
 }
 
 sub get_savefields {
