@@ -939,10 +939,13 @@ sub save_context {
         verbose("\%INC and \@INC:");
         init()->add('/* %INC */');
         inc_cleanup(0);
+        my %backup_INC = %INC;    # backup INC
+        %INC = %{ $settings->{'starting_INC'} };    # use frozen INC
         my $inc_gv = svref_2object( \*main::INC );
         $inc_hv = $inc_gv->HV->save('main::INC');
         init()->add('/* @INC */');
         $inc_av = $inc_gv->AV->save('main::INC');
+        %INC    = %backup_INC;                      # restore
     }
 
     # TODO: Not clear if this is needed any more given
