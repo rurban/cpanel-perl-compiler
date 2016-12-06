@@ -35,13 +35,13 @@ sub do_save {
     my ( $hv, $fullname ) = @_;
 
     $fullname = '' unless $fullname;
-    my $name = $hv->NAME;
+    my $stash_name = $hv->NAME;
     my $magic;
     my $sym;
 
     my $sv_list_index = svsect()->add("FAKE_HV");
     $sym = savesym( $hv, "(HV*)&sv_list[$sv_list_index]" );
-    $stash_cache{$name} = $sym if ($name);
+    $stash_cache{$stash_name} = $sym if ($stash_name);
 
     # could also simply use: savesym( $hv, sprintf( "s\\_%x", $$hv ) );
 
@@ -54,8 +54,8 @@ sub do_save {
         # Walk the values and save them into symbols
         foreach my $key ( sort keys %contents ) {
 
-            # $name means it is a stash.
-            if ( $name && !B::C::Optimizer::UnusedPackages::gv_was_in_original_program( $name . '::' . $key ) ) {
+            # $stash_name means it is a stash.
+            if ( $stash_name && !B::C::Optimizer::UnusedPackages::gv_was_in_original_program( $stash_name . '::' . $key ) ) {
                 delete $contents{$key};
                 next;
             }
@@ -92,10 +92,10 @@ sub do_save {
         )
     );
 
-    my $init = $name ? init_stashes() : init();
+    my $init = $stash_name ? init_stashes() : init();
     {    # add hash content even if the hash is empty [ maybe only for %INC ??? ]
         $init->no_split;
-        $init->sadd("/* STASH declaration for $name */") if $name;
+        $init->sadd("/* STASH declaration for $stash_name */") if $stash_name;
         $init->sadd( qq[{\n] . q{HvSETUP(%s, %d);}, $sym, $max + 1 );
 
         foreach my $key ( sort keys %contents ) {
@@ -119,17 +119,17 @@ sub do_save {
     if ( $magic =~ /c/ ) {
 
         # defer AMT magic of XS loaded stashes
-        my ( $cname, $len, $utf8 ) = strlen_flags($name);
+        my ( $cname, $len, $utf8 ) = strlen_flags($stash_name);
 
         # TODO NEED A BETTER FIX FOR THIS
         #init2()->add(qq[$sym = gv_stashpvn($cname, $len, GV_ADDWARN|GV_ADDMULTI|$utf8);]);
     }
 
-    if ( $name and is_using_mro() and mro::get_mro($name) eq 'c3' ) {
-        B::C::make_c3($name);
+    if ( $stash_name and is_using_mro() and mro::get_mro($stash_name) eq 'c3' ) {
+        B::C::make_c3($stash_name);
     }
 
-    $hv->do_special_stash_stuff( $name, $sym );
+    $hv->do_special_stash_stuff( $stash_name, $sym );
 
     return $sym;
 }
@@ -144,36 +144,36 @@ sub get_max_hash_from_keys {
 }
 
 sub do_special_stash_stuff {
-    my ( $hv, $name, $sym ) = @_;
+    my ( $hv, $stash_name, $sym ) = @_;
 
-    return unless $name;
+    return unless $stash_name;
 
     # SVf_AMAGIC is set on almost every stash until it is
     # used.  This forces a transversal of the stash to remove
     # the flag if its not actually needed.
     # fix overload stringify
     # Gv_AMG: potentially removes the AMG flag
-    if ( $hv->FLAGS & SVf_AMAGIC and length($name) and $hv->Gv_AMG ) {
-        init2()->sadd( "mro_isa_changed_in(%s);  /* %s */", $sym, $name );
+    if ( $hv->FLAGS & SVf_AMAGIC and length($stash_name) and $hv->Gv_AMG ) {
+        init2()->sadd( "mro_isa_changed_in(%s);  /* %s */", $sym, $stash_name );
     }
 
     # Add aliases if namecount > 1 (GH #331)
     # There was no B API for the count or multiple enames, so I added one.
     my @enames = $hv->ENAMES;
     if ( @enames > 1 ) {
-        debug( hv => "Saving for $name multiple enames: ", join( " ", @enames ) );
-        my $name_count = $hv->name_count;
+        debug( hv => "Saving for $stash_name multiple enames: ", join( " ", @enames ) );
+        my $stash_name_count = $hv->name_count;
 
         # If the stash name is empty xhv_name_count is negative, and names[0] should
         # be already set. but we rather write it.
         init_stashes()->no_split;
 
-        # unshift @enames, $name if $name_count < 0; # stashpv has already set names[0]
+        # unshift @enames, $stash_name if $stash_name_count < 0; # stashpv has already set names[0]
         init_stashes()->add(
             "{",
             "  struct xpvhv_aux *aux = HvAUX($sym);",
-            sprintf( "  Newx(aux->xhv_name_u.xhvnameu_names, %d, HEK*);", $name_count ),
-            sprintf( "  aux->xhv_name_count = %d;",                       $name_count )
+            sprintf( "  Newx(aux->xhv_name_u.xhvnameu_names, %d, HEK*);", $stash_name_count ),
+            sprintf( "  aux->xhv_name_count = %d;",                       $stash_name_count )
         );
         my $i = 0;
         foreach my $ename (@enames) {
@@ -183,7 +183,7 @@ sub do_special_stash_stuff {
         init_stashes()->split;
     }
     else {
-        init_stashes()->sadd( "HvAUX(%s)->xhv_name_u.xhvnameu_name = (HEK*) %s;", $sym, save_shared_he($name) );
+        init_stashes()->sadd( "HvAUX(%s)->xhv_name_u.xhvnameu_name = (HEK*) %s;", $sym, save_shared_he($stash_name) );
     }
 
     # issue 79, test 46: save stashes to check for packages.
@@ -192,9 +192,9 @@ sub do_special_stash_stuff {
     # However it should be now safe to save all stash symbols.
     # $fullname !~ /::$/ or
 
-    my $magic = $hv->save_magic( '%' . $name . '::' );    #symtab magic set in PMOP #188 (#267)
-    if ( is_using_mro() && mro::get_mro($name) eq 'c3' ) {
-        B::C::make_c3($name);
+    my $magic = $hv->save_magic( '%' . $stash_name . '::' );    #symtab magic set in PMOP #188 (#267)
+    if ( is_using_mro() && mro::get_mro($stash_name) eq 'c3' ) {
+        B::C::make_c3($stash_name);
     }
 
     return $sym;
