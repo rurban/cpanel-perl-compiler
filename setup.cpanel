@@ -24,7 +24,7 @@ if [ "$ARG" == "--debug" ]; then
 fi
 
 if [ "$DEBUG" == "1" ]; then
-    export BC_CFLAGS='-Og' # Optimize debugging experience.
+    export BC_CFLAGS='-g' # Optimize debugging experience.
     #else export BC_CFLAGS='' # use default compilation option
 fi
 
