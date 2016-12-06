@@ -59,9 +59,6 @@ sub do_save {
                 delete $contents{$key};
                 next;
             }
-            else {
-                debug( "nico" => "decided to save " . $name . '::' . $key );
-            }
 
             my $sv = $contents{$key};
 
