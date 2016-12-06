@@ -8,13 +8,12 @@ use B::C::Save qw(savepv);
 use B::C::File qw/init init2 svsect xpviosect/;
 
 sub save_data {
-    my ( $io, $sym, $globname, @data ) = @_;
+    my ( $io, $globname, @data ) = @_;
     my $data = join '', @data;
 
     # XXX using $DATA might clobber it!
     my $ref = svref_2object( \\$data )->save;
     init()->add("/* save $globname in RV ($ref) */") if verbose();
-    init()->add("GvSVn( $sym ) = (SV*)$ref;");
 
     # force inclusion of PerlIO::scalar as it was loaded in BEGIN.
     init2()->add_eval( sprintf 'open(%s, \'<:scalar\', $%s);', $globname, $globname );
@@ -23,6 +22,8 @@ sub save_data {
     init()->pre_destruct( sprintf 'eval_pv("close %s;", 1);', $globname );
     $B::C::use_xsloader = 1;                                                  # layers are not detected as XSUB CV, so force it
     $B::C::xsub{'PerlIO::scalar'} = 'Dynamic-' . $INC{'PerlIO/scalar.pm'};    # force dl_init boot
+
+    return $ref;
 }
 
 sub do_save {

@@ -145,7 +145,10 @@ sub savegp_from_gv {
     $gp_hv   = $gv->save_gv_hv($fullname)     if $savefields & Save_HV;
     $gp_cv   = $gv->save_gv_cv($fullname)     if $savefields & Save_CV;
     $gp_form = $gv->save_gv_format($fullname) if $savefields & Save_FORM;       # FIXME incomplete for now
-    $gp_io = $gv->save_gv_io( $fullname, $saved_gps{$gp} ) if $savefields & Save_IO;    # FIXME: get rid of sym
+    
+    my $io_sv;
+    ($gp_io, $io_sv) = $gv->save_gv_io( $fullname ) if $savefields & Save_IO;    # FIXME: get rid of sym
+    $gp_sv = $io_sv if $io_sv;
 
     gpsect()->comment('SV, gp_io, CV, cvgen, gp_refcount, HV, AV, CV* form, GV, line, flags, HEK* file');
 
@@ -251,34 +254,34 @@ sub do_save {
 
     my $gvsym = sprintf( '&gv_list[%d]', $gv_ix );
 
-    debug( gv => 'Save for %s = %s VS %s', $gv->get_fullname(), $gvsym, $gv->NAME );
+        debug( gv => 'Save for %s = %s VS %s', $gv->get_fullname(), $gvsym, $gv->NAME );
 
-    # TODO: split the fullname and plug all of them in known territory...
-    # relies on template logic to preserve the hash structure...
+        # TODO: split the fullname and plug all of them in known territory...
+        # relies on template logic to preserve the hash structure...
 
-    #my @namespace = split( '::', $gv->get_fullname() );
+        #my @namespace = split( '::', $gv->get_fullname() );
 
-    # FIXME... need to plug it to init()->sadd( "%s = %s;", $sym, gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) );
+        # FIXME... need to plug it to init()->sadd( "%s = %s;", $sym, gv_fetchpv_string( $name, $gvadd, 'SVt_PV' ) );
 
-    if ( my $gvname = $gv->NAME ) {
-        my $shared_he = save_shared_he($gvname);    # ,....
+        if ( my $gvname = $gv->NAME ) {
+            my $shared_he = save_shared_he($gvname);    # ,....
 
-        if ( $shared_he ne 'NULL' ) {
+            if ( $shared_he ne 'NULL' ) {
 
-            # plug the shared_he HEK to xpvgv: GvNAME_HEK($gvsym) =~(similar to) $xpvgv.xiv_u.xivu_namehek
-            # This is the static version of
-            #  init()->sadd( "GvNAME_HEK(%s) = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $gvsym, $shared_he );
-            # sharedhe_list[68] => shared_he_68
-            my $sharedhe_ix;
-            $sharedhe_ix = $1 if $shared_he =~ qr{\[([0-9]+)\]};
-            die unless defined $sharedhe_ix;
-            my $se = q{shared_he_} . $sharedhe_ix;
-            xpvgvsect->supdate_field( $xpvg_ix, GV_IX_NAMEHEK(), qq[ {.xivu_namehek=(HEK*) (&%s + sizeof(HE)) } /* %s */ ], $se, $gvname );
-            1;
+                # plug the shared_he HEK to xpvgv: GvNAME_HEK($gvsym) =~(similar to) $xpvgv.xiv_u.xivu_namehek
+                # This is the static version of
+                #  init()->sadd( "GvNAME_HEK(%s) = (HEK*) &(( (SHARED_HE*) %s)->shared_he_hek);", $gvsym, $shared_he );
+                # sharedhe_list[68] => shared_he_68
+                my $sharedhe_ix;
+                $sharedhe_ix = $1 if $shared_he =~ qr{\[([0-9]+)\]};
+                die unless defined $sharedhe_ix;
+                my $se = q{shared_he_} . $sharedhe_ix;
+                xpvgvsect->supdate_field( $xpvg_ix, GV_IX_NAMEHEK(), qq[ {.xivu_namehek=(HEK*) (&%s + sizeof(HE)) } /* %s */ ], $se, $gvname );
+                1;
+            }
         }
-    }
 
-    return $gvsym;
+        return $gvsym;
 }
 
 =pod
@@ -526,12 +529,13 @@ sub save_gv_format {
 }
 
 sub save_gv_io {
-    my ( $gv, $fullname, $sym ) = @_;    # TODO: this one needs sym for now
+    my ( $gv, $fullname ) = @_;    # TODO: this one needs sym for now
 
     my $gvio = $gv->IO;
     return 'NULL' unless $$gvio;
 
     my $is_data;
+    my $sv;
     if ( $fullname eq 'main::DATA' or ( $fullname =~ m/::DATA$/ ) ) {
         no strict 'refs';
         my $fh = *{$fullname}{IO};
@@ -539,10 +543,10 @@ sub save_gv_io {
         $is_data = 'is_DATA';
 
         # TODO: save_data only used for GV... can probably use it there
-        $gvio->save_data( $sym, $fullname, <$fh> ) if $fh->opened;
+        $sv = $gvio->save_data( $fullname, <$fh> ) if $fh->opened;
     }
 
-    return $gvio->save( $fullname, $is_data );
+    return ($gvio->save( $fullname, $is_data ), $sv);
 }
 
 sub get_savefields {
