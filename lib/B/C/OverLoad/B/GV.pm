@@ -198,6 +198,7 @@ sub GV_IX_LEN ()       { 3 }
 sub GV_IX_NAMEHEK ()   { 4 }
 sub GV_IX_XGV_STASH () { 5 }
 
+# i.e. $gv->GvSTASH->save()
 sub get_stash_symbol {
     my ($gv) = @_;
 
@@ -229,14 +230,17 @@ sub do_save {
 
     my $gpsym = $gv->savegp_from_gv($savefields);    # might be $gp->save( )
 
+    my $stash = $gv->STASH->save(); # normally empty. package the gv is blessed into.
+                                    # only overload I think.
     my $stash_symbol = $gv->get_stash_symbol();
 
     xpvgvsect()->comment("stash, magic, cur, len, xiv_u={.xivu_namehek=}, xnv_u={.xgv_stash=}");
+    # * {package::subpkg::} (=GvSTASH) :: name (=NAME_HEK)
     my $xpvg_ix = xpvgvsect()->sadd(
         "%s, {0}, 0, {.xpvlenu_len=0}, {.xivu_namehek=(HEK*)%s}, {.xgv_stash=%s}",
-        $stash_symbol,                               # ????????
+        $stash,                                      # ->STASH (blessed into)
         'NULL',                                      # the namehek (HEK*)
-        $stash_symbol,                               # ???????
+        $stash_symbol,                               # ->GvSTASH
     );
     my $xpvgv = sprintf( 'xpvgv_list[%d]', $xpvg_ix );
 
